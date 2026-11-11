@@ -2,7 +2,7 @@
 
 ### Ypres Salient (Messines & Passchendaele) · The Somme · Vimy Ridge
 
-A visual field guide to the most thoroughly mapped, photographed and recorded trench battlefields of the Western Front. It covers trench maps, 3D cutaways of the trench systems, how each battle unfolded, the weapons and vehicles used, and the uniforms worn on both sides.
+A visual field guide to the most thoroughly mapped, photographed and recorded trench battlefields of the Western Front. It covers trench maps, 3D cutaways of the trench systems, how each battle unfolded, the weapons and vehicles used, the uniforms worn on both sides, and a catalogue of battlefield **assets** (wire, obstacles, structures, equipment) and **actions and hazards** (barrages, mines, gas, mud, raids).
 
 > **About the images:** The two 3D diagrams in `images/` are original illustrations made for this guide. Every other picture loads from **Wikimedia Commons**, so you need an internet connection to see them. Each caption links to the image's Commons page, which gives its full description, date, photographer and licence. Most wartime photographs are public domain (for example, Imperial War Museum Crown-copyright photos, Library and Archives Canada and the Australian War Memorial). Some modern museum photos are CC BY-SA and need attribution if you republish them.
 
@@ -12,14 +12,16 @@ A visual field guide to the most thoroughly mapped, photographed and recorded tr
 
 1. [Why these three battlefields?](#1-why-these-three-battlefields)
 2. [Anatomy of a trench system (3D)](#2-anatomy-of-a-trench-system-3d)
-3. [Battlefield 1: The Ypres Salient (Messines & Passchendaele, 1917)](#3-battlefield-1--the-ypres-salient-messines--passchendaele-1917)
-4. [Battlefield 2: The Somme (1916)](#4-battlefield-2--the-somme-1916)
-5. [Battlefield 3: Vimy Ridge (April 1917)](#5-battlefield-3--vimy-ridge-april-1917)
+3. [Battlefield 1: The Ypres Salient (Messines & Passchendaele, 1917)](#3-battlefield-1-the-ypres-salient-messines--passchendaele-1917)
+4. [Battlefield 2: The Somme (1916)](#4-battlefield-2-the-somme-1916)
+5. [Battlefield 3: Vimy Ridge (April 1917)](#5-battlefield-3-vimy-ridge-april-1917)
 6. [Weapons](#6-weapons)
 7. [Vehicles, artillery transport & aircraft](#7-vehicles-artillery-transport--aircraft)
 8. [Uniforms & helmets](#8-uniforms--helmets)
-9. [Explore the original maps & the ground today (including 3D)](#9-explore-the-original-maps--the-ground-today-including-3d)
-10. [Sources](#10-sources)
+9. [Battlefield assets: obstacles, structures & equipment](#9-battlefield-assets-obstacles-structures--equipment)
+10. [Battlefield actions & hazards](#10-battlefield-actions--hazards)
+11. [Explore the original maps & the ground today (including 3D)](#11-explore-the-original-maps--the-ground-today-including-3d)
+12. [Sources](#12-sources)
 
 ---
 
@@ -219,7 +221,7 @@ Vimy Ridge is an escarpment about 8 km long that rises gently from the west and 
 
 [[IMG USMA_-_Battle_of_Arras_-_Vimy_Ridge_derivative.png | The Arras offensive of April 1917, with Vimy Ridge at its northern end (adapted from the US Military Academy's Great War atlas) | 820]]
 
-> **Want the actual trench maps?** McMaster University digitised a large two-sheet "floor map" of Vimy drawn months before the battle, and Library and Archives Canada holds the original barrage map and plan of attack (see [Section 9](#9-explore-the-original-maps--the-ground-today-including-3d)).
+> **Want the actual trench maps?** McMaster University digitised a large two-sheet "floor map" of Vimy drawn months before the battle, and Library and Archives Canada holds the original barrage map and plan of attack (see [Section 11](#11-explore-the-original-maps--the-ground-today-including-3d)).
 
 ### Preparation: why Vimy is so well recorded
 
@@ -384,7 +386,167 @@ Aircraft were vital for **reconnaissance, aerial photography (which fed the tren
 
 ---
 
-## 9. Explore the original maps & the ground today (including 3D)
+## 9. Battlefield assets: obstacles, structures & equipment
+
+This section catalogues the physical things that covered a Western Front battlefield, grouped by what they were for. Each entry describes what it was, how it was used and where it appears in these three battles.
+
+### 9.1 Wire and other obstacles
+
+Barbed wire was the defining obstacle of the war. It was laid in **belts** several metres deep, often in two or three separate belts, and positioned so that men held up by the wire were caught in the crossfire of machine guns.
+
+| Asset | What it was | Notes |
+|---|---|---|
+| **Wire entanglement (belt)** | Rows of barbed wire strung between pickets, filled in with loose tangled wire | German belts in front of the Somme and Vimy defences could be many metres deep. Shells often tossed the wire around rather than cutting it. |
+| **Double apron fence** | A central line of pickets with wire sloping down to the ground on both sides, like a tent | A standard pattern in British engineering manuals. |
+| **Low (knee-high) entanglement** | Wire wound tight on short stakes only about 15 cm above the ground, often hidden in long grass | Designed to trip men, and very hard to spot. |
+| **Concertina wire / "French wire"** | Coils of wire that could be pulled out like a concertina | Quick to lay, and often placed under or on top of fences. |
+| **Knife rest (cheval de frise)** | A portable timber or steel frame shaped like an X at each end, wrapped in wire | Built in workshops behind the lines, carried forward and dropped into gaps, or used to block a trench. |
+| **"Gooseberries" & "hedgehogs"** | Balls or frames of barbed wire that could be thrown | Used to plug gaps quickly in the dark. |
+| **Wooden pickets → screw pickets** | Posts that held the wire up | Hammering wooden posts in made noise and drew fire. From about 1915, steel **screw ("corkscrew") pickets** could be twisted silently into the ground. |
+| **Trench blocks & wire gates** | Barbed-wire barriers inside a trench | Stopped raiders who got into a trench from moving along it. |
+
+**Cutting the wire:** Before spring 1917, 18-pounder **shrapnel** was the main way of cutting wire, and it often failed. That failure is a big part of the 1 July 1916 disaster. The **No. 106 instantaneous fuze**, used in quantity from 1917 (for example at Vimy), burst shells on contact with the wire instead of burying them first. Infantry also carried **wire-cutters**, and tanks from late 1916 (and in large numbers from 1917) could crush wire flat.
+
+[[ROW Daily_Mail_Postcard_-_An_attack_-_A_wiring_party_going_forward.jpg | Official photograph postcard: "An attack: a wiring party going forward". Note the coils of wire and the screw pickets ;; The_British_Army_on_the_Western_Front,_1914-1918_Q8436.jpg | Men of the York and Lancaster Regiment taking wire forward for a night wiring party]]
+
+[[ROW The_British_Army_on_the_Western_Front,_1914-1918_Q6020.jpg | A barbed-wire gate inside a trench, used to block raiders, Cambrin, 16 September 1917 ;; German_shell_bursting_close_to_our_trenches_(4687968293).jpg | A German shell bursting close to British trenches (National Library of Scotland official photograph)]]
+
+### 9.2 Trench construction & shelters
+
+| Asset | What it was | Notes |
+|---|---|---|
+| **Sandbags** | Hessian bags filled with earth, used by the million | Used for parapets, parados, traverses and blocking breaches. Often damp and rotten. |
+| **Revetments** | Wall linings: timber A-frames, corrugated iron, expanded metal mesh, woven wattle **hurdles** | Without them, trench walls collapsed in rain. See the 3D section in [Section 2](#2-anatomy-of-a-trench-system-3d). |
+| **Gabions & fascines** | Gabions were wicker or wire baskets filled with earth. Fascines were bundles of brushwood | Old siege-engineering techniques. At Cambrai (Nov 1917), tanks carried huge brushwood fascines to drop into wide trenches. |
+| **Duckboards (trench boards)** | Slatted wooden walkways | Laid on trench floors over sumps. At Passchendaele, duckboard tracks laid across the open mud were often the only usable routes. |
+| **Sumps & pumps** | Drainage pits and hand pumps | In Flanders, water lay only a short way below the surface, so trenches there were often built up with sandbag "breastworks" instead of dug down. |
+| **Dugouts** | Underground shelters | British dugouts were often shallow "funk holes" or cut-and-cover shelters. German dugouts on the Somme were mined deep into the chalk. Some command dugouts were reported around 18 m (60 ft) down, with electric light, bunks and several exits. |
+| **Elephant iron shelters** | Heavy, curved corrugated-steel sections, covered with earth | Used for command posts, aid posts and runners' shelters just behind the line. |
+| **Nissen huts** | Prefabricated half-cylinder huts of corrugated iron, invented by Lt-Col Peter Nissen in 1916 | Used for rear camps, stores and hospitals. |
+| **Concrete pillboxes / blockhouses** | German reinforced-concrete shelters and machine-gun posts | They studded the Passchendaele battlefield and could survive all but direct hits from heavy shells. They had to be taken one by one with rifle grenades, Lewis guns and outflanking. |
+| **Infantry subways & tunnels** | Underground passages | 11 subways (~6 km) at Vimy. Mine galleries under Messines, Hill 60 and the Somme. |
+
+[[ROW Chateau_Wood_Ypres_1917.jpg | Australian gunners on a duckboard track through the shattered Chateau Wood, near Hooge, 29 October 1917 (Frank Hurley) ;; 1st_Division_laying_duckboards_over_the_muddy_ground_in_Passchendaele_(AWM_E00837).jpg | Men of the 1st Australian Division laying duckboards across the mud at Passchendaele (Frank Hurley)]]
+
+[[ROW German_trench_Delville_Wood_September_1916.jpg | A wrecked German trench in Delville Wood, September 1916: broken revetments, shattered trees and spoil ;; The_Battle_of_the_Somme,_July-november_1916_Q1396.jpg | A Royal Engineers signal exchange set up in a captured German dugout under Fricourt Château, September 1916]]
+
+[[ROW The_British_Army_on_the_Western_Front,_1914-1918_Q1743.jpg | Lt-Col Peter Nissen in front of one of his Nissen huts, Blangy, 1917 ;; A_German_Gunners_Shelter,_Warlencourt.jpg | A German gunners' shelter at Warlencourt on the Somme (Imperial War Museum)]]
+
+### 9.3 Observation, concealment & signalling
+
+| Asset | What it was | Notes |
+|---|---|---|
+| **Trench periscopes** | Box or tube periscopes with two mirrors | Let sentries watch no man's land without exposing their heads. |
+| **Periscope rifles** | A rifle fitted with a periscope and a remote trigger | First improvised by Australians at Gallipoli in 1915. |
+| **Sniper plates & loopholes** | Steel plates with a small shuttered firing slot, set into the parapet | Used by both sides from the winter of 1914–15. Snipers also wore camouflaged suits. |
+| **Observation-post (OP) "trees"** | Hollow steel cylinders disguised as shell-blasted tree trunks, with a ladder inside | Royal Engineers photographed and measured a real dead tree, built a replica and swapped it in overnight. The Germans built them too (*Baumbeobachter*), and one stood near Messines. |
+| **Camouflage netting & screens** | Nets, painted canvas and scrim over guns, roads and positions | The French formed the first specialist camouflage units ("camoufleurs"). By 1917 every gun position was hidden from aerial cameras. |
+| **Kite balloons** | Tethered hydrogen balloons (German *Drachen*, later the French *Caquot*) with two observers in a basket | Typically flown at about 1,000–2,000 m to spot for the artillery. Observers were among the first to use parachutes routinely. |
+| **Very lights & star shells** | Very pistols fired flares by hand, and star shells were artillery flares on parachutes | They lit up no man's land at night. Men caught in the open had to freeze, or drop flat, until the flare died. Coloured flares were also signals, for example "lift the barrage" or "SOS". |
+| **Gas alarms** | Gongs (often old shell cases or oil drums), rattles, klaxons and bells | A sentry beat the gong at the first sign of gas so everyone could put on respirators. |
+| **Communications** | Buried telephone cable, signal lamps, flags, runners, carrier pigeons and messenger dogs | Shellfire constantly cut the cables, so runners carried many messages under fire. Vimy's planners buried more than 100 km of cable. |
+
+[[ROW Periscope_tranchée_française.jpg | French soldiers using a periscope in a front-line trench ;; Periscope_rifle_Gallipoli_1915.jpg | Australian sniper with a periscope rifle and spotter, Gallipoli, 1915 (the idea spread to the Western Front)]]
+
+[[ROW A_sentry_watching_for_any_sign_of_gas_attacks._He_is_squatting_beside_a_notice_which_reads,_'gas_gong'._The_gong_appears_to_be_a_large_metal_drum,_like_an_oil_drum._The_drumstick_is_hanging_from_a_(4687961895).jpg | A sentry watching for gas beside a "gas gong" made from a metal drum ;; BL9.2inchRailwayGunMkXIIICamouflagedInAction.jpg | A British 9.2-inch railway gun firing under camouflage netting, 1917–18]]
+
+[[IMG A_German_observer_jumping_from_his_observation_balloon,_1917-1918_(49797430512).png | A German observer parachuting from his kite balloon, 1917–18 (colourised; the colours are speculative) | 420]]
+
+### 9.4 Close-quarters & raiding kit
+
+- **Trench clubs, knuckle-duster knives and sharpened spades:** Homemade or unit-made weapons for silent night raids, when a rifle and bayonet were too long to use in a narrow trench.
+- **Bombs (grenades):** Raiders and "bombing parties" cleared trenches bay by bay, working round each traverse with grenades. See [Weapons](#6-weapons).
+- **Blackened faces, cap comforters and no badges:** Raiders went light and unidentifiable so that a captured man gave away nothing about his unit.
+
+[[ROW Crudely_shaped_trench_club_from_World_War_One_-_YORCM1960_145_8.JPG | A crudely shaped trench club (York Castle Museum, CC BY-SA) ;; Party_who_raided_the_German_trenches_(4688507754).jpg | A raiding party back from the German trenches. Two men wear captured *Pickelhauben* as trophies (National Library of Scotland)]]
+
+### 9.5 Terrain features left by the fighting
+
+- **Shell holes:** Overlapping craters, often filled with water, that turned whole landscapes into a moonscape. At Passchendaele, wounded men could drown in them.
+- **Mine craters:** Craters such as Lochnagar, Hawthorn, Spanbroekmolen and the Vimy crater line became fortified features in their own right. Both sides raced to occupy the near lip after a mine went off.
+- **Shattered woods:** Delville, High, Thiepval, Sanctuary, Polygon and Chateau Woods were reduced to splintered stumps, full of fallen trunks, wire and hidden strongpoints.
+- **Ruined villages & cellars:** Places like Pozières, Thiepval, Beaumont-Hamel and Passchendaele were flattened. Their cellars were turned into strongpoints and dugouts.
+- **The "Zone Rouge":** Parts of the Somme and Verdun regions were so contaminated with unexploded shells, gas and human remains that France declared them unfit to farm after the war.
+
+---
+
+## 10. Battlefield actions & hazards
+
+These are the things that *happened* on a battlefield: the events, forces and conditions that killed, wounded or slowed soldiers down.
+
+### 10.1 Artillery: the main killer
+
+| Action | What happened | Example |
+|---|---|---|
+| **Preliminary bombardment** | Days of shelling to cut wire, destroy trenches and kill or demoralise defenders | About 1.5 million shells before 1 July 1916 (Somme), and over a million at Vimy (the "week of suffering"). |
+| **Creeping barrage** | A curtain of shells that moved forward in timed "lifts" just ahead of the infantry | Vimy and Messines in 1917. Infantry who fell behind it were exposed (the 4th Canadian Division at Hill 145). |
+| **Box barrage** | Shells dropped on three sides of a target to cut it off from help | Used to protect trench raids. |
+| **Counter-battery fire** | Locating and destroying enemy guns using flash-spotting, sound-ranging and aircraft | A key reason Vimy succeeded. |
+| **Shrapnel vs high explosive** | Shrapnel shells burst in the air and sprayed balls at men in the open. HE shells exploded on or in the ground, smashing trenches and leaving craters | Both were also used to cut wire. |
+| **Gas shells** | Artillery shells filled with chemical agents | From 1917 most gas was delivered by shell rather than released from cylinders. |
+| **Duds** | Shells that failed to explode, sometimes a large share of a bombardment | They are still dug up in Flanders and Picardy every year (the "iron harvest"). |
+
+[[ROW Hawthorn_Ridge_Redoubt_mine_(1_July_1916)_1.jpg | The Hawthorn Ridge mine explodes at 07:20 on 1 July 1916, ten minutes before zero hour (Ernest Brooks, IWM Q 754) ;; The_Battle_of_the_Somme,_July-november_1916_Q21.jpg | British artillery bombarding German trenches before the attack on La Boisselle, 1 July 1916]]
+
+### 10.2 Mines, tunnelling & explosions
+
+- **Offensive mines:** Galleries were dug under the enemy line, packed with ammonal and fired at zero hour. Examples are Messines (19 mines, ~454 t), Hawthorn Ridge and Lochnagar on the Somme, and the crater fights at Vimy.
+- **Counter-mining & camouflets:** Each side listened for the other's tunnellers with geophones and fired small charges (camouflets) to collapse enemy galleries without breaking the surface. Tunnellers could be trapped and buried alive. On 22 June 1916, a German mine collapsed a British gallery at La Boisselle and buried miners more than 10 m down.
+- **Crater fighting:** After a mine went off, both sides rushed to "consolidate the near lip" of the crater.
+- **Collapsed dugouts:** A direct hit could bury the men inside a dugout.
+
+### 10.3 Gas
+
+- **Cloud attacks:** Gas was released from thousands of cylinders when the wind blew towards the enemy. It was used by the Germans at Ypres in April 1915 and by the British at Loos in 1915 and later. A change in the wind could blow the gas back over the attackers.
+- **Gas shells:** These delivered chlorine, phosgene (which caused the majority of gas casualties) and, from 1917, **mustard gas**. Mustard blistered the skin and eyes and lingered in the ground and in shell holes for days.
+- **Effects for soldiers:** Gas gongs sounding, respirators going on within seconds, and gas settling in low ground, trenches and dugouts. Blinded casualties were led out in lines.
+
+[[ROW Poison_gas_attack.jpg | A poison gas cloud drifting across the battlefield (from *Collier's New Photographic History of the World's War*, 1918) ;; A._Y._Jackson_-_Gas_Attack,_Lievin.jpeg | *Gas Attack, Liévin* by Canadian war artist A. Y. Jackson, near Vimy Ridge, 1918]]
+
+### 10.4 Mud, water & weather
+
+| Hazard | Effect | Where |
+|---|---|---|
+| **Waterlogged ground** | In Flanders, water often lay only a metre or less below the surface. Trenches flooded, and men sometimes stood in water up to the knee or waist | The Ypres Salient, especially Third Ypres (August and October 1917). |
+| **Deep mud & shell holes** | Men sank to the knees or deeper, and the wounded or exhausted sometimes drowned in water-filled craters. Carrying one stretcher could take six or more men and hours of work | Passchendaele, and the Somme in October–November 1916. |
+| **Bogged tanks & guns** | Tanks sank or ditched, and guns sank to their axles. The artillery could not move forward, so attacks lost their support | Poelcappelle and First Passchendaele, October 1917. |
+| **Cold, sleet & snow** | Frostbite and exposure, and poor visibility (which sometimes helped attackers) | Vimy was attacked in sleet and snow on 9–12 April 1917. |
+| **Trench foot** | Feet left wet and cold for days swelled, went numb and could turn gangrenous. It was prevented with whale oil, dry socks and foot inspections | All sectors, worst in winter 1914–15. |
+| **Rats, lice & disease** | Rats thrived on waste and the dead. Lice spread **trench fever** | Everywhere. Men spent hours "chatting" (picking lice from seams). |
+
+[[ROW A_team_of_stretcher_bearers_struggle_through_deep_mud_to_carry_a_wounded_man_to_safety_near_Boesinghe_on_1_August_1917_during_the_Third_Battle_of_Ypres._Q5935.jpg | Stretcher-bearers struggling knee-deep in mud near Boesinghe, 1 August 1917, the second day of Third Ypres (IWM Q 5935) ;; Clearing_away_mud_on_the_Somme_(4688585570).jpg | Clearing away mud on the Somme (National Library of Scotland)]]
+
+### 10.5 Infantry actions
+
+| Action | Description |
+|---|---|
+| **Going "over the top"** | Climbing out of the trench on whistles at zero hour, usually at dawn, and crossing no man's land at a walk or rush behind the barrage. |
+| **Night patrols** | Small parties crawling into no man's land to listen, check the enemy's wire or ambush enemy patrols. They froze whenever a flare went up. |
+| **Wiring parties** | Repairing or extending wire at night, one of the most dreaded jobs. |
+| **Trench raids** | Night attacks of anything from a dozen to a few hundred men to grab prisoners and information, then get out. They were often covered by a box barrage. |
+| **Bombing along a trench** | Clearing an enemy trench bay by bay with grenades, working round each traverse. |
+| **Sniping** | Constant and deadly to anyone who showed his head above the parapet. Sentries used periscopes for this reason. |
+| **Enfilade fire** | Machine-gun fire along the length of a line or trench. It is why traverses and zig-zags were built. |
+| **Flamethrower assault** | Used by German assault pioneers, first against British trenches at Hooge (Ypres) in July 1915. |
+| **Consolidation** | After capturing a trench, the attackers reversed it, moving the fire-step and parapet to face the enemy, before the inevitable counter-attack. |
+
+[[ROW The_Battle_of_the_Somme_film_image1.jpg | A still from the 1916 film *The Battle of the Somme* showing an attack "over the top". This scene is believed to have been **staged** at a training school ;; Bundesarchiv_Bild_183-R22888,_Westfront,_Flammenwerfer.jpg | German flamethrower troops on the Western Front, 1917 (Bundesarchiv, CC BY-SA)]]
+
+### Quick-reference: how each hazard affects a soldier
+
+| Hazard | Movement | Visibility | Main danger | Strongest in |
+|---|---|---|---|---|
+| Barbed wire | Stops or channels movement | — | Caught in machine-gun fire | Somme, 1 July 1916 |
+| Mud & flooded shell holes | Very slow, or stuck | — | Exhaustion, drowning, exposure | Passchendaele 1917 |
+| Shellfire / barrage | Forces men to dig in or rush forward | Smoke & dust | Blast, splinters, burial | All three |
+| Gas | Slows men (respirators restrict breathing and vision) | Low | Choking, burns, blindness | Ypres Salient |
+| Flares at night | Men freeze or drop flat | Sudden bright light | Spotted by snipers and machine guns | All three |
+| Mines | — | — | Massive blast, craters, burial | Messines, Somme, Vimy |
+| Snow / sleet | Slower | Low | Cold, losing direction | Vimy 1917 |
+
+---
+
+## 11. Explore the original maps & the ground today (including 3D)
 
 ### Original trench maps & aerial photos (free online)
 
@@ -409,7 +571,7 @@ Aircraft were vital for **reconnaissance, aerial photography (which fed the tren
 
 ---
 
-## 10. Sources
+## 12. Sources
 
 **Battles**
 - Battle of the Somme; Battle of Passchendaele; Battle of Vimy Ridge; Battle of Messines (1917); Mines in the Battle of Messines; Trench warfare. *Wikipedia* (articles accessed via mirrors, Nov 2026).
@@ -425,6 +587,17 @@ Aircraft were vital for **reconnaissance, aerial photography (which fed the tren
 - *The slouch hat* and *AIF headwear 1914–1918*, Australian War Memorial. <https://www.awm.gov.au/articles/blog/australian-imperial-force-aif-headwear-1914-1918>
 - *Uniforms of World War One*, History Hit; *Infantryman* and *1915 Adrian helmet*, Musée de la Grande Guerre.
 - Wikipedia articles: Lee–Enfield, MG 08, QF 18-pounder gun, Mills bomb, Stielhandgranate, Brodie helmet, Stahlhelm, Adrian helmet, Sopwith Camel, Fokker Dr.I.
+
+**Battlefield assets, actions & hazards**
+- *Barbed wire* (Supply Line education kit, PDF), Canadian War Museum. <https://warmuseum.ca/wp-content/uploads/2023/08/CWM_SupplyLine_BarbedWire_EN_FINAL_20140922.pdf>
+- *Barbed wire*, *Gas warfare* and *Flamethrower*, 1914-1918-online. <https://encyclopedia.1914-1918-online.net/article/gas-warfare/>
+- Wikipedia articles: Wiring party, Wire obstacle, Trench raiding club, Camouflage tree, Flare gun, Trench rats.
+- *The Battle of Cambrai: The Fascine*, The Tank Museum. <https://tankmuseum.org/?p=4346>
+- *Fake trees as observation posts*, Smithsonian Magazine. <https://www.smithsonianmag.com/travel/fake-spy-trees-WWI-180962179/>
+- *Observation Balloons on the Western Front*, Western Front Association. <https://www.westernfrontassociation.com/world-war-i-articles/2008/may/observation-balloons-on-the-western-front/>
+- *Trench Mud*, Spartacus Educational; *Visualising the trenches*, The Long, Long Trail. <https://www.longlongtrail.co.uk/visualising-the-trenches/>
+- *Mining the Somme*, Mining Magazine. <https://miningmagazine.com/mining-the-past/opinion/1263347/mining-somme>
+- *Star shell*, FirstWorldWar.com (archived by Library and Archives Canada).
 
 **Maps**
 - National Library of Scotland trench maps; McMaster University Library; Western Front Association TrenchMapper; *Utilizing Trench Maps*, Military & Family History blog (the 34 million maps estimate).

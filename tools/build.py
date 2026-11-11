@@ -12,6 +12,13 @@ BIG = {
     "A_Mark_IV_(Male)_tank_of_'H'_Battalion,_'Hyacinth',_ditched_in_a_German_trench_while_supporting_1st_Battalion,_Leicestershire_Regiment_near_Ribecourt_during_the_Battle_of_Cambrai,_20_November_1917._Q6432.jpg",
     "Bundesarchiv_Bild_183-R05148,_Westfront,_deutscher_Soldat_(higher_res).jpg",
     "Sopwith_Camel_at_the_Imperial_War_Museum.jpg",
+    "The_British_Army_on_the_Western_Front,_1914-1918_Q8436.jpg", "Chateau_Wood_Ypres_1917.jpg",
+    "1st_Division_laying_duckboards_over_the_muddy_ground_in_Passchendaele_(AWM_E00837).jpg",
+    "German_trench_Delville_Wood_September_1916.jpg", "Periscope_tranchée_française.jpg",
+    "A_German_observer_jumping_from_his_observation_balloon,_1917-1918_(49797430512).png",
+    "Crudely_shaped_trench_club_from_World_War_One_-_YORCM1960_145_8.JPG",
+    "A_team_of_stretcher_bearers_struggle_through_deep_mud_to_carry_a_wounded_man_to_safety_near_Boesinghe_on_1_August_1917_during_the_Third_Battle_of_Ypres._Q5935.jpg",
+    "A._Y._Jackson_-_Gas_Attack,_Lievin.jpeg", "Daily_Mail_Postcard_-_An_attack_-_A_wiring_party_going_forward.jpg",
 }
 SAFE = "()_-.'"
 used = []
