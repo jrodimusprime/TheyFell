@@ -20,6 +20,13 @@ BIG = {
     "A_team_of_stretcher_bearers_struggle_through_deep_mud_to_carry_a_wounded_man_to_safety_near_Boesinghe_on_1_August_1917_during_the_Third_Battle_of_Ypres._Q5935.jpg",
     "A._Y._Jackson_-_Gas_Attack,_Lievin.jpeg", "Daily_Mail_Postcard_-_An_attack_-_A_wiring_party_going_forward.jpg",
 }
+# Per-file thumbnail widths for originals too large for GitHub's image proxy.
+THUMB_W = {
+    "British_infantry_Morval_25_September_1916.jpg": 500,
+    "First_Battle_of_Passchendaele_-_barrage_map.jpg": 960,
+    "Richard_Jack-The_Taking_of_Vimy_Ridge_(CWM_19710261-0160).jpg": 1280,
+    "The_British_Army_on_the_Western_Front,_1914-1918_Q6020.jpg": 960,
+}
 SAFE = "()_-.'"
 used = []
 
@@ -32,6 +39,8 @@ def urls(name):
     base = "https://upload.wikimedia.org/wikipedia/commons"
     if name.endswith(".svg"):
         src = f"{base}/thumb/{h[0]}/{h[:2]}/{q}/1280px-{q}.png"
+    elif name in THUMB_W:
+        src = f"{base}/thumb/{h[0]}/{h[:2]}/{q}/{THUMB_W[name]}px-{q}"
     elif name in BIG:
         src = f"{base}/thumb/{h[0]}/{h[:2]}/{q}/1280px-{q}"
     else:

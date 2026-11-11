@@ -98,7 +98,7 @@ Real examples:
 
 <table>
 <tr>
-<td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/8/87/First_Battle_of_Passchendaele_-_barrage_map.jpg" alt="1:10,000 artillery barrage map for the First Battle of Passchendaele, 12 October 1917 (Australian War Memorial)" width="100%"><br><sub>1:10,000 artillery barrage map for the First Battle of Passchendaele, 12 October 1917 (Australian War Memorial) · <a href="https://commons.wikimedia.org/wiki/File:First_Battle_of_Passchendaele_-_barrage_map.jpg">Commons</a></sub></td>
+<td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/First_Battle_of_Passchendaele_-_barrage_map.jpg/960px-First_Battle_of_Passchendaele_-_barrage_map.jpg" alt="1:10,000 artillery barrage map for the First Battle of Passchendaele, 12 October 1917 (Australian War Memorial)" width="100%"><br><sub>1:10,000 artillery barrage map for the First Battle of Passchendaele, 12 October 1917 (Australian War Memorial) · <a href="https://commons.wikimedia.org/wiki/File:First_Battle_of_Passchendaele_-_barrage_map.jpg">Commons</a></sub></td>
 <td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/a/a2/Front_line_after_Poelcapelle_and_1st_Passchendaele_9-12_October_1917.jpg" alt="The front line after Poelcappelle and First Passchendaele, 9–12 October 1917" width="100%"><br><sub>The front line after Poelcappelle and First Passchendaele, 9–12 October 1917 · <a href="https://commons.wikimedia.org/wiki/File:Front_line_after_Poelcapelle_and_1st_Passchendaele_9-12_October_1917.jpg">Commons</a></sub></td>
 </tr>
 </table>
@@ -278,7 +278,7 @@ gantt
 <table>
 <tr>
 <td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/7/7b/Vickers_machine_gun_crew_with_gas_masks.jpg" alt="Vickers machine-gun crew in PH-type anti-gas helmets near Ovillers, July 1916" width="100%"><br><sub>Vickers machine-gun crew in PH-type anti-gas helmets near Ovillers, July 1916 · <a href="https://commons.wikimedia.org/wiki/File:Vickers_machine_gun_crew_with_gas_masks.jpg">Commons</a></sub></td>
-<td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/d/d3/British_infantry_Morval_25_September_1916.jpg" alt="British infantry advancing during the Battle of Morval, 25 September 1916" width="100%"><br><sub>British infantry advancing during the Battle of Morval, 25 September 1916 · <a href="https://commons.wikimedia.org/wiki/File:British_infantry_Morval_25_September_1916.jpg">Commons</a></sub></td>
+<td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/British_infantry_Morval_25_September_1916.jpg/500px-British_infantry_Morval_25_September_1916.jpg" alt="British infantry advancing during the Battle of Morval, 25 September 1916" width="100%"><br><sub>British infantry advancing during the Battle of Morval, 25 September 1916 · <a href="https://commons.wikimedia.org/wiki/File:British_infantry_Morval_25_September_1916.jpg">Commons</a></sub></td>
 </tr>
 </table>
 
@@ -330,7 +330,7 @@ Vimy Ridge is an escarpment about 8 km long that rises gently from the west and 
 
 ### Images
 
-<p align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/9/96/Richard_Jack-The_Taking_of_Vimy_Ridge_(CWM_19710261-0160).jpg" alt="The Taking of Vimy Ridge, Easter Monday 1917 by Richard Jack, a Canadian War Memorials painting" width="820"><br><sub>"The Taking of Vimy Ridge, Easter Monday 1917" by Richard Jack, a Canadian War Memorials painting · <a href="https://commons.wikimedia.org/wiki/File:Richard_Jack-The_Taking_of_Vimy_Ridge_(CWM_19710261-0160).jpg">Wikimedia Commons</a></sub></p>
+<p align="center"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Richard_Jack-The_Taking_of_Vimy_Ridge_(CWM_19710261-0160).jpg/1280px-Richard_Jack-The_Taking_of_Vimy_Ridge_(CWM_19710261-0160).jpg" alt="The Taking of Vimy Ridge, Easter Monday 1917 by Richard Jack, a Canadian War Memorials painting" width="820"><br><sub>"The Taking of Vimy Ridge, Easter Monday 1917" by Richard Jack, a Canadian War Memorials painting · <a href="https://commons.wikimedia.org/wiki/File:Richard_Jack-The_Taking_of_Vimy_Ridge_(CWM_19710261-0160).jpg">Wikimedia Commons</a></sub></p>
 
 <table>
 <tr>
@@ -561,7 +561,7 @@ Barbed wire was the defining obstacle of the war. It was laid in **belts** sever
 
 <table>
 <tr>
-<td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/a/aa/The_British_Army_on_the_Western_Front%2C_1914-1918_Q6020.jpg" alt="A barbed-wire gate inside a trench, used to block raiders, Cambrin, 16 September 1917" width="100%"><br><sub>A barbed-wire gate inside a trench, used to block raiders, Cambrin, 16 September 1917 · <a href="https://commons.wikimedia.org/wiki/File:The_British_Army_on_the_Western_Front%2C_1914-1918_Q6020.jpg">Commons</a></sub></td>
+<td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/The_British_Army_on_the_Western_Front%2C_1914-1918_Q6020.jpg/960px-The_British_Army_on_the_Western_Front%2C_1914-1918_Q6020.jpg" alt="A barbed-wire gate inside a trench, used to block raiders, Cambrin, 16 September 1917" width="100%"><br><sub>A barbed-wire gate inside a trench, used to block raiders, Cambrin, 16 September 1917 · <a href="https://commons.wikimedia.org/wiki/File:The_British_Army_on_the_Western_Front%2C_1914-1918_Q6020.jpg">Commons</a></sub></td>
 <td width="50%" align="center" valign="top"><img src="https://upload.wikimedia.org/wikipedia/commons/9/9d/German_shell_bursting_close_to_our_trenches_(4687968293).jpg" alt="A German shell bursting close to British trenches (National Library of Scotland official photograph)" width="100%"><br><sub>A German shell bursting close to British trenches (National Library of Scotland official photograph) · <a href="https://commons.wikimedia.org/wiki/File:German_shell_bursting_close_to_our_trenches_(4687968293).jpg">Commons</a></sub></td>
 </tr>
 </table>
