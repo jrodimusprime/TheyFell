@@ -2,7 +2,7 @@
 
 ### Ypres Salient (Messines & Passchendaele) · The Somme · Vimy Ridge
 
-A visual field guide to the most thoroughly mapped, photographed and recorded trench battlefields of the Western Front. It covers trench maps, 3D cutaways of the trench systems, how each battle unfolded, the weapons and vehicles used, the uniforms worn on both sides, and a catalogue of battlefield **assets** (wire, obstacles, structures, equipment) and **actions and hazards** (barrages, mines, gas, mud, raids).
+A visual field guide to the most thoroughly mapped, photographed and recorded trench battlefields of the Western Front. It covers trench maps, 3D cutaways of the trench systems, how each battle unfolded, the weapons and vehicles used, the uniforms worn on both sides, and a catalogue of battlefield **assets** (wire, obstacles, structures, equipment) and **actions and hazards** (barrages, mines, gas, mud, raids). It finishes with a **complete asset checklist for building a WWI trench-warfare game**, based on what existing WWI games contain.
 
 > **About the images:** The two 3D diagrams in `images/` are original illustrations made for this guide. Every other picture loads from **Wikimedia Commons**, so you need an internet connection to see them. Each caption links to the image's Commons page, which gives its full description, date, photographer and licence. Most wartime photographs are public domain (for example, Imperial War Museum Crown-copyright photos, Library and Archives Canada and the Australian War Memorial). Some modern museum photos are CC BY-SA and need attribution if you republish them.
 
@@ -20,8 +20,9 @@ A visual field guide to the most thoroughly mapped, photographed and recorded tr
 8. [Uniforms & helmets](#8-uniforms--helmets)
 9. [Battlefield assets: obstacles, structures & equipment](#9-battlefield-assets-obstacles-structures--equipment)
 10. [Battlefield actions & hazards](#10-battlefield-actions--hazards)
-11. [Explore the original maps & the ground today (including 3D)](#11-explore-the-original-maps--the-ground-today-including-3d)
-12. [Sources](#12-sources)
+11. [Building a WWI trench-warfare game: the full asset list](#11-building-a-wwi-trench-warfare-game-the-full-asset-list)
+12. [Explore the original maps & the ground today (including 3D)](#12-explore-the-original-maps--the-ground-today-including-3d)
+13. [Sources](#13-sources)
 
 ---
 
@@ -221,7 +222,7 @@ Vimy Ridge is an escarpment about 8 km long that rises gently from the west and 
 
 [[IMG USMA_-_Battle_of_Arras_-_Vimy_Ridge_derivative.png | The Arras offensive of April 1917, with Vimy Ridge at its northern end (adapted from the US Military Academy's Great War atlas) | 820]]
 
-> **Want the actual trench maps?** McMaster University digitised a large two-sheet "floor map" of Vimy drawn months before the battle, and Library and Archives Canada holds the original barrage map and plan of attack (see [Section 11](#11-explore-the-original-maps--the-ground-today-including-3d)).
+> **Want the actual trench maps?** McMaster University digitised a large two-sheet "floor map" of Vimy drawn months before the battle, and Library and Archives Canada holds the original barrage map and plan of attack (see [Section 12](#12-explore-the-original-maps--the-ground-today-including-3d)).
 
 ### Preparation: why Vimy is so well recorded
 
@@ -546,7 +547,168 @@ These are the things that *happened* on a battlefield: the events, forces and co
 
 ---
 
-## 11. Explore the original maps & the ground today (including 3D)
+## 11. Building a WWI trench-warfare game: the full asset list
+
+This section looks at what existing WWI games actually contain, then gives a complete asset checklist for building one. Each item links back to the history earlier in this guide so it can be made accurately.
+
+### 11.1 What's inside existing WWI games
+
+For **open-source** games I cloned the repositories and listed their real asset files. For **commercial** games the files aren't public, so their contents come from developer posts, community wikis and published data-mining.
+
+| Game | Type / engine | Assets found |
+|---|---|---|
+| **[arf20/ww1game](https://github.com/arf20/ww1game)** (open source) | 2D side-scroller, C + SDL2 | **Factions** `british_empire`, `german_empire`, each with a flag. **Unit classes** `rifleman` and `officer`, each with sprite animations `idle`, `walk` (4 frames), `fire` (up to 19 frames) and `death` (4–7 frames). Each unit has a `properties.cfg` of numeric stats. **Terrain tileset** `summer`: grass, dirt, uphill and downhill slopes, and trench left, right, top and bottom pieces. **Parallax backgrounds** (3 layers), bullet, flagpole. **Campaign maps** stored as ASCII tile grids (e.g. a Cambrai map). **Audio:** per-faction marching music and victory stings, and a firing sound per unit class. Fallback `missing_texture.png` and `missing_sound.ogg`. |
+| **[webmatze/sky_aces_1917](https://github.com/webmatze/sky_aces_1917)** (open source) | Air-combat game, DragonRuby | **Ground tiles:** trench, mud, forest, village, wheat, ploughed, fallow, meadow, water. **FX sprites:** smoke puff, three cloud types, sky, haze, vignette, shadow. **HUD:** radar, gauge, gunsight ring. **Sounds:** engine, wind, gun, gun **jam**, hit, explosion. Screenshots show flak, balloons and a cockpit view. |
+| **[StephenLear/trenches-ww1-tactics](https://github.com/StephenLear/trenches-ww1-tactics)** (open source) | Turn-based tactics, React Native | **Unit types** in code: infantry, machine gun, officer, artillery, tank, medic, sniper, cavalry, scout. **Terrain types:** trench, crater, barbed wire, mud, forest, mountain, beach, water, objective. **Backdrops:** archival-style photos (Passchendaele mud, Ypres ruins, going over the top, stretcher-bearers and others). **SFX:** rifle shot, MG burst, explosion, footsteps in snow, UI clicks. |
+| **[JacobSulewski/TrenchesRTS](https://github.com/JacobSulewski/TrenchesRTS)** (open source) | 2-player RTS built on trench digging, C# with an entity-component system | A JSON **sprite-sheet schema** (texture, animation speed and frame rectangles per sprite). A good example of keeping animation data out of code. |
+| **Trench Warfare** (itch.io student project) | Top-down shooter, Unity | A published asset list: animation controllers per weapon, gun, hurt and death sounds, **mud materials** (cracked mud, frosty field, tyre tracks), prefabs (bullets, crates, medkit), a `BarbedWire` damage script, and truck, artillery and barbed-wire sprites. ⚠️ It includes an **MP40**, which is a WWII weapon. This is a typical accuracy slip (see 11.4). |
+| **Verdun / Tannenberg / Isonzo** (BlackMill Games) | Multiplayer FPS, Unity | Four-man **squads with fixed roles**, historically modelled uniforms and weapons, and maps based on real battlefields (Verdun alone lists 50+ weapons on its wiki). **Verdun** only: trench shotgun, MP 18, flamethrower, anti-tank rifle. Heavy MGs were left out because they are overpowered on narrow trench maps. **Tannenberg:** heavy MGs, sabres, command posts, ammo crates. **Isonzo:** rifle grenades, map-placed mortars and field guns, officer flare guns to call in support, and canteens. |
+| **Battlefield 1** (DICE) | Large-scale FPS, Frostbite | Tanks, biplanes, cavalry horses and airships. "Behemoths" (armoured train, dreadnought, Airship L30, Char 2C). Gadgets such as the **gas mask**, rifle grenade, armour-piercing "K bullets" and **flare gun**. Its weapons and vehicles are less strictly historical than Verdun's. |
+| **Commercial trench asset packs** (Unreal Fab / Unity Asset Store) | Environment kits | Modular trench **walls, floors, ceilings and support beams**, sandbags, barricades, barbed wire, ladders, doors, bunker rooms and tunnel junctions. VFX packs include impacts, smoke, fire, dripping water and lanterns. One smaller kit has 11 trench pieces, walkway covers, bridges, crates, signs, shells, wire, a ladder, 3 shell holes and 3 tree trunks. |
+
+**What they all share:** factions × unit classes × animation states, modular trench pieces, wire as a damaging obstacle, terrain types that change movement (mud, crater, water), muzzle and explosion FX, and per-weapon sounds. None of the open-source games model gas, mines, flares or weather in any depth. That leaves room for a game built on the material in sections 9–10.
+
+### 11.2 The full asset list
+
+Tick these off by category. **Bold** items are the minimum for a playable trench level. *(§n)* points to the section of this guide with the historical reference.
+
+#### A. Terrain & environment
+- **Heightmaps** for each battlefield, built from trench maps and modern elevation data *(§3–5, §12)*. Messines, Passchendaele and Vimy ridges must read clearly as high ground.
+- **Ground materials**, each with wet and dry variants: **grass**, **churned mud**, **Flanders clay**, **Somme/Vimy chalk** (white spoil heaps), snow & sleet, ploughed field, roads (cobbled *pavé*, dirt), rubble.
+- **Decals:** shell craters (small, medium and large), footprints, tyre and tank tracks, blood (optional / ratings), oil, scorch marks.
+- **Water:** **flooded shell holes**, puddles, flooded trench floors, streams (the Steenbeek and Ancre), rain ripples.
+- **Vegetation:** healthy trees → **shattered trunks** → stumps (damage states), hedges, long grass (hides low wire), crops.
+- **Craters:** mine craters (Lochnagar and Spanbroekmolen scale), crater lips you can occupy.
+- **Buildings, each with intact / damaged / ruined states:** farmhouse, church, château, village terrace, cellars, windmill (Spanbroekmolen), German concrete pillbox (MEBU).
+- **Skybox / lighting:** dawn attack, overcast, rain, snow, night with flares, fog/mist.
+
+#### B. Modular trench kit *(§2, §9.2)*
+- **Fire-trench pieces:** straight bay, **traverse**, corners, T and X junctions, ends, collapsed / shell-damaged variants.
+- **Fire-step**, **parapet** & **parados** (sandbag and earth versions), sniper loophole plates.
+- **Revetment sets:** timber A-frame, corrugated iron, expanded metal, wattle hurdles, sandbag walls, **German concrete & timber trench** variant.
+- **Duckboards** (straight, sloped, broken), sump, pump.
+- **Communication trench** zig-zag pieces, **sap**, **listening post**.
+- **Ladders & scaling steps**, trench bridges, trench signs (named trenches such as "Regent Street"), direction boards.
+- **Dugouts:** British shallow "funk hole", British cut-and-cover, **German deep-dugout stair entrance** plus interior (bunks, tables, stove, lamps, gas curtain).
+- **Shelters:** elephant-iron shelter, Nissen hut, HQ dugout, aid post, latrine, cook-house.
+- **Props:** ammo boxes (SAA), Mills bomb boxes, ration tins, water cans (petrol tins), braziers, candles, lanterns, field telephone & cable, periscopes, gas gong / rattle, stretchers, rifles stacked or leaning, helmets, packs, sandbag piles, pickaxes & shovels, wire coils, screw pickets, rum jar, letters.
+
+#### C. Underground *(§2, §10.2)*
+- **Infantry subway** tunnel set (Vimy): straight, junction, chamber, stair exit, electric lights, water pipes.
+- **Mine gallery** set: shaft, gallery with timber props, sandbag "tamping", **charge chamber** with ammonal tins, geophone listening post, collapsed section (camouflet).
+
+#### D. Obstacles *(§9.1)*
+- **Wire:** **entanglement belt**, double apron fence, low wire, concertina coil, **knife rest**, gooseberry / hedgehog, wire gate / trench block, cut and gapped variants.
+- **Pickets:** wooden posts, **screw pickets**.
+- Fascines (tank-carried, for Cambrai), tank-trap ditches, felled trees.
+
+#### E. Characters *(§8)*
+- **Factions:** **British**, **German**, Australian, Canadian, New Zealand, French (also Newfoundland, South African, Indian and others for wider coverage).
+- **Roles:** **rifleman**, **officer**, NCO, bomber (grenadier), **Lewis / light MG gunner**, heavy MG crew, sniper, **stretcher-bearer / medic**, runner, signaller, engineer (wiring party), tunneller, artillery crew, tank crew, pilot / observer, cavalry trooper.
+- **Uniform variants:** summer / winter greatcoat, goatskin jerkin, kilted Highlanders, gas mask on / off / carried, mud and wet states, battle damage.
+- **Headgear by date:** soft cap → **Brodie** (from 1916); **Pickelhaube** → **Stahlhelm** (from 1916); French képi → **Adrian** (from 1915); slouch hat (Australian), "lemon squeezer" (NZ).
+- **Equipment:** 1908 webbing, 1903 bandolier (Australian), German leather equipment, haversacks, water bottles, entrenching tools, wire-cutters, gas-mask bags.
+- **Casualty states** (wounded, carried, dead): handle these with care and respect, with options to tone them down.
+
+#### F. Weapons, as first-person and third-person models with animations *(§6)*
+- **Rifles:** **SMLE Mk III**, **Gewehr 98**, Lebel / Berthier, Ross (Canada, to 1916), sniper versions with scopes, periscope rifle.
+- **Machine guns:** **Vickers**, **MG 08**, **Lewis**, MG 08/15, Chauchat.
+- **Pistols:** Webley revolver, Luger P08, Mauser C96.
+- **Late-war / specialist:** MP 18 (1918), Winchester 1897 trench gun (US, 1918), flamethrower (Kleif / Wex), anti-tank rifle (1918).
+- **Grenades:** **Mills bomb**, **stick grenade**, egg grenade, French F1, rifle grenades.
+- **Mortars:** Stokes, Minenwerfer.
+- **Melee:** bayonets, **trench clubs**, trench knives, sharpened spades.
+- **Tools:** **wire-cutters**, Very pistol, entrenching tool, periscope, binoculars, whistle.
+- Each weapon needs: model, LODs, textures, **animations** (aim, fire, bolt or cycle, reload with clip / belt / pan, jam & clear, bayonet fix and charge, throw), magazine / clip props, ballistics data and sounds (see I).
+
+#### G. Artillery *(§6, §10.1)*
+- **Guns:** QF 18-pounder, French 75, 4.5-in howitzer, 60-pounder, 9.2-in & 15-in howitzers, German 7.7 cm FK 96 n.A., 15 cm sFH 13, 21 cm Mörser, railway gun.
+- **Shell types:** shrapnel (airburst), high explosive, gas (by type), smoke, star shell, duds.
+- **Gun pits:** camouflage nets, shell dumps, limbers & horse teams.
+- **Barrage systems:** preliminary bombardment, **creeping barrage** with timed lifts, box barrage, counter-battery fire.
+
+#### H. Vehicles & aircraft *(§7)*
+- **Tanks:** **Mark I** (male / female, with tail wheels and anti-grenade roof), Mark IV, Whippet, Renault FT, A7V. Each needs **ditched / bogged / knocked-out** states.
+- **Transport:** lorries (Autocar, Thornycroft), ambulances, motorcycles, Holt tractor, **light railway** locomotive & wagons, London bus, horses (riding & draught), mules.
+- **Aircraft:** B.E.2, R.E.8, Sopwith Camel, S.E.5a, Albatros D.III / D.V, Fokker Dr.I.
+- **Kite balloons:** Drachen, Caquot, plus winch lorry and parachuting observer.
+
+#### I. Visual effects *(§10)*
+- Muzzle flash per weapon type, **shell bursts** (HE earth fountain vs shrapnel airburst), **mine explosion** (huge earth column, debris rain), crater formation.
+- **Gas clouds** drifting with the wind (colour and density by agent), gas settling in low ground, a mask-view overlay.
+- **Flares / star shells** with moving shadows. Flamethrower stream. Tracers. Burning aircraft and balloons.
+- **Mud splash**, water splash, bullet impacts per surface (mud, chalk, sandbag, timber, steel plate), dust, smoke screens.
+- **Weather:** rain, sleet, snow, fog / mist, wind direction indicator (matters for gas).
+
+#### J. Audio *(§6, §10)*
+- **Weapons:** fire (near / far / indoor), bolt and cycle, reload, **jam**, dry fire, grenade pin and lever, bayonet fix.
+- **Artillery:** distant guns, **incoming shell whistle and shriek** (by calibre), impacts, shrapnel airburst crack, duds thudding in.
+- **Mines:** deep rumble, then the blast. Tunnelling (picks, timber).
+- **Trench life:** **officers' whistles**, shouted orders (English, French, German), gas gong / rattle / klaxon, field telephone, rats, rain on corrugated iron, braziers.
+- **Footsteps** per surface: **mud suction**, duckboards, chalk, water, snow.
+- **Vehicles:** tank engines & tracks, aircraft engines, horses, lorries.
+- **Music:** period marches and songs that are in the public domain (arf20/ww1game uses "The British Grenadiers" and "Preußens Gloria"), plus stings for victory and defeat.
+
+#### K. Animation sets
+- **Movement:** walk, run, crouch, prone / crawl, **climb ladder & vault parapet ("over the top")**, **wade through mud** (slowed, risk of getting stuck), swim / struggle in shell holes, jump into trench.
+- **Actions:** aim / fire / reload per weapon, throw grenade, bayonet charge, **put on gas mask**, **cut wire**, dig / fill sandbags, carry stretcher (2–4 men), carry ammo / wire, use periscope, fire Very pistol, operate MG / mortar / field gun.
+- **Reactions:** suppressed / cowering, hit reactions, death, gassed coughing, shell shock.
+- **Ambient:** sleeping, cooking, writing letters, smoking, delousing.
+
+#### L. Game systems & data (the "assets in code")
+- **Unit and weapon data files:** stats per class and weapon (the `properties.cfg` approach in arf20/ww1game, or JSON / ScriptableObjects).
+- **Movement modifiers by terrain:** mud, water, craters, wire. **Getting stuck in mud** and needing help to get out.
+- **Wire system:** blocks or slows movement, deals damage, can be cut by hand, shells or tanks, gaps can be marked.
+- **Barrage system:** timed creeping-barrage lines (based on the real barrage maps in §3–5), friendly-fire risk if troops get ahead of it.
+- **Gas system:** wind-driven clouds, persistence by agent (mustard lingers), mask timing, reduced vision and stamina while masked.
+- **Mine events:** scripted or player-triggered detonations, crater creation, a "race for the lip" objective.
+- **Night & flares:** darkness, flare illumination and spotting, freezing to stay hidden.
+- **Weather & day/night:** rain that deepens mud over time, snow, fog.
+- **Frontline & objectives:** trench-by-trench capture (like Verdun's Frontlines mode), consolidation (reversing a captured trench), counter-attacks.
+- **Squads, classes & limits:** e.g. caps on MGs and snipers per side, as Isonzo does.
+- **Logistics:** ammunition and grenade crates, rations, water, stretcher evacuation, runners and phone lines (cut by shellfire).
+- **Morale / suppression**, casualty evacuation, fog of war.
+- **AI behaviours:** sentry, patrol, raid, bombing along a trench, MG crew, artillery spotting, wiring parties.
+- **Map files:** tile maps (2D) or terrain + spline trench layouts (3D), generated from the georeferenced trench maps in §12.
+
+#### M. UI / HUD
+- **Trench-map styled minimap** with the British map grid (lettered squares), compass, objective markers.
+- Ammo / clip counter, grenade count, **gas warning**, stamina / mud indicator, suppression vignette.
+- Faction flags, unit insignia, rank badges, class and weapon icons (one per item in F–H).
+- Period-style fonts, menu and loading backdrops (public-domain archival photos like the ones in this README), mission briefing maps.
+
+#### N. Historical & narrative content
+- Mission briefings based on the real phase tables in §3–5, war-diary style text and letters.
+- A historical codex (this README could serve as one), with credited public-domain images.
+- Real trench maps for level design: NLS maps are CC-BY, and others are public domain.
+
+### 11.3 What each battlefield needs most
+
+| Battlefield | Signature assets & systems |
+|---|---|
+| **Ypres Salient (Messines & Passchendaele)** | Deep mud & flooded shell holes, **duckboard tracks**, concrete **pillboxes**, shattered woods (Polygon, Chateau, Sanctuary), **mine craters** & the Messines mine event, gas (mustard from July 1917), bogged tanks, rain-driven mud system. |
+| **The Somme** | **Chalk** terrain & white spoil, **deep German dugouts**, dense **uncut wire**, the 1 July mines (Hawthorn, Lochnagar), ruined villages (Pozières, Thiepval, Beaumont-Hamel), **first tanks (Mark I, from 15 Sept 1916)**, the week-long preliminary bombardment. |
+| **Vimy Ridge** | Steep escarpment and crater line, **infantry subways**, the **creeping barrage** system, **sleet & snow**, Canadian forces, rehearsal / briefing maps, Hill 145 & "the Pimple" objectives. |
+
+### 11.4 Accuracy checklist (common mistakes)
+
+Use the dates below to "date-gate" assets, so that nothing appears before it historically existed:
+
+| Asset | Not before | Notes |
+|---|---|---|
+| Brodie helmet (in general use) | 1916 | Cloth caps in 1914–15. |
+| German Stahlhelm | early 1916 | First at Verdun. Pickelhaube before that. |
+| French Adrian helmet / horizon blue | 1915 | Red trousers and képi in 1914. |
+| Chlorine gas cloud | Apr 1915 | Phosgene later in 1915, **mustard from July 1917**. |
+| Tanks (Mark I) | 15 Sept 1916 | Mark IV from June 1917. |
+| Small box respirator | 1916 | PH helmet before. |
+| Sopwith Camel | mid-1917 | Fokker Dr.I from late 1917. |
+| MP 18, Winchester trench gun | 1918 | US troops on the Western Front from 1917–18. |
+| **MP40, Kar98k, StG 44, Sherman, etc.** | **never** | These are **WWII** equipment. Don't mix eras. |
+
+---
+
+## 12. Explore the original maps & the ground today (including 3D)
 
 ### Original trench maps & aerial photos (free online)
 
@@ -571,7 +733,7 @@ These are the things that *happened* on a battlefield: the events, forces and co
 
 ---
 
-## 12. Sources
+## 13. Sources
 
 **Battles**
 - Battle of the Somme; Battle of Passchendaele; Battle of Vimy Ridge; Battle of Messines (1917); Mines in the Battle of Messines; Trench warfare. *Wikipedia* (articles accessed via mirrors, Nov 2026).
@@ -598,6 +760,14 @@ These are the things that *happened* on a battlefield: the events, forces and co
 - *Trench Mud*, Spartacus Educational; *Visualising the trenches*, The Long, Long Trail. <https://www.longlongtrail.co.uk/visualising-the-trenches/>
 - *Mining the Somme*, Mining Magazine. <https://miningmagazine.com/mining-the-past/opinion/1263347/mining-somme>
 - *Star shell*, FirstWorldWar.com (archived by Library and Archives Canada).
+
+**WWI games & asset packs (Section 11)**
+- Open-source repositories inspected directly: [arf20/ww1game](https://github.com/arf20/ww1game), [webmatze/sky_aces_1917](https://github.com/webmatze/sky_aces_1917), [StephenLear/trenches-ww1-tactics](https://github.com/StephenLear/trenches-ww1-tactics), [JacobSulewski/TrenchesRTS](https://github.com/JacobSulewski/TrenchesRTS); also the [GitHub `ww1` topic](https://github.com/topics/ww1).
+- *Trench Warfare: Documentation + User Guide* (asset list), itch.io. <https://mitchconne.itch.io/trench-warfare/devlog/305104/documentation-user-guide>
+- *Weapons across the three fronts of the WW1 Game Series*, BlackMill Games via ModDB. <https://www.moddb.com/news/weapons-across-the-three-fronts-of-the-ww1-game-series>
+- Verdun community wiki (weapons & attachments) and *Verdun (video game)*, Wikipedia.
+- Battlefield 1 coverage: behemoths (HyperX blog, Prima Games) and gadgets (Magic Game World).
+- Asset packs: *Military Trenches and Modular World War Compound* and *Modular Trench Kit* on Fab; *World War Trenches* on the Unity Asset Store.
 
 **Maps**
 - National Library of Scotland trench maps; McMaster University Library; Western Front Association TrenchMapper; *Utilizing Trench Maps*, Military & Family History blog (the 34 million maps estimate).
