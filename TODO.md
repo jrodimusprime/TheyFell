@@ -13,6 +13,7 @@ Section references like **(§9.1)** point to the matching part of the README. Us
 | **P0** | Needed for the **vertical slice** (one complete, polished map: *La Boisselle, 1 July 1916*) |
 | **P1** | Needed for **full release** (all P1 maps and factions) |
 | **P2** | Stretch goal / post-launch |
+| **PH2** | **Phase 2 option:** deliberately deferred to Phase 2 (see [Phase 2 options](#phase-2-options)). Do not build in Phase 1 |
 | `ID` | Unique task ID (e.g. `ART-TR-004`) for referencing in issues, commits and PRs |
 | ⛓ | Depends on another task (IDs listed) |
 
@@ -25,10 +26,19 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 ### In scope
 - First- and third-person **infantry** combat in trenches, tunnels, craters and no man's land.
 - Player-usable **small arms**: rifles, pistols, light machine guns, **emplaced machine guns** (Vickers / MG 08), grenades, rifle grenades, melee, tools.
-- **Light trench mortars** (Stokes / light *Minenwerfer*) as a crew-served squad weapon. *Decision pending, see `PRE-012`.*
 - **Artillery as an off-map, AI-driven system only**: barrages, creeping barrages, counter-battery fire and shell effects. Players can **request** barrages (officer + telephone or flare) but **cannot operate** guns.
 - Mines, gas, wire, mud, weather, night, flares, raids, tunnelling.
-- Factions: British (incl. Highland & Newfoundland), Australian, New Zealand, Canadian, German. French: P2.
+- Factions: British (incl. Highland & Newfoundland), Australian, New Zealand, Canadian, German.
+
+### Phase 2 options
+Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the backlog tagged **PH2** so they can be picked up after launch without re-planning.
+
+| Option | What it adds | Tasks tagged PH2 |
+|---|---|---|
+| **PH2-A: Light trench mortars & flamethrower** | Crew-served Stokes 3-inch / *leichter Minenwerfer*, and the German Kleif / Wex flamethrower (2-man team), as player weapons with AI teams | `ART-WPN-021`, `ART-WPN-022`, `VFX-011`, `AUD-WPN-008b`, `AUD-WPN-012`, `SYS-CMB-013`, `SYS-CMB-014`, `ANM-WPN-015`, `ANM-WPN-016`, `ANM-RCT-009`, `AI-INF-016`, `AI-INF-017` |
+| **PH2-B: French faction** | French infantry 1916 (horizon blue, Adrian helmet, Lebel / Berthier, Chauchat), French voice set, and a French-sector Somme map (southern sector, 1 July 1916) | `ART-CHR-019`, `ART-CHR-033`, `ART-WPN-025`, `AUD-VO-007`, `MAP-S07` |
+
+> In Phase 1, enemy trench-mortar fire may still appear as part of the **off-map artillery director** (incoming bombs and duds), but players and on-map AI do not operate mortars or flamethrowers.
 
 ### Out of scope (do **not** build)
 - ❌ **Aircraft** of any kind (playable or AI-controlled flying units)
@@ -56,8 +66,8 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **PRE-009** [P0] Set performance budgets: triangles, draw calls, texture memory per map, max players & AI agents
 - [ ] **PRE-010** [P1] Write the age-rating plan (gore, gas injuries, language)
 - [ ] **PRE-011** [P0] Write the scope document (Section 0 above) and get it signed off
-- [ ] **PRE-012** [P0] **Decide: are light trench mortars player-usable?** (Stokes / leichter Minenwerfer)
-- [ ] **PRE-013** [P1] Decide whether to include the French faction (Somme southern sector)
+- [x] **PRE-012** [P0] ~~Decide: are light trench mortars (and the flamethrower) player-usable?~~ **Decided: Phase 2 option PH2-A.** Not built in Phase 1
+- [x] **PRE-013** [P1] ~~Decide whether to include the French faction (Somme southern sector)~~ **Decided: Phase 2 option PH2-B.** Not built in Phase 1
 - [ ] **PRE-014** [P0] Define game modes for launch (see `SYS-MODE-*`)
 - [ ] **PRE-015** [P1] Monetisation / DLC policy, if any (cosmetics must stay historically accurate)
 
@@ -117,6 +127,7 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 | MAP-S03 | Delville Wood | Somme | 15–20 Jul 1916 | South African/British vs German | Shattered wood, close-quarters, constant shelling | P1 |
 | MAP-S04 | Pozières & Mouquet Farm | Somme | 23 Jul–Sep 1916 | Australian vs German | Village ruins, OG Lines, Gibraltar bunker, extreme shelling | P1 |
 | MAP-S05 | Thiepval Ridge | Somme | 26–28 Sep 1916 | British/Canadian vs German | Château ruins, Schwaben Redoubt, fortified village | P1 |
+| MAP-S07 | Montauban & the French sector | Somme | 1 Jul 1916 | British & **French** vs German | The most successful sector on 1 July: British & French gains around Montauban, south of the Albert–Bapaume road | **PH2** (option B) |
 | MAP-S06 | The Ancre (Beaumont-Hamel) | Somme | 13 Nov 1916, fog & mud | British/Highland vs German | Winter mud, fog, captured dugouts | P2 |
 | MAP-Y01 | Messines Ridge | Ypres | 7 Jun 1917, 03:10 | Australian, NZ, British vs German | 19-mine opening event, ridge assault, pillboxes | P1 |
 | MAP-Y02 | Hill 60 (underground + surface) | Ypres | 1916–17 | Australian tunnellers vs German | Tunnel warfare, counter-mining, craters | P1 |
@@ -333,7 +344,7 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **ART-CHR-016** [P0] **German** infantry 1916 (M1915 Bluse, Stahlhelm M1916, field-grey, leather equipment, grenade bags)
 - [ ] **ART-CHR-017** [P1] German **Stoßtruppen** (assault troops) 1917 variant
 - [ ] **ART-CHR-018** [P1] German winter / greatcoat variant
-- [ ] **ART-CHR-019** [P2] **French** 1916 horizon blue + Adrian helmet
+- [ ] **ART-CHR-019** [PH2] **French** 1916 horizon blue + Adrian helmet *(Phase 2 option PH2-B)*
 - [ ] **ART-CHR-020** [P0] Officers per faction (British Sam Browne belt, German officer kit)
 - [ ] **ART-CHR-021** [P1] Specialists: stretcher-bearer armbands (SB), RAMC, signaller arm band, tunneller (miner's kit), sniper (camouflage suit, sniper's hood)
 - [ ] **ART-CHR-022** [P1] Raiding kit: blackened face, cap comforter, no badges (§9.4)
@@ -342,7 +353,7 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **ART-CHR-030** [P0] Brodie Mk I (with and without cover), soft trench cap
 - [ ] **ART-CHR-031** [P0] Stahlhelm M1916 (plain, painted camouflage 1918 optional P2), Pickelhaube (1914–15 flashbacks / rear-echelon only)
 - [ ] **ART-CHR-032** [P1] Slouch hat, lemon squeezer, Glengarry / Tam o' Shanter
-- [ ] **ART-CHR-033** [P2] Adrian helmet
+- [ ] **ART-CHR-033** [PH2] Adrian helmet *(Phase 2 option PH2-B)*
 
 **Equipment**
 - [ ] **ART-CHR-040** [P0] **Gas masks:** British PH helmet (1916), **small box respirator** (1916+), German *Gummimaske* with filter canister; worn / carried / in bag states
@@ -377,10 +388,11 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **ART-WPN-018** [P0] **Trench clubs** ×3 designs, trench knife, sharpened spade, entrenching tool (melee)
 - [ ] **ART-WPN-019** [P0] **Very pistol** (British No. 1, German *Leuchtpistole*) + cartridges (white / red / green)
 - [ ] **ART-WPN-020** [P0] **Wire-cutters** (hand & rifle-mounted)
-- [ ] **ART-WPN-021** [P1] **Flamethrower** (German Kleif / Wex), German-only, crew of 2 (⛓ PRE-012 scope review)
-- [ ] **ART-WPN-022** [P1] **Light trench mortars**: Stokes 3-inch + bombs; German *leichter Minenwerfer* (⛓ PRE-012)
+- [ ] **ART-WPN-021** [PH2] **Flamethrower** (German Kleif / Wex), German-only, crew of 2 *(Phase 2 option PH2-A)*
+- [ ] **ART-WPN-022** [PH2] **Light trench mortars**: Stokes 3-inch + bombs; German *leichter Minenwerfer* *(Phase 2 option PH2-A)*
 - [ ] **ART-WPN-023** [P2] Late-war (1918 date-gated): MP 18, Winchester 1897 trench gun, anti-tank rifle. Likely excluded since our battles end in Nov 1917
 - [ ] **ART-WPN-024** [P0] Officer's whistle, binoculars, map, compass (first-person "tools")
+- [ ] **ART-WPN-025** [PH2] French weapons: Lebel M1886/93, Berthier, Chauchat, French F1 grenade, Ruby pistol *(Phase 2 option PH2-B)*
 
 ### 4.11 Off-map artillery: visual assets only (players cannot operate)
 - [ ] **ART-ARTY-001** [P0] Distant gun-flash cards & horizon flicker (night)
@@ -398,7 +410,7 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **VFX-008** [P0] Gas-shell burst (soft "plop", low cloud)
 - [ ] **VFX-009** [P0] **Very lights / star shells:** rising trail, flare burn, parachute drift, moving shadows, coloured signals
 - [ ] **VFX-010** [P0] Grenade explosions (Mills fragmentation vs stick-grenade blast)
-- [ ] **VFX-011** [P1] Flamethrower stream, burning ground, smoke
+- [ ] **VFX-011** [PH2] Flamethrower stream, burning ground, smoke *(Phase 2 option PH2-A)*
 - [ ] **VFX-012** [P0] Smoke screens (smoke shell & grenade)
 - [ ] **VFX-013** [P0] **Mud splashes** (footsteps, prone, shell impacts in mud), water splashes
 - [ ] **VFX-014** [P0] Weather: rain (light / heavy), sleet, snow, fog / mist banks, wind-blown debris
@@ -419,11 +431,12 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **AUD-WPN-005** [P0] MG 08: fire loop, belt, cooling
 - [ ] **AUD-WPN-006** [P0] Pistols (Webley, Luger), revolver reload
 - [ ] **AUD-WPN-007** [P0] Grenades: Mills pin & lever "spoon" ping, stick-grenade cord pull, throws, bounces on chalk / mud / timber, explosions
-- [ ] **AUD-WPN-008** [P1] Rifle grenade launch, mortar "thunk" & bomb flight
+- [ ] **AUD-WPN-008** [P1] Rifle grenade launch & flight
+- [ ] **AUD-WPN-008b** [PH2] Player-fired mortar "thunk", loading & bomb flight *(Phase 2 option PH2-A)*
 - [ ] **AUD-WPN-009** [P0] Melee impacts, bayonet thrust, club strikes
 - [ ] **AUD-WPN-010** [P0] Very pistol fire, flare hiss & burn
 - [ ] **AUD-WPN-011** [P0] Wire-cutter snips, wire twang, wire snag on cloth
-- [ ] **AUD-WPN-012** [P1] Flamethrower ignition, roar, burn
+- [ ] **AUD-WPN-012** [PH2] Flamethrower ignition, roar, burn *(Phase 2 option PH2-A)*
 
 **Artillery & explosions**
 - [ ] **AUD-ART-001** [P0] Distant drumfire (constant rumble bed), single distant guns
@@ -454,6 +467,7 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **AUD-VO-004** [P1] Ambient chatter, period slang, songs hummed in the trench
 - [ ] **AUD-VO-005** [P1] Surrender phrases ("Kamerad!"), prisoner handling
 - [ ] **AUD-VO-006** [P1] Mission briefings / narration (letters & war-diary style)
+- [ ] **AUD-VO-007** [PH2] French voice set (orders, callouts, pain, chatter) *(Phase 2 option PH2-B)*
 
 **Music**
 - [ ] **AUD-MUS-001** [P0] Main theme (original)
@@ -500,8 +514,8 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **SYS-CMB-010** [P0] **Damage & injury model:** hit locations, bleeding, incapacitation (downed, can be bandaged or carried), death
 - [ ] **SYS-CMB-011** [P0] **Suppression:** near-miss & shell-burst effects on aim, vision and movement
 - [ ] **SYS-CMB-012** [P1] Concussion / blast knockback, temporary deafness (tinnitus audio filter)
-- [ ] **SYS-CMB-013** [P1] Flamethrower (German): fuel, range, burning, panic effects (⛓ PRE-012)
-- [ ] **SYS-CMB-014** [P1] Light trench mortar (crew-served: loader + layer, range table, bombs as resource) (⛓ PRE-012)
+- [ ] **SYS-CMB-013** [PH2] Flamethrower (German): fuel, range, burning, panic effects *(Phase 2 option PH2-A)*
+- [ ] **SYS-CMB-014** [PH2] Light trench mortar (crew-served: loader + layer, range table, bombs as resource) *(Phase 2 option PH2-A)*
 - [ ] **SYS-CMB-015** [P0] Friendly fire rules & penalties
 - [ ] **SYS-CMB-016** [P1] Sniper scopes (glint, limited FOV), loophole plates (can be shut; AP rounds P2)
 
@@ -619,8 +633,8 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **ANM-WPN-012** [P0] **Melee:** bayonet thrust, parry, charge run, club swing, knife stab, spade strike, shove; hit reactions to each
 - [ ] **ANM-WPN-013** [P0] **Very pistol:** load, fire upward, signal colours
 - [ ] **ANM-WPN-014** [P0] **Wire-cutters:** cut sequence (prone & kneeling), rifle-mounted cutter
-- [ ] **ANM-WPN-015** [P1] Flamethrower 2-man team (tank carrier + nozzle man) (⛓ PRE-012)
-- [ ] **ANM-WPN-016** [P1] Light trench mortar: drop bomb, adjust elevation, carry tube & baseplate (⛓ PRE-012)
+- [ ] **ANM-WPN-015** [PH2] Flamethrower 2-man team (tank carrier + nozzle man) *(Phase 2 option PH2-A)*
+- [ ] **ANM-WPN-016** [PH2] Light trench mortar: drop bomb, adjust elevation, carry tube & baseplate *(Phase 2 option PH2-A)*
 - [ ] **ANM-WPN-017** [P0] Weapon switching per pair, holster / sling, pick up / drop
 
 ### 6.3 Actions & interactions
@@ -648,7 +662,7 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **ANM-RCT-006** [P1] Concussion stumble, deafened (hands to ears)
 - [ ] **ANM-RCT-007** [P1] Shell-shock (tremor idle), panic flee (morale break)
 - [ ] **ANM-RCT-008** [P1] Buried / partially buried struggle
-- [ ] **ANM-RCT-009** [P1] Burning reaction (flamethrower) (⛓ PRE-012)
+- [ ] **ANM-RCT-009** [PH2] Burning reaction (flamethrower) *(Phase 2 option PH2-A)*
 
 ### 6.5 Ambient & life-in-the-trench (AI-driven, also menu diorama)
 - [ ] **ANM-AMB-001** [P0] **Stand-to** at dawn (on the fire-step, rifle on the parapet)
@@ -707,8 +721,8 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - [ ] **AI-INF-013** [P1] **Raiders:** move under a box barrage, cut wire, enter the enemy trench, bomb dugouts, snatch a prisoner, withdraw on a signal
 - [ ] **AI-INF-014** [P1] **Tunnellers / counter-miners:** dig, listen, detect enemy work, lay camouflets, defend galleries (Hill 60 mode)
 - [ ] **AI-INF-015** [P1] **Carrying parties:** bring ammo, bombs, water and wire forward through communication trenches
-- [ ] **AI-INF-016** [P1] **Light trench-mortar team** (⛓ PRE-012): range on enemy MG posts, displace
-- [ ] **AI-INF-017** [P1] **German flamethrower team** (⛓ PRE-012): close on a trench under cover, burn bays, withdraw
+- [ ] **AI-INF-016** [PH2] **Light trench-mortar team**: range on enemy MG posts, displace *(Phase 2 option PH2-A)*
+- [ ] **AI-INF-017** [PH2] **German flamethrower team**: close on a trench under cover, burn bays, withdraw *(Phase 2 option PH2-A)*
 - [ ] **AI-INF-018** [P1] **Stoßtruppen tactics** (German 1917): infiltration around strongpoints, bypass & isolate, heavy grenade use
 - [ ] **AI-INF-019** [P1] **Pillbox garrison:** hold embrasures, sortie to counter-attack, surrender when outflanked
 - [ ] **AI-INF-020** [P1] **Prisoners & surrender:** decide to surrender (isolated, outflanked, low morale), be escorted, never "fake" surrender exploits
@@ -796,7 +810,7 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 | **M2: Alpha** | All P1 maps greyboxed; all factions; tunnels; night & flares; raids; runners & telephones; campaign structure | P1 systems, MAP-*-05 for every map |
 | **M3: Beta** | All maps art-complete; full audio & VO; AI tuned per map; localisation; performance | MAP-*-16..24 |
 | **M4: Release** | QA, historical & sensitivity sign-off, certification, launch | QA-*, REL-* |
-| **M5: Post-launch** | P2 stretch: French faction, Tunnellers mode, Broodseinde, Vimy raids, memorial epilogue | P2 items |
+| **M5: Phase 2** | **Phase 2 options:** PH2-A (light trench mortars & flamethrower) and PH2-B (French faction + French-sector map); plus P2 stretch: Tunnellers mode, Broodseinde, Vimy raids, memorial epilogue | PH2 + P2 items |
 
 ---
 
