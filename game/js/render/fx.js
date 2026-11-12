@@ -133,18 +133,42 @@ export class FX {
 }
 
 export function makeSky(scene, sunDir) {
-  const g = new THREE.SphereGeometry(5200, 32, 16);
+  const g = new THREE.SphereGeometry(5200, 48, 24);
   const m = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { uSun: { value: sunDir.clone().normalize() }, uHaze: { value: new THREE.Color(0xb7b6ab) } },
+    uniforms: { uSun: { value: sunDir.clone().normalize() }, uHaze: { value: new THREE.Color(0xb7b6ab) }, uTime: { value: 0 } },
     vertexShader: `varying vec3 vD0; void main(){ vD0 = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.); gl_Position = p.xyww; }`,
-    fragmentShader: `uniform vec3 uSun; uniform vec3 uHaze; varying vec3 vD0;
+    fragmentShader: `uniform vec3 uSun; uniform vec3 uHaze; uniform float uTime; varying vec3 vD0;
+      float h1(float x){ return fract(sin(x * 127.1) * 43758.5453); }
+      float n1(float x){ float i = floor(x), f = fract(x); f = f * f * (3. - 2. * f); return mix(h1(i), h1(i + 1.), f); }
+      float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 5; i++) { v += a * n2(p); p = p * 2.03 + vec2(13.1, 7.7); a *= .5; } return v; }
       void main(){
         vec3 vD = normalize(vD0);
         float e = max(vD.y, 0.), s = max(dot(vD, uSun), 0.);
         vec3 zen = vec3(.47, .54, .62), hor = uHaze;   // a smoke-greyed sky
         vec3 c = mix(hor, zen, smoothstep(.0, .55, pow(e, .7)));   // a deep band of haze over the horizon
+        // clouds: fair-weather cumulus on a summer morning, their undersides greyed by the smoke, drifting slowly;
+        // brightest toward the sun, lost in the haze low down
+        if (vD.y > 0.) {
+          vec2 cp = vD.xz / (vD.y + .12) * 1.6 + vec2(uTime * .004, uTime * .0015);
+          float d = fbm(cp), cov = smoothstep(.5, .78, d), thick = smoothstep(.55, .95, d);
+          vec3 lit = mix(vec3(.66, .66, .64), vec3(.93, .91, .86), .45 + .55 * pow(s, 3.)), base = vec3(.52, .52, .51);
+          vec3 cc = mix(lit, base, thick * .7);
+          c = mix(c, cc, cov * .85 * smoothstep(.02, .22, vD.y));
+        }
         c += vec3(1., .82, .58) * pow(s, 8.) * .35 + vec3(1., .9, .7) * pow(s, 1800.) * .55 + vec3(1., .95, .85) * smoothstep(.99985, .9999, s) * .9;   // the sun dimmed by the smoke
-        c = mix(c, uHaze, smoothstep(.03, -.01, vD.y));   // at and below the horizon: exactly the fog colour, so far ground and sky meet with no seam
+        // beyond the battlefield: low ridges and the woods along them (Becourt, Mametz, Fricourt...), two ranks, far off
+        // and pale in the haze. Blocks of wood with gaps of open down, a ragged canopy line on top.
+        float az = atan(vD.z, vD.x);
+        float ridge1 = .012 + .012 * n1(az * 3.1 + 1.7) + .006 * n1(az * 9.3);
+        float wood1 = smoothstep(.45, .6, n1(az * 11. + 4.)) * (.008 + .004 * n1(az * 160.) + .002 * n1(az * 420.));
+        float ridge2 = .02 + .012 * n1(az * 4.7 + 9.2) + .004 * n1(az * 13.);
+        float wood2 = smoothstep(.4, .55, n1(az * 17. + 2.)) * (.006 + .003 * n1(az * 240.));
+        vec3 far1 = mix(vec3(.28, .32, .25), uHaze, .5), far2 = mix(vec3(.36, .40, .34), uHaze, .7);
+        if (vD.y < ridge2 + wood2) c = far2;
+        if (vD.y < ridge1 + wood1) c = far1;
+        c = mix(c, uHaze, smoothstep(.0, -.012, vD.y));   // below the horizon: exactly the fog colour, so far ground and sky meet with no seam
         gl_FragColor = vec4(c, 1.);
       }` });
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = -1; scene.add(mesh);

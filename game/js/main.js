@@ -246,7 +246,7 @@ async function boot() {
     rag.step(dt);
     blood.update(dt);
     fx.update(dt, scene.fog);
-    mist.update(dt, camera, scene.fog);
+    mist.update(dt, camera, scene.fog); sky.material.uniforms.uTime.value += dt;
     renderer.render(scene, camera);
     if (p.alive && !(window.TF && TF.view)) {   // the player's arms and rifle, in their own pass on top of the world
       camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving, rifleBlock());
