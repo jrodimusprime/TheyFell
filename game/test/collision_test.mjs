@@ -72,13 +72,18 @@ for (const key of ['jump', 'vault']) { const [a, n] = climbTrial(key); ok(`${key
   ok('Space in the open is a jump', p.vy > 2 && !p.climbTo, `vy ${p.vy.toFixed(2)}`);
 }
 
-// ---- Rambo mode: the player survives 10 bullets, the 11th kills him; off, one rifle bullet kills ----
+// ---- Rambo mode: the player survives 10 bullets, the 11th kills him; off, a bullet's damage is a bell curve ----
 {
   const shooter = S.soldiers.find(x => !x.isPlayer) || S._spawn('GER', p.x + 5, p.z, 'rifle');
   const hits = rambo => { S.rambo = rambo; Object.assign(p, { alive: true, hp: 100 }); let n = 0; while (p.alive && n < 30) { S._damage(p, 100, shooter, { kind: 'bullet', zone: 'body', dir: [1, 0, 0], point: [p.x, p.y, p.z] }); n++; } S.rambo = false; return n; };
   const r = hits(true), off = hits(false);
   ok('Rambo mode: survives 10 bullets, the 11th kills', r === 11, `died on bullet ${r}`);
-  ok('without Rambo mode a rifle bullet kills', off === 1, `died on bullet ${off}`);
+  // off: a bullet's damage is a bell curve, not a sure kill
+  const { bulletDamage, WEAPONS: WP } = await import(G + 'js/sim/sim.js'), rr = mulberry32(5), N = 4000, toKill = zone => { let n = 0, hp = 100; while (hp > 0) { hp -= bulletDamage(WP.smle, zone, rr); n++; } return n; };
+  const body = Array.from({ length: N }, () => toKill('body')), head = Array.from({ length: N }, () => toKill('head'));
+  const share = (l, k) => l.filter(v => v === k).length / l.length, mean = body.reduce((a, b) => a + b, 0) / N;
+  ok('without Rambo mode a body hit is not a sure kill (a bell curve: mostly two, some one, some three)', share(body, 1) > 0.005 && share(body, 1) < 0.12 && share(body, 2) > 0.6 && mean > 1.8 && mean < 2.4, `1 hit ${(share(body, 1) * 100).toFixed(1)}%, 2 hits ${(share(body, 2) * 100).toFixed(1)}%, 3+ ${(100 - (share(body, 1) + share(body, 2)) * 100).toFixed(1)}%, mean ${mean.toFixed(2)}`);
+  ok('a head hit usually kills, but not always', share(head, 1) > 0.6 && share(head, 1) < 0.95, `${(share(head, 1) * 100).toFixed(1)}% on the first`);
 }
 
 // ---- a mine takes the trenches and wire in its blast with it ----

@@ -15,6 +15,14 @@ export const WEAPONS = {
   g98:   { name: 'Gewehr 98', mag: 5, reserve: 60, cycle: 1.0, reload: 0.5, clip: 5, dmg: 100, spread: 0.0035, hip: 0.03, range: 700, auto: false },
   mg08:  { name: 'MG 08', mag: 250, reserve: 2000, cycle: 0.133, reload: 6, clip: 250, dmg: 80, spread: 0.010, hip: 0.010, range: 1100, auto: true },
 };
+// a bullet's damage is not a sure kill: drawn from a bell curve for where it hits (out of 100 hp). A body hit averages 58
+// (it rarely drops a man outright: most take two, some three); the head usually kills; the legs wound. Scaled by the
+// weapon (the MG 08's 80 against a rifle's 100).
+const HIT = { head: [110, 20], body: [58, 20], legs: [30, 10] };
+export function bulletDamage(W, zone, rng) {
+  const [m, sd] = HIT[zone] || HIT.body;
+  return Math.max(8, Math.min(140, (m + sd * rng.gauss()) * W.dmg / 100));
+}
 const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1 };   // advance: the AI jogs forward (stopping to fire)
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
 const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO = 7 * 3600 + 30 * 60;
@@ -260,7 +268,7 @@ export class Sim {
     }
     const hx = ox + dx * tHit, hy = oy + dy * tHit, hz = oz + dz * tHit;
     this.events.push({ t: 'shot', id: s.id, w: s.weapon, o: [ox, oy, oz], h: [hx, hy, hz], victim: victim ? victim.id : -1 });
-    if (victim) this._damage(victim, zone === 'head' ? 200 : zone === 'legs' ? W.dmg * 0.55 : W.dmg, s, { dir: [dx, dy, dz], zone, point: [hx, hy, hz], kind: 'bullet' });
+    if (victim) this._damage(victim, bulletDamage(W, zone, s.rng), s, { dir: [dx, dy, dz], zone, point: [hx, hy, hz], kind: 'bullet' });
     return true;
   }
   _throwGrenade(s) {
