@@ -40,7 +40,7 @@ export class Sim {
   _trenchPoints(side) {   // fire-trench floor points of one side, used for spawning and posting men
     const out = [];
     // [floor x, floor z, segment, fire-step x, fire-step z]
-    this.T.segs.forEach((s, i) => { if (s.side === side && (s.kind === 0 || (side === 'GER' && s.kind === 2)) && Math.hypot(s.bx - s.ax, s.bz - s.az) > 4) { const mx = (s.ax + s.bx) / 2, mz = (s.az + s.bz) / 2, o = s.kind === 0 ? s.hw - 0.33 : 0; out.push([mx, mz, i, mx + s.nx * o, mz + s.nz * o]); } });
+    this.T.segs.forEach((s, i) => { if (!s.gone && s.side === side && (s.kind === 0 || (side === 'GER' && s.kind === 2)) && Math.hypot(s.bx - s.ax, s.bz - s.az) > 4) { const mx = (s.ax + s.bx) / 2, mz = (s.az + s.bz) / 2, o = s.kind === 0 ? s.hw - 0.33 : 0; out.push([mx, mz, i, mx + s.nx * o, mz + s.nz * o]); } });
     return out;
   }
   _snapToTrench(x, z, side, maxD = 60, step = false) {
@@ -366,10 +366,11 @@ export class Sim {
     if (!this.flags.mine && t >= MINE_TIME) {
       this.flags.mine = true;
       for (const m of this.map.mines) {
-        this.T.mineBlown[m.name] = true;
+        const b = this.T.blowMine(m.name); if (b) this.F.clearWire(b.x, b.z, b.r);
         this.events.push({ t: 'mine', name: m.name, p: [m.c[0], this.T.height(m.c[0], m.c[1]), m.c[1]], r: m.craterR });
         this._explode(m.c[0], this.T.height(m.c[0], m.c[1]) + 2, m.c[1], m.craterR * 2.2, m.craterR * 1.25, null, 'mine');
       }
+      this.trenchPts = { BRI: this._trenchPoints('BRI'), GER: this._trenchPoints('GER') };   // the blown trenches are no place to stand
     }
     if (!this.flags.zero && t >= ZERO) { this.flags.zero = true; this.events.push({ t: 'zero' }); }
     // British barrage: on the German front line until zero, then lifting onto the German rear

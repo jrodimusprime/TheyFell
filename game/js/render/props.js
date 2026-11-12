@@ -134,7 +134,7 @@ export class Props {
       for (const idx of l) {
         if (seen.has(idx)) continue; seen.add(idx);
         const sg = T.segs[idx], L = Math.hypot(sg.bx - sg.ax, sg.bz - sg.az), mx = (sg.ax + sg.bx) / 2, mz = (sg.az + sg.bz) / 2;
-        if (Math.hypot(mx - cx, mz - cz) > R || L < 0.1) continue;
+        if (sg.gone || Math.hypot(mx - cx, mz - cz) > R || L < 0.1) continue;
         const ux = (sg.bx - sg.ax) / L, uz = (sg.bz - sg.az) / L, yaw = -Math.atan2(uz, ux);
         const at = t => [sg.ax + ux * t, sg.az + uz * t];
         const floorAt = (x, z) => T._preBlast(x, z, T.demAt(x, z)) + T.craterAt(x, z) - sg.depth;
@@ -217,6 +217,7 @@ export class Props {
     this.pickets.count = 0; let w = 0; const W = this.wirePos;
     const line = (a, b) => { if (w + 6 > W.length) return; W[w++] = a[0]; W[w++] = a[1]; W[w++] = a[2]; W[w++] = b[0]; W[w++] = b[1]; W[w++] = b[2]; };
     for (const sg of F.wire.items) {
+      if (sg.gone) continue;
       const mx = (sg.ax + sg.bx) / 2, mz = (sg.az + sg.bz) / 2; if (Math.hypot(mx - cx, mz - cz) > R) continue;
       const L = Math.hypot(sg.bx - sg.ax, sg.bz - sg.az), ux = (sg.bx - sg.ax) / L, uz = (sg.bz - sg.az) / L, nx = -uz, nz = ux;
       const rowsN = sg.side === 'GER' ? 3 : 2, prev = [];

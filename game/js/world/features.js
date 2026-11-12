@@ -82,9 +82,11 @@ export class Features {
   // how badly wire holds you here: 0 = clear, 1 = in the thick of a belt
   wireAt(x, z) {
     const l = this.wire.near(x, z); if (!l) return 0; let w = 0;
-    for (const i of l) { const s = this.wire.items[i], d = segDist(x, z, s); if (d < s.r) w = Math.max(w, 1 - d / s.r * 0.5); }
+    for (const i of l) { const s = this.wire.items[i]; if (s.gone) continue; const d = segDist(x, z, s); if (d < s.r) w = Math.max(w, 1 - d / s.r * 0.5); }
     return w;
   }
+  // a mine went up here: the wire in the blast is gone
+  clearWire(x, z, r) { for (const s of this.wire.items) if (segDist(x, z, s) < r + s.r) s.gone = true; }
   // is a ruined wall (taller than you can step) in the way at this point?
   wallAt(x, z, footY, rad = 0.35) {
     const l = this.walls.near(x, z); if (!l) return null;

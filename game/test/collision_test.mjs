@@ -80,3 +80,16 @@ for (const key of ['jump', 'vault']) { const [a, n] = climbTrial(key); ok(`${key
   ok('Rambo mode: survives 10 bullets, the 11th kills', r === 11, `died on bullet ${r}`);
   ok('without Rambo mode a rifle bullet kills', off === 1, `died on bullet ${off}`);
 }
+
+// ---- a mine takes the trenches and wire in its blast with it ----
+{
+  const m = T.map.mines[0], [cx, cz] = m.c, R = m.craterR + 12;
+  const inBlast = T.segs.filter(s => s.side === 'GER' && Math.hypot((s.ax + s.bx) / 2 - cx, (s.az + s.bz) / 2 - cz) < m.craterR);
+  const wasTrench = inBlast.filter(s => T.isTrench((s.ax + s.bx) / 2, (s.az + s.bz) / 2)).length;
+  while (!S.flags.mine) S.step({});
+  const stillTrench = inBlast.filter(s => T.isTrench((s.ax + s.bx) / 2, (s.az + s.bz) / 2)).length;
+  const wireLeft = F.wire.items.filter(w => !w.gone && Math.hypot((w.ax + w.bx) / 2 - cx, (w.az + w.bz) / 2 - cz) < m.craterR).length;
+  const spawnsIn = S.trenchPts.GER.filter(q => Math.hypot(q[0] - cx, q[1] - cz) < m.craterR).length;
+  ok('Lochnagar: no trench survives inside the crater', wasTrench > 5 && stillTrench === 0, `${wasTrench} trench pieces before, ${stillTrench} after`);
+  ok('Lochnagar: no wire or posts left inside the crater', wireLeft === 0 && spawnsIn === 0, `wire ${wireLeft}, posts ${spawnsIn}`);
+}

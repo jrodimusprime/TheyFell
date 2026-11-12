@@ -19,10 +19,10 @@ export class TerrainView {
     this._outer();
   }
   key(l, x, z) { return l + ':' + x + ':' + z; }
-  invalidate(x, z, r) {      // ground changed inside a circle: rebuild those tiles
+  invalidate(x, z, r, all = false) {      // ground changed inside a circle: rebuild those tiles (all levels for a mine)
     // only tiles fine enough to show a shell hole (coarser ones never sample craters); the old tile keeps drawing until
     // its replacement is built, so a shell landing never makes the ground pop to a coarser tile and back
-    for (const [k, m] of this.cache) { const u = m.userData; if (u.level < 2) continue; if (x + r < u.x0 || x - r > u.x0 + u.size || z + r < u.z0 || z - r > u.z0 + u.size) continue; u.stale = true; }
+    for (const [k, m] of this.cache) { const u = m.userData; if (u.level < 2 && !all) continue; if (x + r < u.x0 || x - r > u.x0 + u.size || z + r < u.z0 || z - r > u.z0 + u.size) continue; u.stale = true; }
   }
   _sampleH(level, x, z) {
     const T = this.T, spacing = ROOT / (1 << level) / S;
@@ -127,6 +127,13 @@ export class TerrainView {
   }
 }
 
+// paint onto the ground map after it is built (a mine's chalk thrown out round its crater)
+export function splatGround(tex, x, z, r, ch, v) {
+  const { N, res, data } = tex.userData;
+  const i0 = Math.max(0, Math.floor((x - r) / res)), i1 = Math.min(N - 1, Math.ceil((x + r) / res)), j0 = Math.max(0, Math.floor((z - r) / res)), j1 = Math.min(N - 1, Math.ceil((z + r) / res));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const d = Math.hypot(i * res - x, j * res - z) / r; if (d < 1) { const k = (j * N + i) * 4 + ch; data[k] = Math.min(255, data[k] + v * 255 * (1 - d * d)); } }
+  tex.needsUpdate = true;
+}
 // ---------- ground map: what the surface is made of, at 4 m per texel over the whole map ----------
 // R = chalk spoil (trench banks, crater ejecta), G = churned / shelled earth, B = road, A = woodland floor
 export function buildGroundMap(T, res = 4) {

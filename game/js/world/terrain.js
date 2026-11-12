@@ -111,7 +111,8 @@ export class Terrain {
     out.carve = 0; out.bank = 0; out.seg = -1; out.d = 99; out.depth = 0; out.step = false;
     if (!l) return out;
     for (const idx of l) {
-      const s = this.segs[idx], hw = s.hw + pad, depth = s.depth + (pad ? 0.2 : 0);
+      const s = this.segs[idx]; if (s.gone) continue;   // blown away by a mine
+      const hw = s.hw + pad, depth = s.depth + (pad ? 0.2 : 0);
       // each piece of trench is a rectangle with square ends, run on past its joint by its half-width, so corners are square
       // (as dug and revetted), not rounded: d is the box distance, |offset| inside the length, growing past the ends
       const vx = s.bx - s.ax, vz = s.bz - s.az, L = s.len, wx = x - s.ax, wz = z - s.az, t = (wx * vx + wz * vz) / L, off = Math.abs(wx * s.nx + wz * s.nz);
@@ -134,6 +135,15 @@ export class Terrain {
       }
     }
     return out;
+  }
+  // a mine goes up: the real crater replaces the ground, and every trench within the blast is gone with it
+  blowMine(name) {
+    if (this.mineBlown[name]) return null;
+    this.mineBlown[name] = true;
+    const m = this.map.mines.find(q => q.name === name); if (!m) return null;
+    const R = m.craterR + 12;
+    for (const s of this.segs) if (segDist(m.c[0], m.c[1], s) < R) s.gone = true;
+    return { x: m.c[0], z: m.c[1], r: R };
   }
   // is this point open trench (floor or fire-step), as opposed to solid ground?
   isTrench(x, z) { return this.trenchAt(x, z, this._t3 || (this._t3 = {})).carve < -0.85; }

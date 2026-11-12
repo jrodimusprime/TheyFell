@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { loadTerrain } from './world/terrain.js';
 import { Features } from './world/features.js';
 import { Sim, HZ, DT, WEAPONS, PRE_ZERO_RATE, ZERO_TIME, MINE_AT } from './sim/sim.js';
-import { TerrainView, buildGroundMap } from './render/terrainView.js';
+import { TerrainView, buildGroundMap, splatGround } from './render/terrainView.js';
 import { Props } from './render/props.js';
 import { SoldiersView } from './render/soldiers.js';
 import { Ragdolls } from './render/ragdoll.js';
@@ -144,7 +144,10 @@ async function boot() {
       } else if (e.t === 'explosion') { fx.explosion(e.p, e.kind, cp); audio.boom(e.p, e.kind); }
       else if (e.t === 'incoming') audio.incoming(e.p, e.kind);
       else if (e.t === 'crater') terrain.invalidate(e.p[0], e.p[2], e.r * 1.7);
-      else if (e.t === 'mine') { terrain.invalidate(e.p[0], e.p[2], e.r * 2 + 30); props.last = null; if (e.name === 'Lochnagar') message('07:28. The Lochnagar mine has gone up under the Schwabenhöhe', 7); else addFeed('The Y Sap mine has gone up'); }
+      else if (e.t === 'mine') {
+        terrain.invalidate(e.p[0], e.p[2], e.r * 2 + 40, true); props.last = props.lastWire = null;
+        // chalk thrown out in a white ring round the lip, the ground beyond churned
+        splatGround(groundTex, e.p[0], e.p[2], e.r * 1.7, 0, 0.9); splatGround(groundTex, e.p[0], e.p[2], e.r * 3, 1, 0.6); if (e.name === 'Lochnagar') message('07:28. The Lochnagar mine has gone up under the Schwabenhöhe', 7); else addFeed('The Y Sap mine has gone up'); }
       else if (e.t === 'zero') { audio.zero = true; for (let i = 0; i < 6; i++) audio.whistle([p.x + (i - 3) * 40, p.y, p.z + (i % 2) * 30], i * 0.3); message('Zero hour. The whistles blow: over the top!', 6); }
       else if (e.t === 'hit' && e.id === p.id) { hurt = 1; audio.hurt(); }
       else if (e.t === 'death') {
