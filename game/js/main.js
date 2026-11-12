@@ -172,6 +172,7 @@ async function boot() {
   function addFeed(t) { feed.unshift([t, 6]); feed.length = Math.min(feed.length, 5); }
 
   function frame(now) {
+    if (window.TF && TF.hold) { last = now; requestAnimationFrame(frame); return; }   // tests: hold the picture (debug cameras)
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     frames++; fpsT += dt; if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0; }
     if (running && !AGENT) {
@@ -224,12 +225,29 @@ async function boot() {
     fx.update(dt, scene.fog);
     renderer.render(scene, camera);
     if (p.alive && !(window.TF && TF.view)) {   // the player's arms and rifle, in their own pass on top of the world
-      camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving);
+      camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving, rifleBlock());
       renderer.autoClear = false; renderer.clearDepth(); renderer.render(fp.scene, camera); renderer.autoClear = true;
     }
     hud(dt);
   }
 
+  // how far ahead the rifle can reach before it would go into the ground, a trench wall, a ruin or a man
+  function rifleBlock() {
+    rifleBlock.why = '';
+    const c = camera.position, f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion), down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+    let best = Infinity;
+    for (const drop of [0, 0.14]) {
+      const ox = c.x + down.x * drop, oy = c.y + down.y * drop, oz = c.z + down.z * drop;
+      for (let d = 0.15; d < 1.4 && d < best; d += 0.05) if (oy + f.y * d < T.height(ox + f.x * d, oz + f.z * d)) { best = d; rifleBlock.why = 'ground ' + drop; break; }   // fine steps: a trench wall is thin
+      for (let d = 0.2; d < 1.4 && d < best; d += 0.1) if (F.wallAt(ox + f.x * d, oz + f.z * d, oy + f.y * d - 1.0, 0.05)) { best = d; rifleBlock.why = 'ruin'; break; }
+    }
+    for (const o of sim.soldiers) {   // other men in the way
+      if (o.isPlayer || !o.alive || Math.abs(o.x - c.x) > 1.6 || Math.abs(o.z - c.z) > 1.6) continue;
+      const vx = o.x - c.x, vz = o.z - c.z, along = vx * f.x + vz * f.z, side = Math.abs(vx * f.z - vz * f.x);
+      if (along > 0 && side < 0.35 && c.y - o.y < 2.0 && c.y - o.y > 0 && along - 0.25 < best) { best = along - 0.25; rifleBlock.why = 'man ' + o.id; }
+    }
+    rifleBlock.best = best; return best;
+  }
   // ---------- HUD ----------
   const objEl = $('objectives');
   objEl.innerHTML = sim.objectives.map(o => `<div class="obj" title="${o.name}"><i></i><span>${o.id}</span></div>`).join('');
@@ -345,7 +363,7 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
-    sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, HZ,
+    sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
     get state() { return sim; },
     step(a = {}, n = 1) {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }

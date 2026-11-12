@@ -3,14 +3,15 @@
 // down after every shot, and the charger-clip reload. Drawn in its own pass after the world, so it never clips into walls.
 import * as THREE from 'three';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
-import { makeRifleRig, twoBoneIK, aimBone } from './soldierSkin.js';
+import { makeRifleRig, twoBoneIK } from './soldierSkin.js';
+import { Hands, GRIPS, blendGrip } from './hands.js';
 
 const lerp = (a, b, t) => a + (b - a) * t, ease = t => t * t * (3 - 2 * t);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const lerpV = (a, b, t) => a.clone().lerp(b, ease(Math.min(1, Math.max(0, t))));
 
 // in the rifle's frame (origin at the butt plate, +Z to the muzzle, +Y up, -X the right side)
-const GRIP_R = V(0, -0.045, 0.27), GRIP_L = V(0, -0.045, 0.62);
+const GRIP_R = V(0, -0.045, 0.27), GRIP_L = V(0, -0.045, 0.54);
 const KNOB = V(-0.055, -0.01, 0.392), KNOB_UP = V(-0.032, 0.033, 0.392), BOLT_TRAVEL = 0.09, CHARGER = V(0, 0.055, 0.37);
 
 export class FirstPerson {
@@ -23,9 +24,10 @@ export class FirstPerson {
     this.body = SU.clone(T.gltf.scene); this.rig.add(this.body);
     this.body.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } });
     this.bones = {}; this.body.traverse(o => { if (o.isBone) this.bones[o.name] = o; });
+    this.hands = new Hands(this.bones, this.body);   // measured in the rest pose, before anything moves
     for (const n of ['Head', 'thigh_l', 'thigh_r']) this.bones[n].scale.setScalar(0.0001);   // no head (the camera is in it), no legs
     // he faces +Z; the camera looks down -Z. Eyes at the camera.
-    this.body.rotation.y = Math.PI; this.body.position.set(0, -1.68, 0.12);
+    this.body.rotation.y = Math.PI; this.body.position.set(0, -1.66, 0.03);   // shoulders just behind and below the eyes
     this.gun = makeRifleRig(T.gun, 'smle'); this.rig.add(this.gun);
     // a working bolt on the right of the receiver: body, handle and knob, slides and turns
     const steel = new THREE.MeshStandardMaterial({ color: 0x2f3134, roughness: 0.35, metalness: 0.8 });
@@ -37,22 +39,27 @@ export class FirstPerson {
     this.mixer = new THREE.AnimationMixer(this.body); const idle = T.gltf.animations.find(a => a.name === 'Idle_Loop'); if (idle) this.mixer.clipAction(idle).play();
     this.ads = 0; this.relTotal = 0; this.relLast = 0; this.bob = 0;
   }
-  update(dt, camera, p, W, recoil, bob, moving) {
+  // block: how far ahead (m) the nearest wall, bank or man is along the rifle's line (Infinity if clear)
+  update(dt, camera, p, W, recoil, bob, moving, block = Infinity) {
     this.rig.matrix.copy(camera.matrixWorld); this.rig.updateMatrixWorld(true);
-    this.ads = lerp(this.ads, p.ads && !(p.reloading > 0) ? 1 : 0, Math.min(1, dt * 12));
+    // the rifle can't go through things: when something is closer than the muzzle would reach, pull the rifle back and up
+    const reach = lerp(1.0, 0.85, this.ads), want = Math.min(1, Math.max(0, (reach - block) / 0.55));
+    this.pull = lerp(this.pull || 0, want, Math.min(1, dt * 14));
+    this.ads = lerp(this.ads, p.ads && !(p.reloading > 0) && this.pull < 0.4 ? 1 : 0, Math.min(1, dt * 12));
     const a = ease(this.ads);
     // bolt cycle (after each shot) and reload progress
     const cyc = p.cool > 0 && W.cycle > 0.5 ? 1 - p.cool / W.cycle : -1;
     if (p.reloading > this.relLast + 1e-3) this.relTotal = p.reloading; this.relLast = p.reloading;
     const rel = p.reloading > 0 && this.relTotal > 0 ? 1 - p.reloading / this.relTotal : -1;
     // where the rifle is, in camera space: hip (low, right, angled in) to the shoulder with the sights on the eye line
-    const hip = { pos: V(0.12, -0.2, 0.03), yaw: 0.1, pitch: 0.03, roll: 0.0 }, aim = { pos: V(0, -0.052, 0.13), yaw: 0, pitch: 0, roll: 0 };
+    const hip = { pos: V(0.1, -0.2, 0.13), yaw: 0.12, pitch: 0.05, roll: 0.0 }, aim = { pos: V(0, -0.052, 0.13), yaw: 0, pitch: 0, roll: 0 };
     const sway = moving ? Math.sin(bob) * 0.012 : 0, bobY = moving ? Math.abs(Math.cos(bob)) * 0.01 : 0;
     const pos = hip.pos.clone().lerp(aim.pos, a).add(V(sway * (1 - a), bobY * (1 - a * 0.7) - recoil * 0.012, recoil * 0.06));
     let yaw = lerp(hip.yaw, aim.yaw, a), pitch = lerp(hip.pitch, aim.pitch, a) + recoil * 0.05, roll = 0;
     // working the bolt, he brings the rifle down a little off the shoulder and cants it; reloading, more so
     let k = 0; if (cyc >= 0) k = Math.sin(Math.min(1, cyc) * Math.PI); if (rel >= 0) k = Math.max(k, Math.min(1, Math.min(rel, 1 - rel) * 6));
     pos.add(V(0.02 * k, -0.04 * k, 0.02 * k)); roll += 0.28 * k; pitch += 0.06 * k;
+    { const u = ease(this.pull); pos.add(V(-0.02 * u, 0.04 * u, 0.32 * u)); pitch += 0.95 * u; yaw -= 0.1 * u; }   // up against a wall: rifle drawn back, muzzle up
     if (rel >= 0) { pos.add(V(0.03, 0.03, 0).multiplyScalar(k)); roll += 0.25 * k; yaw -= 0.15 * k; }
     // the rifle group: +Z is the muzzle, so turn it to look down -Z, then yaw/pitch/roll
     this.gun.position.copy(pos);
@@ -81,16 +88,21 @@ export class FirstPerson {
       else hand = lerpV(KNOB, GRIP_R, (t - 0.93) / 0.07);
     }
     this.handle.rotation.z = -lift * 1.35; this.bolt.position.z = -back;
-    // arms: the clip for the body, then hands onto the rifle
+    // arms: the clip for the body, then each wrist placed so the hand (oriented for its grip) closes on the rifle
     this.mixer.update(dt); this.body.updateMatrixWorld(true);
-    const B = this.bones, w = v => v.clone().applyMatrix4(this.gun.matrixWorld);
+    const B = this.bones, G = this.gun.matrixWorld, w = v => v.clone().applyMatrix4(G), d = v => v.clone().transformDirection(G);
     const up = V(0, 1, 0).transformDirection(this.rig.matrixWorld), right = V(1, 0, 0).transformDirection(this.rig.matrixWorld);
-    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, w(hand), up.clone().multiplyScalar(-1).addScaledVector(right, 0.9));
-    twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, w(GRIP_L), up.clone().multiplyScalar(-1).addScaledVector(right, -0.35));
-    const dir = V(0, 0, 1).transformDirection(this.gun.matrixWorld), rUp = V(0, 1, 0).transformDirection(this.gun.matrixWorld);
-    for (const [h, f] of [['hand_r', 'middle_01_r'], ['hand_l', 'middle_01_l']]) {
-      const hb = B[h], fb = B[f]; if (!hb || !fb) continue;
-      aimBone(hb, fb.getWorldPosition(new THREE.Vector3()), hb.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.1).addScaledVector(rUp, -0.05));
-    }
+    // right hand: on the stock (fingers round under the wrist of the stock, palm on its right side) or at the bolt / charger
+    const away = Math.min(1, hand.distanceTo(GRIP_R) / 0.05), pressing = rel >= 0.18 && rel < 0.82 && hand.y > KNOB_UP.y + 0.01;
+    const Fr = d(V(0.15, -0.8, 0.55)).lerp(pressing ? d(V(-0.1, -0.35, 0.9)) : d(V(0.25, -0.2, 0.95)), away).normalize();
+    const Nr = d(V(1, 0, 0)).lerp(pressing ? d(V(0, -1, 0)) : d(V(0.7, -0.3, 0.2)), away).normalize();
+    const gripR = blendGrip(GRIPS.stock, pressing ? GRIPS.press : GRIPS.pinch, away);
+    // left hand: palm up under the fore-end, fingers across to the far side
+    const Fl = d(V(-0.75, 0.1, 0.65)).normalize(), Nl = d(V(0, 1, 0));
+    const wrist = (grip, F, N, palm = 0.03, reach = 0.055) => w(grip).addScaledVector(N, -palm).addScaledVector(F, -reach);
+    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wrist(hand, Fr, Nr, away > 0.5 ? 0.015 : 0.035, away > 0.5 ? 0.075 : 0.05), up.clone().multiplyScalar(-1).addScaledVector(right, 0.9));
+    twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wrist(GRIP_L, Fl, Nl, 0.035, 0.05), up.clone().multiplyScalar(-1).addScaledVector(right, -0.35));
+    this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl);
+    this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend);
   }
 }

@@ -342,22 +342,6 @@ export class Sim {
       else if (Math.abs(dz) > 1e-5 && ok(s.x, nz, 0, dz)) s.z = nz;
       else if (I.jump && s.onGround) this._tryClimb(s, mx, mz);
     }
-    // other men are solid: a man is a 0.3 m circle and can't walk into another (the player can never pass through anyone)
-    if ((s.x !== x0 || s.z !== z0) && !s.climb && !far) {   // men far from the player skip it (simulation level of detail)
-      const gx = Math.floor(s.x / 2), gz = Math.floor(s.z / 2);
-      for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) {
-        const l = this.bump && this.bump.get((cx << 12) | cz); if (!l) continue;
-        for (const o of l) {
-          if (o === s || !o.alive || Math.abs(o.y - s.y) > 1.6) continue;
-          const dx = s.x - o.x, dz = s.z - o.z, d = Math.hypot(dx, dz), MIN = 0.6;
-          if (d >= MIN) continue;
-          // back out along the line between them (the mover gives way); if exactly on top, back out the way he came
-          const ux = d > 1e-4 ? dx / d : x0 - s.x || 1, uz = d > 1e-4 ? dz / d : z0 - s.z, L = Math.hypot(ux, uz) || 1;
-          const nx2 = o.x + ux / L * MIN, nz2 = o.z + uz / L * MIN;
-          if (T.height(nx2, nz2) - s.y < 0.75 && !this.F.wallAt(nx2, nz2, s.y)) { s.x = nx2; s.z = nz2; } else { s.x = x0; s.z = z0; }
-        }
-      }
-    }
     const moved = s.x !== x0 || s.z !== z0 || !s.onGround;
     // vertical: follow the ground, fall into trenches and shell holes
     const gh = T.height(s.x, s.z); s.gh = gh;
@@ -367,6 +351,28 @@ export class Sim {
     if (s.y <= gh) { if (!s.onGround && s.vy < -9) this._damage(s, (-s.vy - 9) * 18, null, { dir: [0, -1, 0], zone: 'legs', point: [s.x, s.y, s.z], kind: 'fall' }); s.y = gh; s.vy = 0; s.onGround = true; }
     else if (s.y - gh > 0.3 || s.vy > 0) s.onGround = false; else { s.y = gh; s.vy = 0; s.onGround = true; }   // rising (a jump) is never snapped back down
     if (!far && (!s.onGround || (moved && (s.isPlayer || (this.tick + s.id) % 3 === 0)))) this._depenetrate(s);   // AI checked every third tick; far men not at all   // after the fall step, so a man dropping in beside a wall is pushed clear the same tick
+    // other men are solid: a man is a body ~0.3 m across and can't walk into another; around the player the gap is 0.8 m
+    // (his rifle and arms reach ahead of him). An AI man always gives way to the player; otherwise the mover backs out.
+    if (!s.climb && !far && (s.isPlayer || s.x !== x0 || s.z !== z0 || moved)) {   // after the wall push-out, so nothing undoes it
+      const okAt = (m, x, z) => x > 5 && z > 5 && x < T.size - 5 && z < T.size - 5 && T.height(x, z) - m.y < 0.75 && !this.F.wallAt(x, z, m.y);
+      const gx = Math.floor(s.x / 2), gz = Math.floor(s.z / 2);
+      for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) {
+        const l = this.bump && this.bump.get((cx << 12) | cz); if (!l) continue;
+        for (const o of l) {
+          if (o === s || !o.alive || o.climb > 0 || Math.abs(o.y - s.y) > 1.6) continue;
+          const MIN = s.isPlayer || o.isPlayer ? 0.8 : 0.6, dx = s.x - o.x, dz = s.z - o.z, d = Math.hypot(dx, dz);
+          if (d >= MIN) continue;
+          let ux = dx, uz = dz; if (d < 1e-4) { ux = x0 - s.x; uz = z0 - s.z; if (Math.hypot(ux, uz) < 1e-6) { ux = Math.cos(o.id); uz = Math.sin(o.id); } }
+          const L = Math.hypot(ux, uz); ux /= L; uz /= L;
+          if (s.isPlayer && !o.isPlayer) {   // the AI man steps aside (or, if he can't, the player stops)
+            const ox = s.x - ux * MIN, oz = s.z - uz * MIN;
+            if (okAt(o, ox, oz)) { o.x = ox; o.z = oz; o.y = Math.max(o.y, T.height(ox, oz)); continue; }
+          }
+          const nx2 = o.x + ux * MIN, nz2 = o.z + uz * MIN;
+          if (okAt(s, nx2, nz2)) { s.x = nx2; s.z = nz2; } else if (Math.hypot(x0 - o.x, z0 - o.z) > d) { s.x = x0; s.z = z0; }
+        }
+      }
+    }
   }
   // push a man out of any wall his 0.3 m body overlaps (dropping in beside a wall, a crater opening up under him)
   _depenetrate(s) {
