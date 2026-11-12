@@ -16,7 +16,7 @@ const a = run(1), c = run(1), d = run(2);
 let fail = 0; const ok = (n, v, x = '') => { console.log(v ? 'PASS' : 'FAIL', n, x); if (!v) fail++; };
 ok('deterministic: same seed, same final hash', a.hash === c.hash, a.hash);
 ok('a different seed plays out differently', a.hash !== d.hash, d.hash);
-ok('tick cost under 1 ms average (60 Hz needs < 16.7)', a.ms < 1, a.ms.toFixed(3) + ' ms avg, worst ' + a.worst.toFixed(1));
+ok(`tick cost under 4 ms average for ${a.S.soldiers.length} soldiers (60 Hz needs < 16.7)`, a.ms < 4, a.ms.toFixed(3) + ' ms avg, worst ' + a.worst.toFixed(1));
 ok('both mines fired', a.counts.mine === 2); ok('zero hour', a.counts.zero === 1);
 ok('the British went over the top', (a.counts.climb || 0) > 50, a.counts.climb);
 ok('men fell on both sides', a.score.BRI.deaths > 0 && a.score.GER.deaths > 0, JSON.stringify(a.score));

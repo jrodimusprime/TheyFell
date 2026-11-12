@@ -151,6 +151,20 @@ export class SoldiersView {
     }
     this.rot = RIG.map(() => [0, 0, 0]); this.rot.root = { y: 0, pitch: 0 };
     this.mats = RIG.map(() => new THREE.Matrix4());
+    // far figures (past FAR m): one merged ~140-triangle body per side and stance (walking, kneeling, prone), no shadow.
+    // A man 100 m off is a handful of pixels at this resolution; this keeps 1,300 soldiers cheap.
+    this.far = {};
+    const farMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+    for (const side of ['BRI', 'GER']) {
+      const U = UNIFORM[side], cols = { head: U.helmet, shinL: U.puttee, shinR: U.puttee };
+      this.far[side] = [0, 1, 2].map(stance => {
+        pose(this.rot, { stance, moving: stance === 0, run: false, pitch: 0 }, 0.6, false, 0);
+        fk(this.mats, { x: 0, y: 0, z: 0 }, 0, this.rot, this.rot.root);
+        const parts = RIG.map(([name, , , he, co], i) => { const g = new THREE.BoxGeometry(he[0] * 2, he[1] * 2, he[2] * 2); g.translate(...co); g.applyMatrix4(this.mats[i]); return colored(g, cols[name] || U.cloth); });
+        const im = new THREE.InstancedMesh(merge(parts), farMat, sim.soldiers.length); im.count = 0; im.frustumCulled = false; im.castShadow = false;
+        im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(im); return im;
+      });
+    }
     this.state = sim.soldiers.map(() => ({ phase: 0, px: 0, pz: 0, moving: false, run: false, aimT: 0 }));
     this.corpses = [];
     this.hidePlayer = true;
@@ -170,9 +184,9 @@ export class SoldiersView {
     q.premultiply(chestQ);
     return out.compose(tmpV.clone().add(new THREE.Vector3(0, 0, aim ? -0.05 : -0.1).applyQuaternion(q)), q, ONE);
   }
-  update(dt, camPos, playerId, cull = 1400) {
-    for (const side of ['BRI', 'GER']) for (const k in this.meshes[side]) this.meshes[side][k].count = 0;
-    const rm = new THREE.Matrix4();
+  update(dt, camPos, playerId, cull = 1400, FAR = 90) {
+    for (const side of ['BRI', 'GER']) { for (const k in this.meshes[side]) this.meshes[side][k].count = 0; for (const im of this.far[side]) im.count = 0; }
+    const rm = new THREE.Matrix4(), fm = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
     for (const s of this.sim.soldiers) {
       const st = this.state[s.id];
       const dx = s.x - st.px, dz = s.z - st.pz, d = Math.hypot(dx, dz); st.px = s.x; st.pz = s.z;
@@ -182,13 +196,16 @@ export class SoldiersView {
       if (!s.alive) continue;
       if (s.id === playerId && this.hidePlayer) continue;
       if (Math.abs(s.x - camPos.x) > cull || Math.abs(s.z - camPos.z) > cull) continue;
+      if (Math.abs(s.x - camPos.x) + Math.abs(s.z - camPos.z) > FAR * 1.3 && Math.hypot(s.x - camPos.x, s.z - camPos.z) > FAR) {
+        const im = this.far[s.side][s.stance]; q.setFromAxisAngle(up, s.yaw); im.setMatrixAt(im.count++, fm.compose(v.set(s.x, s.y, s.z), q, one)); continue;
+      }
       const aim = s.ai ? s.ai.target >= 0 && !st.moving : s.ads;
       pose(this.rot, { stance: s.stance, moving: st.moving, run: st.run, pitch: s.pitch, climbing: s.climb > 0 }, st.phase, aim, 0);
       fk(this.mats, { x: s.x, y: s.y, z: s.z }, s.yaw, this.rot, this.rot.root);
       this._write(s.side, this.mats, this.rifleMatrix(this.mats, aim, s.pitch, rm));
     }
     for (const c of this.corpses) this._write(c.side, c.mats, c.rifle);
-    for (const side of ['BRI', 'GER']) for (const k in this.meshes[side]) this.meshes[side][k].instanceMatrix.needsUpdate = true;
+    for (const side of ['BRI', 'GER']) { for (const k in this.meshes[side]) this.meshes[side][k].instanceMatrix.needsUpdate = true; for (const im of this.far[side]) im.instanceMatrix.needsUpdate = true; }
   }
   // a fresh corpse at the soldier's last pose; ragdoll.js then takes over its matrices
   addCorpse(s) {

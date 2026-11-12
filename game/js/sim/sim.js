@@ -5,6 +5,8 @@ import { mulberry32, FNV } from '../core/rng.js';
 import { segDist } from '../world/terrain.js';
 
 export const HZ = 60, DT = 1 / HZ;
+// the enemy's chance of hitting with a round at distance d metres: 50% at 25 m, 1% at 100 m, linear between (and beyond, capped)
+export const hitChance = d => Math.max(0.01, Math.min(0.66, 0.5 - (d - 25) * 0.49 / 75));
 const G = 9.81;
 export const WEAPONS = {
   smle:  { name: 'SMLE Mk III*', mag: 10, reserve: 60, cycle: 0.95, reload: 0.42, clip: 5, dmg: 100, spread: 0.0035, hip: 0.03, range: 700, auto: false },
@@ -18,7 +20,8 @@ const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO
 export const PRE_ZERO_RATE = 5, ZERO_TIME = ZERO, MINE_AT = MINE_TIME;
 
 export class Sim {
-  constructor(T, F, { seed = 1, playerSide = 'BRI', bri = 150, ger = 84 } = {}) {
+  constructor(T, F, { seed = 1, playerSide = 'BRI', bri = 900, ger = 400, mgs = 16 } = {}) {
+    this.nMG = mgs;
     this.T = T; this.F = F; this.seed = seed; this.rng = mulberry32(seed); this.tick = 0;
     this.map = T.map; this.events = []; this.soldiers = []; this.shells = []; this.grenades = []; this.gt = 0;
     this.flags = { mine: false, zero: false };
@@ -64,19 +67,36 @@ export class Sim {
     // the 34th Division's frontage, astride La Boisselle from Mash Valley to Sausage Valley, around the player;
     // the British in their front and support lines, the Germans in the Schwabenhöhe and La Boisselle salient opposite
     const ps = this.player, [lx, lz] = this.map.objectives[0].c;
-    const bri = near('BRI', ps.x, ps.z, 700), ger = near('GER', lx, lz - 120, 650);
+    // (historically ~10,000 British in 12 battalions against ~2,000 of Reserve Infantry Regiment 110 here)
+    const bri = near('BRI', ps.x, ps.z, 1100), ger = near('GER', lx, lz - 120, 1000);
     // each man his own place on a fire-trench floor (a shuffled draw, no two on one spot)
     const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = r.int(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-    const briPts = shuffle(bri), gerPts = shuffle(ger);
+    // weighted toward the player's stretch of the line (density falling off over ~300 m), as the battalions went over
+    // in waves of men a few paces apart; each point used once while points last
+    const weighted = (pts, cx, cz, n, fall) => { const pool = pts.slice(), out = [];
+      while (out.length < n && pool.length) { let tot = 0; const w = pool.map(p => { const v = Math.exp(-Math.hypot(p[0] - cx, p[1] - cz) / fall) + 0.02; tot += v; return v; });
+        let x = r() * tot, i = 0; while (i < pool.length - 1 && (x -= w[i]) > 0) i++; out.push(pool[i]); pool.splice(i, 1);
+        if (out.length % 64 === 0 && pool.length > 4000) pool.splice(0, 0); }
+      while (out.length < n) out.push(pts[out.length % pts.length]); return out; };
+    const briPts = weighted(bri, ps.x, ps.z, nb, 300), gerPts = shuffle(weighted(ger, lx, lz - 60, Math.max(0, ng), 320));
     for (let i = 0; i < nb; i++) { const p = briPts[i % briPts.length]; const s = this._spawn('BRI', p[0], p[1]); s.ai.wave = i % 4; s.stance = 1; }
-    for (const m of this.map.mgs) { const p = this._snapToTrench(m[0], m[1], 'GER', 80, true); if (p) { const s = this._spawn('GER', p[0], p[1], 'mg'); s.ai.post = p; } }
+    // machine guns: the known posts, then more spread along the German front system opposite the attack
+    const mgAt = this.map.mgs.slice(), front = ger.filter(p => this.T.segs[p[2]].kind === 0);
+    for (let k = 0; mgAt.length < this.nMG && front.length && k < 200; k++) { const p = front[Math.floor((k * 0.618034 % 1) * front.length)]; if (mgAt.every(q => Math.hypot(q[0] - p[0], q[1] - p[1]) > 70)) mgAt.push([p[0], p[1]]); }
+    for (const m of mgAt.slice(0, this.nMG)) { const p = this._snapToTrench(m[0], m[1], 'GER', 80, true); if (p) { const s = this._spawn('GER', p[0], p[1], 'mg'); s.ai.post = p; } }
     for (let i = this.soldiers.filter(s => s.side === 'GER').length, k = 0; i < ng; i++, k++) { const p = gerPts[k % gerPts.length]; const s = this._spawn('GER', p[0], p[1]); s.stance = 1; s.ai.mode = 'shelter'; s.ai.post = [p[3], p[4]]; }
     for (const s of this.soldiers) if (s.role === 'mg') s.ai.mode = 'shelter';
   }
 
   // ---------- the tick ----------
+  // a 100 m grid of the living, rebuilt each tick: target search looks only in nearby cells
+  _buildGrid() {
+    const g = this.grid || (this.grid = new Map()); g.clear();
+    for (const s of this.soldiers) { if (!s.alive) continue; const k = (Math.floor(s.x / 100) << 8) | Math.floor(s.z / 100); let l = g.get(k); if (!l) g.set(k, l = []); l.push(s); }
+  }
   step(input = {}) {
     const p = this.player;
+    this._buildGrid();
     this._player(p, input);
     for (const s of this.soldiers) if (!s.isPlayer && s.alive) this._think(s);
     for (const s of this.soldiers) if (s.alive) this._move(s);
@@ -105,7 +125,7 @@ export class Sim {
     this._weaponTick(s);
     const ai = s.ai, t = this.time;
     if (--ai.think > 0) { this._aimAndFire(s); return; }
-    ai.think = 20 + s.rng.int(20);
+    ai.think = (Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350 ? 45 : 20) + s.rng.int(20);   // far from the player: thinks half as often
     // before the barrage lifts, the Germans shelter in their deep dugouts (they come up when it lifts: the race for the parapet)
     if (ai.mode === 'shelter') { s.stance = 1; s.intent = null; if (t >= ZERO - 4 + s.rng.range(0, 25)) ai.mode = s.role === 'mg' ? 'mg' : 'hold'; return; }
     // British: wait in the trench for zero hour and their wave, then go over the top and walk forward
@@ -116,10 +136,10 @@ export class Sim {
     // look for an enemy: nearest visible within range
     const W = WEAPONS[s.weapon], range = s.role === 'mg' ? 900 : s.side === 'GER' ? 450 : 300;
     let best = -1, bd = range;
-    const cand = [];
-    for (const o of this.soldiers) {
-      if (!o.alive || o.side === s.side) continue;
-      const d = Math.abs(o.x - s.x) + Math.abs(o.z - s.z); if (d < range * 1.3) cand.push([d, o]);
+    const cand = [], gx = Math.floor(s.x / 100), gz = Math.floor(s.z / 100), gr = Math.ceil(range / 100);
+    for (let cz = gz - gr; cz <= gz + gr; cz++) for (let cx = gx - gr; cx <= gx + gr; cx++) {
+      const l = this.grid.get((cx << 8) | cz); if (!l) continue;
+      for (const o of l) { if (o.side === s.side) continue; const d = Math.abs(o.x - s.x) + Math.abs(o.z - s.z); if (d < range * 1.3) cand.push([d, o]); }
     }
     cand.sort((a, b) => a[0] - b[0] || a[1].id - b[1].id);
     for (let i = 0; i < Math.min(4, cand.length); i++) {   // line-of-sight checks are the expensive part: nearest few only
@@ -169,6 +189,14 @@ export class Sim {
     if (s.cool > 0 || s.reloading) return;
     const W = WEAPONS[s.weapon];
     if (!W.auto && s.rng() > 0.05) return;   // riflemen take their time over a shot
+    if (s.side !== this.player.side) {
+      // the enemy's shooting: each round hits with a chance falling linearly from 50% at 25 m to 1% at 100 m (1% beyond).
+      // A hit is aimed true at what shows of the man (cover still stops it); a miss goes a metre or more wide.
+      const pHit = hitChance(d);
+      if (s.rng() < pHit) { const ay = o.y + HEIGHT[o.stance] * 0.8 - this._eye(s); this._fire(s, Math.atan2(-dx, -dz), Math.atan2(ay, d), true); }
+      else { const side = s.rng() < 0.5 ? -1 : 1, off = (1.1 + s.rng() * 2.5) / Math.max(d, 3); this._fire(s, s.yaw + side * off, s.pitch + (s.rng() - 0.3) * off, true); }
+      return;
+    }
     const err = (0.006 + d * 0.00003) / ai.skill;
     this._fire(s, s.yaw + s.rng.gauss() * err, s.pitch + s.rng.gauss() * err * 0.7);
   }
@@ -192,13 +220,13 @@ export class Sim {
     s.reloading = W.clip >= W.mag ? W.reload : W.reload * 4.2 * (W.clip / 5); s.reloadMore = true;
     this.events.push({ t: 'reload', id: s.id });
   }
-  _fire(s, yaw, pitch) {
+  _fire(s, yaw, pitch, exact = false) {
     const W = WEAPONS[s.weapon];
     if (s.cool > 0 || s.reloading > 0 || s.climb > 0) return false;
     if (s.mag <= 0) { this._startReload(s); return false; }
     s.mag--; s.cool = W.cycle;
     const moving = s.intent && (s.intent.f || s.intent.s);
-    const spread = (s.isPlayer ? (s.ads ? W.spread : W.hip) : 0) + (moving ? 0.012 : 0) + (s.stance === 2 ? -0.001 : 0);
+    const spread = exact ? 0 : (s.isPlayer ? (s.ads ? W.spread : W.hip) : 0) + (moving ? 0.012 : 0) + (s.stance === 2 ? -0.001 : 0);
     const r = s.rng; yaw += r.gauss() * spread; pitch += r.gauss() * spread;
     const cp = Math.cos(pitch), dx = -Math.sin(yaw) * cp, dy = Math.sin(pitch), dz = -Math.cos(yaw) * cp;
     const ox = s.x, oy = this._eye(s), oz = s.z;
@@ -271,19 +299,22 @@ export class Sim {
       if (run) s.stamina = Math.max(0, s.stamina - DT / 14); else s.stamina = Math.min(1, s.stamina + DT / 9);
       const f = I.f, sd = I.s, L = Math.hypot(f, sd) || 1, sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
       mx = (-sy * f + cy * sd) / L; mz = (-cy * f - sy * sd) / L;
-      const wire = this.F.wireAt(s.x, s.z); if (wire > 0) sp *= 1 - wire * 0.78;
-      // walking up a steep crater side is slow
-      const ahead = T.height(s.x + mx * 0.6, s.z + mz * 0.6) - T.height(s.x, s.z); if (ahead > 0.15) sp *= Math.max(0.45, 1 - ahead * 0.8);
+      if (s.isPlayer || (this.tick + s.id) % 6 === 0) s.wire = this.F.wireAt(s.x, s.z);   // AI: every sixth tick is enough
+      if (s.wire > 0) sp *= 1 - s.wire * 0.78;
+      // walking up a steep crater side is slow (the ground under him is known from last tick)
+      const ahead = T.height(s.x + mx * 0.6, s.z + mz * 0.6) - (s.gh ?? s.y); if (ahead > 0.15) sp *= Math.max(0.45, 1 - ahead * 0.8);
     } else s.stamina = Math.min(1, s.stamina + DT / 7);
     const nx = s.x + mx * sp * DT, nz = s.z + mz * sp * DT, x0 = s.x, z0 = s.z;
     const lim = [5, this.T.size - 5], R = 0.3;
     // a man is a 0.3 m circle: he can't move into ground that rises more than a step anywhere ahead of him on that circle
     // (only the leading side blocks, so a man pressed against a wall can always step away from it)
+    const far = !s.isPlayer && Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350;   // simulation level of detail
     const ok = (x, z, dx, dz) => {
       if (x < lim[0] || z < lim[0] || x > lim[1] || z > lim[1]) return false;
+      if (far) { const L = Math.hypot(dx, dz) || 1; return !(T.height(x + dx / L * 0.3, z + dz / L * 0.3) - s.y > (s.onGround ? 0.75 : 0.02)); }   // far away: one probe ahead
       const L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
       // the player is probed on 16 rays at two radii, so a sharp wall corner can't slip between probes; AI on 8
-      const n = s.isPlayer ? 16 : 8, lim2 = s.onGround ? 0.75 : 0.02;   // in the air he can't pass into anything above his feet
+      const n = s.isPlayer ? 16 : 6, lim2 = s.onGround ? 0.75 : 0.02;   // in the air he can't pass into anything above his feet
       for (let k = 0; k < n; k++) {
         const a = k * Math.PI * 2 / n, cx = Math.cos(a), cz = Math.sin(a);
         if (cx * ux + cz * uz < 0.1) continue;
@@ -301,17 +332,17 @@ export class Sim {
     }
     const moved = s.x !== x0 || s.z !== z0 || !s.onGround;
     // vertical: follow the ground, fall into trenches and shell holes
-    const gh = T.height(s.x, s.z);
+    const gh = T.height(s.x, s.z); s.gh = gh;
     if (I && I.jump && s.onGround && s.isPlayer && sp === 0) { s.vy = 3.6; s.onGround = false; }
     if (I && I.jump && s.onGround && s.isPlayer && sp > 0 && gh - s.y < 0.1) { /* jumping while walking: a hop */ s.vy = 3.6; s.onGround = false; }
     s.vy -= G * DT; s.y += s.vy * DT;
     if (s.y <= gh) { if (!s.onGround && s.vy < -9) this._damage(s, (-s.vy - 9) * 18, null, { dir: [0, -1, 0], zone: 'legs', point: [s.x, s.y, s.z], kind: 'fall' }); s.y = gh; s.vy = 0; s.onGround = true; }
     else if (s.y - gh > 0.3 || s.vy > 0) s.onGround = false; else { s.y = gh; s.vy = 0; s.onGround = true; }   // rising (a jump) is never snapped back down
-    if (moved || !s.onGround) this._depenetrate(s);   // after the fall step, so a man dropping in beside a wall is pushed clear the same tick
+    if (!far && (!s.onGround || (moved && (s.isPlayer || (this.tick + s.id) % 3 === 0)))) this._depenetrate(s);   // AI checked every third tick; far men not at all   // after the fall step, so a man dropping in beside a wall is pushed clear the same tick
   }
   // push a man out of any wall his 0.3 m body overlaps (dropping in beside a wall, a crater opening up under him)
   _depenetrate(s) {
-    const T = this.T, n = s.isPlayer ? 16 : 8, R = 0.3;
+    const T = this.T, n = s.isPlayer ? 16 : 6, R = 0.3;
     const t = T.trenchAt(s.x, s.z, this._dp || (this._dp = {}));
     if (t.seg < 0 || t.d > T.segs[t.seg].hw + 0.5) { if (!T.craterAt(s.x, s.z)) return; }   // walls only exist at trench edges (and steep crater sides)
     for (let it = 0; it < 8; it++) {

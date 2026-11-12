@@ -3,7 +3,7 @@
 // Pure data + maths, no three.js: the simulation (and a headless agent) uses the same ground as the renderer.
 import { mulberry32 } from '../core/rng.js';
 
-const TRENCH_CELL = 8, CRATER_CELL = 16;
+const TRENCH_CELL = 8, CRATER_CELL = 8;
 const WALL = 0.06;    // the cut is near-vertical: revetted walls, not a slope
 
 export async function loadTerrain(base = 'data/') {
@@ -103,12 +103,22 @@ export class Terrain {
       }
     });
     this.tN = N; this.tCells = cells;
+    // a 2 m map of where any trench (with its parapet and parados) reaches: everywhere else skips the trench search
+    const M = Math.ceil(this.size / 2), near = new Uint8Array(M * M), reach = 5.0;
+    for (const sg of segs) {
+      const x0 = Math.max(0, Math.floor((Math.min(sg.ax, sg.bx) - sg.hw - reach) / 2)), x1 = Math.min(M - 1, Math.floor((Math.max(sg.ax, sg.bx) + sg.hw + reach) / 2));
+      const z0 = Math.max(0, Math.floor((Math.min(sg.az, sg.bz) - sg.hw - reach) / 2)), z1 = Math.min(M - 1, Math.floor((Math.max(sg.az, sg.bz) + sg.hw + reach) / 2));
+      for (let j = z0; j <= z1; j++) for (let i = x0; i <= x1; i++) if (segDist(i * 2 + 1, j * 2 + 1, sg) < sg.hw + reach + 1.5) near[j * M + i] = 1;
+    }
+    this.nearM = M; this.near = near;
   }
   // trench carve (negative = below surface) and spoil banks (positive) at a point; also reports the trench under it
   // pad > 0 widens and deepens the cut (the renderer uses it so the ground mesh stays behind the revetment walls)
   trenchAt(x, z, out, pad = 0) {
-    const l = this.tCells.get(Math.floor(z / TRENCH_CELL) * this.tN + Math.floor(x / TRENCH_CELL));
     out.carve = 0; out.bank = 0; out.seg = -1; out.d = 99; out.depth = 0; out.step = false;
+    const ni = Math.floor(x / 2), nj = Math.floor(z / 2);
+    if (ni < 0 || nj < 0 || ni >= this.nearM || nj >= this.nearM || !this.near[nj * this.nearM + ni]) return out;   // nowhere near a trench
+    const l = this.tCells.get(Math.floor(z / TRENCH_CELL) * this.tN + Math.floor(x / TRENCH_CELL));
     if (!l) return out;
     for (const idx of l) {
       const s = this.segs[idx]; if (s.gone) continue;   // blown away by a mine
@@ -225,17 +235,20 @@ export class Terrain {
   }
   inTrench(x, z) { const t = this.trenchAt(x, z, this._tmp2 || (this._tmp2 = {})); return t.carve < -0.9 ? this.segs[t.seg] : null; }
   // line of sight over the ground (bullets, AI eyes). Returns the hit distance or -1 if clear.
+  // trenches and shell holes matter for sight and fire only near either end (a man in a trench, a lip in front of him);
+  // in between the line is traced over the plain ground, which is several times cheaper
   raycast(ox, oy, oz, dx, dy, dz, maxD) {
     let t = 0.3, step = 0.6;
     while (t < maxD) {
       const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
       if (x < 0 || z < 0 || x > this.size || z > this.size) return -1;
-      if (y < this.height(x, z)) {   // refine
+      const g = t < 30 || maxD - t < 30 ? this.height(x, z) : this._preBlast(x, z, this.demAt(x, z));
+      if (y < g) {   // refine
         let a = t - step, b = t;
         for (let i = 0; i < 5; i++) { const m = (a + b) / 2; if (oy + dy * m < this.height(ox + dx * m, oz + dz * m)) b = m; else a = m; }
         return b;
       }
-      t += step; step = Math.min(3, 0.6 + t * 0.012);
+      t += step; step = t < 30 || maxD - t < 30 ? Math.min(1.5, 0.6 + t * 0.012) : Math.min(5, 1 + t * 0.02);
     }
     return -1;
   }

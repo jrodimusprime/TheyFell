@@ -32,6 +32,8 @@ URL flags: `?seed=N`, `?cheat` (no damage), `?at=x,z` (start at a world position
 You start in the British front-line trench opposite the **Schwabenhöhe** at **07:27:30**, with the week-long bombardment in its last minutes. Until zero hour the clock runs 5× fast, so the mines go up about 6 s in and the whistles blow about 30 s in; after that it runs in real time. At **07:28** the **Lochnagar** and **Y Sap** mines go up: the ground under the German salient becomes the real crater. At **07:30** the whistles blow and the Tyneside battalions walk forward at the historical walking pace into German rifle and machine-gun fire. The German defenders shelter in their dugouts until the barrage lifts, then race to the fire-step.
 
 - **Objectives** (frontlines style): A Schwabenhöhe (Lochnagar), B La Boisselle, C Sausage Redoubt, D Scots Redoubt, E Contalmaison. A side holding more men inside the circle pushes the capture bar. Captured objectives become spawn points.
+- **Numbers.** The 34th Division put all 12 battalions in here, about 10,000 men, against roughly 2,000 of Reserve Infantry Regiment 110 holding La Boisselle and the Schwabenhöhe. The demo runs about 1:11 for the British (900 men) and about 1:5 for the Germans (400 men and 16 machine guns), weighted toward your stretch of the line.
+- **Enemy fire.** Each round a German fires hits with a chance falling linearly from 50% at 25 m to 1% at 100 m (1% beyond, about 66% point-blank). A "hit" aimed at a man behind a parapet strikes the parapet.
 - **Respawn is normal.** Death is frequent, as it was. You see your body fall (ragdoll), then redeploy about 3 s later at a trench or a taken objective. AI reinforcements come up in waves (British every 20 s, German every 28 s), so the line is always fed.
 - **Out of bounds.** Leave the play area (150 m inside the map edge) and the screen says *Out of bounds: return to the battlefield*. The map edge itself (5 m) cannot be crossed. Beyond it, a coarse ring of land runs to the horizon so the world doesn't end in a cliff.
 
@@ -58,9 +60,10 @@ Indoor engines (Quake, Cimmerian) use BSP trees and precomputed visibility (PVS)
 1. **Quadtree terrain LOD (CDLOD-style).** 36 root tiles of 1000 m split down to 15.6 m tiles (0.49 m vertex spacing) near the camera. Each tile is a 32 × 32 grid, so detail falls off with distance: 0.5 m within ~25 m, 1 m to ~50 m, then 2, 4, 8 … 31 m. Skirts hide the cracks between levels. Tiles build nearest-first within a few milliseconds per frame, and an LRU cache keeps about 700 of them.
 2. **Fog as the far clip.** Exponential haze (half-hidden at ~250 m, gone by ~650 m), plus ground mist that pools in the valleys. Nothing past 1.6 km is drawn. The depth range is tight (0.12 m to 1.6 km), so distant surfaces don't flicker.
 3. **Frustum culling** of every tile (three.js does this per mesh).
-4. **Instancing everywhere.** Each soldier part, sandbag, duckboard slat, picket, wall and tree type is a single draw call. 234 soldiers cost about 24 draw calls.
-5. **Streaming of near detail.** Trench dressing (revetment, fire-step, duckboards, sandbags) is rebuilt within 150 m whenever you move 18 m, and wire within 350 m.
-6. **One sun shadow map** that follows the player (140 m box), snapped to a 0.5 m grid so shadows don't shimmer. The scene renders at half resolution by default, scaled up with hard pixels. GPU particles (two draw calls for up to 11,500 particles) draw shell bursts across the whole front.
+4. **Instancing everywhere.** Each soldier part, sandbag, duckboard slat, picket, wall and tree type is a single draw call. Soldiers beyond 90 m are a single merged ~140-triangle figure, posed standing, kneeling or prone. 1,300 soldiers cost about 30 draw calls.
+5. **Simulation level of detail.** AI target search uses a 100 m grid. Men more than 350 m from the player move with a single collision probe and think half as often. 1,300 soldiers run at about 2.5 ms per tick.
+6. **Streaming of near detail.** Trench dressing (revetment, fire-step, duckboards, sandbags) is rebuilt within 150 m whenever you move 18 m, and wire within 350 m.
+7. **One sun shadow map** that follows the player (140 m box), snapped to a 0.5 m grid so shadows don't shimmer. The scene renders at half resolution by default, scaled up with hard pixels. GPU particles (two draw calls for up to 11,500 particles) draw shell bursts across the whole front.
 
 Typical numbers (headless Chrome, Metal, 1280 × 720): about 300 terrain tiles, 150–220 draw calls and 45–60 fps. F3 shows them live.
 
