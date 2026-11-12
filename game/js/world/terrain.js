@@ -4,6 +4,7 @@
 import { mulberry32 } from '../core/rng.js';
 
 const TRENCH_CELL = 8, CRATER_CELL = 16;
+const WALL = 0.06;    // the cut is near-vertical: revetted walls, not a slope
 
 export async function loadTerrain(base = 'data/') {
   const [meta, buf, map] = await Promise.all([
@@ -84,12 +85,12 @@ export class Terrain {
         // which side of this segment faces the enemy: parapet there, parados behind
         let nx = -(bz - az), nz = bx - ax; const L = Math.hypot(nx, nz); nx /= L; nz /= L;
         if (nx * ex + nz * ez < 0) { nx = -nx; nz = -nz; }
-        segs.push({ ax, az, bx, bz, hw, depth, nx, nz, kind, side: t.side });
+        segs.push({ ax, az, bx, bz, hw, depth, nx, nz, kind, side: t.side, len: Math.hypot(bx - ax, bz - az) });
       }
     }
     this.segs = segs;
     // spatial hash: each cell lists every segment whose influence (hw + 4.2 m of parapet) touches it
-    const N = Math.ceil(this.size / TRENCH_CELL), cells = new Map(), R = 4.4;
+    const N = Math.ceil(this.size / TRENCH_CELL), cells = new Map(), R = 5.3;
     segs.forEach((s, idx) => {
       const x0 = Math.floor((Math.min(s.ax, s.bx) - R) / TRENCH_CELL), x1 = Math.floor((Math.max(s.ax, s.bx) + R) / TRENCH_CELL);
       const z0 = Math.floor((Math.min(s.az, s.bz) - R) / TRENCH_CELL), z1 = Math.floor((Math.max(s.az, s.bz) + R) / TRENCH_CELL);
@@ -104,30 +105,38 @@ export class Terrain {
     this.tN = N; this.tCells = cells;
   }
   // trench carve (negative = below surface) and spoil banks (positive) at a point; also reports the trench under it
-  trenchAt(x, z, out) {
+  // pad > 0 widens and deepens the cut (the renderer uses it so the ground mesh stays behind the revetment walls)
+  trenchAt(x, z, out, pad = 0) {
     const l = this.tCells.get(Math.floor(z / TRENCH_CELL) * this.tN + Math.floor(x / TRENCH_CELL));
     out.carve = 0; out.bank = 0; out.seg = -1; out.d = 99; out.depth = 0; out.step = false;
     if (!l) return out;
     for (const idx of l) {
-      const s = this.segs[idx], d = segDist(x, z, s);
-      if (d > s.hw + 4.2) continue;
+      const s = this.segs[idx], hw = s.hw + pad, depth = s.depth + (pad ? 0.2 : 0);
+      // each piece of trench is a rectangle with square ends, run on past its joint by its half-width, so corners are square
+      // (as dug and revetted), not rounded: d is the box distance, |offset| inside the length, growing past the ends
+      const vx = s.bx - s.ax, vz = s.bz - s.az, L = s.len, wx = x - s.ax, wz = z - s.az, t = (wx * vx + wz * vz) / L, off = Math.abs(wx * s.nx + wz * s.nz);
+      const over = Math.max(0, -t - s.hw, t - L - s.hw), d = over > 0 ? Math.max(off, hw + over) : off;
+      if (d > hw + 4.2) continue;
       if (d < out.d) { out.d = d; out.seg = idx; }
-      const wall = 0.32;
-      if (d < s.hw) {
-        let c = -s.depth;
-        if (s.kind === 0 && d > s.hw - 0.5 && (x - s.ax) * s.nx + (z - s.az) * s.nz > 0) { c += 0.7; out.step = true; }   // the fire-step
+      const wall = WALL;
+      if (d < hw) {
+        let c = -depth;
+        if (!pad && s.kind === 0 && d > s.hw - 0.5 && (x - s.ax) * s.nx + (z - s.az) * s.nz > 0) { c += 0.7; out.step = true; }   // the fire-step
         if (c < out.carve) { out.carve = c; out.depth = s.depth; }
       }
-      else if (d < s.hw + wall) { const t = (d - s.hw) / wall, c = -s.depth * (1 - t * t * (3 - 2 * t) * 0.92); if (c < out.carve) { out.carve = c; out.depth = s.depth; } }
+      else if (d < hw + wall) { const t = (d - hw) / wall, c = -depth * (1 - t); if (c < out.carve) { out.carve = c; out.depth = s.depth; } }
       else {
         // which side: parapet (enemy side, higher, wider) or parados
         const px = x - s.ax, pz = z - s.az, side = px * s.nx + pz * s.nz;
-        const e = d - s.hw - wall, H = s.kind === 2 ? 0.3 : side > 0 ? 0.42 : 0.35, Wd = side > 0 ? 3.2 : 2.4;
-        if (e < Wd) { const t = e / Wd, b = H * (t < 0.25 ? 1 : 1 - (t - 0.25) / 0.75) ** 1.5; if (b > out.bank) out.bank = b; }
+        const e = d - s.hw - WALL, H = s.kind === 2 ? 0.3 : side > 0 ? 0.42 : 0.35, Wd = side > 0 ? 3.2 : 2.4;
+        if (e > 0 && e < Wd) { const t = e / Wd, b = H * (t < 0.25 ? 1 : 1 - (t - 0.25) / 0.75) ** 1.5; if (b > out.bank) out.bank = b; }
+        else if (e <= 0 && H > out.bank) out.bank = H;
       }
     }
     return out;
   }
+  // is this point open trench (floor or fire-step), as opposed to solid ground?
+  isTrench(x, z) { return this.trenchAt(x, z, this._t3 || (this._t3 = {})).carve < -0.85; }
 
   // ---------- bombardment craters: the week-long preliminary bombardment, heaviest on the German lines ----------
   _buildCraters(seed) {

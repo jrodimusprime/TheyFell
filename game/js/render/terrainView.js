@@ -27,7 +27,7 @@ export class TerrainView {
     let h = T._preBlast(x, z, T.demAt(x, z));
     this._cut = 0;
     if (spacing < 9) h += T.craterAt(x, z);
-    if (spacing < 1.1) { const t = T.trenchAt(x, z, this._tmp || (this._tmp = {})); h += t.carve < -0.01 ? t.carve : t.bank; this._cut = Math.min(1, -Math.min(0, t.carve) / 1.2); }
+    if (spacing < 1.1) { const t = T.trenchAt(x, z, this._tmp || (this._tmp = {}), Math.min(0.55, spacing * 0.55 + 0.05)); h += t.carve < -0.01 ? t.carve : t.bank; /* cut wider than the walls, so the mesh hides behind them */ this._cut = Math.min(1, -Math.min(0, t.carve) / 1.2); }
     else if (spacing < 4.5) { const t = T.trenchAt(x, z, this._tmp || (this._tmp = {})); h += t.bank * 0.8 + Math.max(t.carve, -0.6); this._cut = Math.min(1, -Math.min(0, t.carve) / 1.2) * 0.7; }
     return h;
   }
@@ -192,7 +192,7 @@ function makeGroundMaterial(T, groundTex) {
         float steep = 1. - clamp(vWNorm.y, 0., 1.);
         c = mix(c, mix(chalk, mud, .45 + .3 * n4), smoothstep(.45, .8, steep) * .85);
         // inside the trench: wet chalky mud on the floor, cut chalk on the walls
-        vec3 floorMud = mix(vec3(.30, .26, .21), vec3(.42, .39, .33), n3);
+        vec3 floorMud = mix(vec3(.17, .14, .11), vec3(.25, .21, .16), n3);   // wet, trodden mud under the duckboards
         c = mix(c, mix(floorMud, chalk * .85, smoothstep(.4, .75, steep)), smoothstep(.3, .9, vCut));
         diffuseColor.rgb *= c;
       }`);

@@ -289,7 +289,7 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
-    sim, T, F, scene, camera, renderer, terrain, men, rag, HZ,
+    sim, T, F, scene, camera, renderer, terrain, men, rag, props, HZ,
     get state() { return sim; },
     step(a = {}, n = 1) {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }

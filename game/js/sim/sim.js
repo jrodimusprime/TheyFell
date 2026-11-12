@@ -37,7 +37,7 @@ export class Sim {
   _trenchPoints(side) {   // fire-trench floor points of one side, used for spawning and posting men
     const out = [];
     // [floor x, floor z, segment, fire-step x, fire-step z]
-    this.T.segs.forEach((s, i) => { if (s.side === side && (s.kind === 0 || (side === 'GER' && s.kind === 2)) && Math.hypot(s.bx - s.ax, s.bz - s.az) > 4) { const mx = (s.ax + s.bx) / 2, mz = (s.az + s.bz) / 2, o = s.kind === 0 ? s.hw - 0.25 : 0; out.push([mx, mz, i, mx + s.nx * o, mz + s.nz * o]); } });
+    this.T.segs.forEach((s, i) => { if (s.side === side && (s.kind === 0 || (side === 'GER' && s.kind === 2)) && Math.hypot(s.bx - s.ax, s.bz - s.az) > 4) { const mx = (s.ax + s.bx) / 2, mz = (s.az + s.bz) / 2, o = s.kind === 0 ? s.hw - 0.33 : 0; out.push([mx, mz, i, mx + s.nx * o, mz + s.nz * o]); } });
     return out;
   }
   _snapToTrench(x, z, side, maxD = 60, step = false) {
@@ -262,20 +262,31 @@ export class Sim {
       // walking up a steep crater side is slow
       const ahead = T.height(s.x + mx * 0.6, s.z + mz * 0.6) - T.height(s.x, s.z); if (ahead > 0.15) sp *= Math.max(0.45, 1 - ahead * 0.8);
     } else s.stamina = Math.min(1, s.stamina + DT / 7);
-    const nx = s.x + mx * sp * DT, nz = s.z + mz * sp * DT;
-    const lim = [5, this.T.size - 5];
-    const ok = (x, z) => {
+    const nx = s.x + mx * sp * DT, nz = s.z + mz * sp * DT, x0 = s.x, z0 = s.z;
+    const lim = [5, this.T.size - 5], R = 0.3;
+    // a man is a 0.3 m circle: he can't move into ground that rises more than a step anywhere ahead of him on that circle
+    // (only the leading side blocks, so a man pressed against a wall can always step away from it)
+    const ok = (x, z, dx, dz) => {
       if (x < lim[0] || z < lim[0] || x > lim[1] || z > lim[1]) return false;
-      const gh = T.height(x + mx * 0.25, z + mz * 0.25);
-      if (gh - s.y > 0.75 && s.onGround) return false;   // the 0.7 m fire-step is a step
+      const L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
+      // the player is probed on 16 rays at two radii, so a sharp wall corner can't slip between probes; AI on 8
+      const n = s.isPlayer ? 16 : 8, lim2 = s.onGround ? 0.75 : 0.02;   // in the air he can't pass into anything above his feet
+      for (let k = 0; k < n; k++) {
+        const a = k * Math.PI * 2 / n, cx = Math.cos(a), cz = Math.sin(a);
+        if (cx * ux + cz * uz < 0.1) continue;
+        if (T.height(x + cx * R, z + cz * R) - s.y > lim2) return false;
+        if (s.isPlayer && T.height(x + cx * R * 0.6, z + cz * R * 0.6) - s.y > lim2) return false;
+      }
       return !this.F.wallAt(x, z, s.y);
     };
     if (sp > 0) {
-      if (ok(nx, nz)) { s.x = nx; s.z = nz; }
-      else if (ok(nx, s.z)) s.x = nx;
-      else if (ok(s.x, nz)) s.z = nz;
+      const dx = mx * sp * DT, dz = mz * sp * DT;
+      if (ok(nx, nz, dx, dz)) { s.x = nx; s.z = nz; }
+      else if (Math.abs(dx) > 1e-5 && ok(nx, s.z, dx, 0)) s.x = nx;
+      else if (Math.abs(dz) > 1e-5 && ok(s.x, nz, 0, dz)) s.z = nz;
       else if (I.jump && s.onGround) this._tryClimb(s, mx, mz);
     }
+    if (s.x !== x0 || s.z !== z0 || !s.onGround) this._depenetrate(s);
     // vertical: follow the ground, fall into trenches and shell holes
     const gh = T.height(s.x, s.z);
     if (I && I.jump && s.onGround && s.isPlayer && sp === 0) { s.vy = 3.6; s.onGround = false; }
@@ -283,6 +294,24 @@ export class Sim {
     s.vy -= G * DT; s.y += s.vy * DT;
     if (s.y <= gh) { if (!s.onGround && s.vy < -9) this._damage(s, (-s.vy - 9) * 18, null, { dir: [0, -1, 0], zone: 'legs', point: [s.x, s.y, s.z], kind: 'fall' }); s.y = gh; s.vy = 0; s.onGround = true; }
     else if (s.y - gh > 0.3) s.onGround = false; else { s.y = gh; s.vy = 0; s.onGround = true; }
+  }
+  // push a man out of any wall his 0.3 m body overlaps (dropping in beside a wall, a crater opening up under him)
+  _depenetrate(s) {
+    const T = this.T, n = s.isPlayer ? 16 : 8, R = 0.3;
+    const t = T.trenchAt(s.x, s.z, this._dp || (this._dp = {}));
+    if (t.seg < 0 || t.d > T.segs[t.seg].hw + 0.5) { if (!T.craterAt(s.x, s.z)) return; }   // walls only exist at trench edges (and steep crater sides)
+    for (let it = 0; it < 6; it++) {
+      let px = 0, pz = 0, hit = 0;
+      for (let k = 0; k < n; k++) {
+        const a = k * Math.PI * 2 / n, cx = Math.cos(a), cz = Math.sin(a);
+        for (const r of [R, R * 0.6]) if (T.height(s.x + cx * r, s.z + cz * r) - s.y > 0.75) { px -= cx * (R - r + 0.05); pz -= cz * (R - r + 0.05); hit++; break; }
+      }
+      if (!hit) return;
+      const L = Math.hypot(px, pz); if (L < 1e-6) return;
+      const step = Math.min(0.06, L / hit + 0.01), nx = s.x + px / L * step, nz = s.z + pz / L * step;
+      if (T.height(nx, nz) - s.y > 0.75) return;   // nowhere better to go
+      s.x = nx; s.z = nz;
+    }
   }
   _tryClimb(s, mx, mz) {
     // find the top of the wall ahead: up to 2.7 m (a trench wall with a parapet), with somewhere to stand beyond it
