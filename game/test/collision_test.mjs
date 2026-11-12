@@ -103,3 +103,19 @@ for (const key of ['jump', 'vault']) { const [a, n] = climbTrial(key); ok(`${key
   ok('God mode: 50 head shots, a heavy shell at his feet and a fall, and he is untouched', p.alive && p.hp === 100, `hp ${p.hp}`);
   S.god = false;
 }
+
+// ---- men are solid: the player can't walk through another soldier ----
+{
+  const S2 = new Sim(T, F, { seed: 3, bri: 0, ger: 0 }), q = S2.player;
+  const pt = S2.trenchPts.BRI[40], o = S2._spawn('BRI', pt[0], pt[1]); o.ai.mode = 'hold'; o.ai.think = 1e9;
+  let minD = 99, through = false;
+  for (const ang of [0, 1, 2, 3, 4, 5]) {
+    const a = ang * Math.PI / 3, sx = o.x + Math.cos(a) * 1.5, sz = o.z + Math.sin(a) * 1.5;
+    if (T.height(sx, sz) - o.y > 0.5 || T.height(sx, sz) - o.y < -0.5) continue;
+    Object.assign(q, { x: sx, z: sz, y: T.height(sx, sz), vy: 0, onGround: true, climb: 0, climbTo: null, alive: true, stance: 0 });
+    const yaw = Math.atan2(-(o.x - sx), -(o.z - sz)), side0 = Math.sign((q.x - o.x) * Math.cos(a) + (q.z - o.z) * Math.sin(a));
+    for (let i = 0; i < 120; i++) { S2._buildGrid(); S2._player(q, { forward: 1, yaw, run: true }); S2._move(q); minD = Math.min(minD, Math.hypot(q.x - o.x, q.z - o.z)); }
+    if (Math.sign((q.x - o.x) * Math.cos(a) + (q.z - o.z) * Math.sin(a)) !== side0 && Math.hypot(q.x - o.x, q.z - o.z) < 1.2) through = true;
+  }
+  ok('the player cannot walk through another soldier', minD >= 0.55 && !through, `closest ${minD.toFixed(2)} m`);
+}

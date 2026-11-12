@@ -11,6 +11,7 @@ import { SoldiersView } from './render/soldiers.js';
 import { Ragdolls } from './render/ragdoll.js';
 import { Blood } from './render/blood.js';
 import { loadSkinnedMen } from './render/skinnedMen.js';
+import { FirstPerson } from './render/firstPerson.js';
 import { FX, makeSky } from './render/fx.js';
 import { Audio } from './audio.js';
 import { makeGroundTextures } from './render/groundTex.js';
@@ -97,6 +98,7 @@ async function boot() {
   const blood = new Blood(scene, T);
   setLoad('Dressing the men (uniforms, faces, rifles)…');
   const skinned = await loadSkinnedMen(scene, renderer);
+  const fp = new FirstPerson(skinned, SUN);
   const rag = new Ragdolls(T);
   rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
   const fx = new FX(scene);
@@ -206,7 +208,8 @@ async function boot() {
     if (fx.shake > 0) { camera.rotation.x += (Math.random() - 0.5) * 0.02 * fx.shake; camera.rotation.y += (Math.random() - 0.5) * 0.02 * fx.shake; }
     camera.fov = THREE.MathUtils.lerp(camera.fov, p.ads ? 50 : 72, Math.min(1, dt * 12)); camera.updateProjectionMatrix();
     recoil = Math.max(0, recoil - dt * 6);
-    updateViewModel(vm, p, W, dt, recoil, bob);
+    vm.visible = false;   // the old box rifle: replaced by the first-person arms
+    const fpMoving = !!(p.intent && (p.intent.f || p.intent.s));
     // shadows follow the player
     { const sx = Math.round(camera.position.x / 0.5) * 0.5, sz = Math.round(camera.position.z / 0.5) * 0.5, sy = Math.round(camera.position.y); sun.target.position.set(sx, sy, sz); sun.position.set(sx, sy, sz).addScaledVector(SUN, 300); sun.target.updateMatrixWorld(); }   // snapped: no shimmering
     sky.position.copy(camera.position);
@@ -220,6 +223,10 @@ async function boot() {
     blood.update(dt);
     fx.update(dt, scene.fog);
     renderer.render(scene, camera);
+    if (p.alive && !(window.TF && TF.view)) {   // the player's arms and rifle, in their own pass on top of the world
+      camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving);
+      renderer.autoClear = false; renderer.clearDepth(); renderer.render(fp.scene, camera); renderer.autoClear = true;
+    }
     hud(dt);
   }
 
@@ -338,7 +345,7 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
-    sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, HZ,
+    sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, HZ,
     get state() { return sim; },
     step(a = {}, n = 1) {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }

@@ -222,14 +222,14 @@ export function makeRifleRig(gunScene, kind) {
   g.add(r); g.userData.grips = kind === 'smle' ? { right: 0.27, left: 0.6, drop: 0.035 } : { right: 0.28, left: 0.62, drop: 0.035 };
   return g;
 }
-function aimBone(bone, from, to) {
+export function aimBone(bone, from, to) {
   // rotate bone (about its world position) so that the world point `from` swings onto the direction of `to`
   const P = bone.getWorldPosition(_v[0]), a = _v[1].subVectors(from, P).normalize(), b = _v[2].subVectors(to, P).normalize();
   const dq = _q[0].setFromUnitVectors(a, b), wq = bone.getWorldQuaternion(_q[1]);
   const nw = _q[2].multiplyQuaternions(dq, wq), pq = bone.parent.getWorldQuaternion(_q[3]).invert();
   bone.quaternion.multiplyQuaternions(pq, nw); bone.updateMatrixWorld(true);
 }
-function twoBoneIK(upper, lower, hand, target, pole) {
+export function twoBoneIK(upper, lower, hand, target, pole) {
   const S = upper.getWorldPosition(_v[3]).clone(), E = lower.getWorldPosition(_v[4]).clone(), W = hand.getWorldPosition(_v[5]).clone();
   const a = S.distanceTo(E), b = E.distanceTo(W), toT = _v[6].subVectors(target, S), d = Math.min(Math.max(toT.length(), 0.05), a + b - 1e-3);
   const dir = toT.normalize(), pp = _v[7].copy(pole).addScaledVector(dir, -pole.dot(dir)).normalize();

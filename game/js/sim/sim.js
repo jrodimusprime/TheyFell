@@ -93,6 +93,9 @@ export class Sim {
   // ---------- the tick ----------
   // a 100 m grid of the living, rebuilt each tick: target search looks only in nearby cells
   _buildGrid() {
+    // a 2 m hash of the living, for men bumping into each other
+    const h = this.bump || (this.bump = new Map()); h.clear();
+    for (const s of this.soldiers) { if (!s.alive) continue; const k = (Math.floor(s.x / 2) << 12) | Math.floor(s.z / 2); let l = h.get(k); if (!l) h.set(k, l = []); l.push(s); }
     const g = this.grid || (this.grid = new Map()); g.clear();
     for (const s of this.soldiers) { if (!s.alive) continue; const k = (Math.floor(s.x / 100) << 8) | Math.floor(s.z / 100); let l = g.get(k); if (!l) g.set(k, l = []); l.push(s); }
   }
@@ -338,6 +341,22 @@ export class Sim {
       else if (Math.abs(dx) > 1e-5 && ok(nx, s.z, dx, 0)) s.x = nx;
       else if (Math.abs(dz) > 1e-5 && ok(s.x, nz, 0, dz)) s.z = nz;
       else if (I.jump && s.onGround) this._tryClimb(s, mx, mz);
+    }
+    // other men are solid: a man is a 0.3 m circle and can't walk into another (the player can never pass through anyone)
+    if ((s.x !== x0 || s.z !== z0) && !s.climb) {
+      const gx = Math.floor(s.x / 2), gz = Math.floor(s.z / 2);
+      for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) {
+        const l = this.bump && this.bump.get((cx << 12) | cz); if (!l) continue;
+        for (const o of l) {
+          if (o === s || !o.alive || Math.abs(o.y - s.y) > 1.6) continue;
+          const dx = s.x - o.x, dz = s.z - o.z, d = Math.hypot(dx, dz), MIN = 0.6;
+          if (d >= MIN) continue;
+          // back out along the line between them (the mover gives way); if exactly on top, back out the way he came
+          const ux = d > 1e-4 ? dx / d : x0 - s.x || 1, uz = d > 1e-4 ? dz / d : z0 - s.z, L = Math.hypot(ux, uz) || 1;
+          const nx2 = o.x + ux / L * MIN, nz2 = o.z + uz / L * MIN;
+          if (T.height(nx2, nz2) - s.y < 0.75 && !this.F.wallAt(nx2, nz2, s.y)) { s.x = nx2; s.z = nz2; } else { s.x = x0; s.z = z0; }
+        }
+      }
     }
     const moved = s.x !== x0 || s.z !== z0 || !s.onGround;
     // vertical: follow the ground, fall into trenches and shell holes
