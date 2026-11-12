@@ -144,7 +144,7 @@ export function makeSky(scene, sunDir) {
         vec3 zen = vec3(.47, .54, .62), hor = uHaze;   // a smoke-greyed sky
         vec3 c = mix(hor, zen, smoothstep(.0, .55, pow(e, .7)));   // a deep band of haze over the horizon
         c += vec3(1., .82, .58) * pow(s, 8.) * .35 + vec3(1., .9, .7) * pow(s, 1800.) * .55 + vec3(1., .95, .85) * smoothstep(.99985, .9999, s) * .9;   // the sun dimmed by the smoke
-        c = mix(c, uHaze * .92, smoothstep(.0, -.08, vD.y));
+        c = mix(c, uHaze, smoothstep(.03, -.01, vD.y));   // at and below the horizon: exactly the fog colour, so far ground and sky meet with no seam
         gl_FragColor = vec4(c, 1.);
       }` });
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = -1; scene.add(mesh);

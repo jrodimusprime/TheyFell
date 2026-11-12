@@ -7,8 +7,8 @@ import { mulberry32 } from '../core/rng.js';
 const N = 512;
 function canvas() { const c = document.createElement('canvas'); c.width = c.height = N; return c; }
 // draw a shape at every wrap offset so the tile is seamless
-function wrap(fn) { for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) fn(ox, oy); }
-function noiseLayer(g, r, scale, alpha, colors) {
+export function wrap(fn) { for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) fn(ox, oy); }
+export function noiseLayer(g, r, scale, alpha, colors) {
   // soft blotches: many large faint discs
   const n = Math.round(N * N / (scale * scale) * 3);
   for (let i = 0; i < n; i++) {
@@ -16,7 +16,7 @@ function noiseLayer(g, r, scale, alpha, colors) {
     wrap((ox, oy) => { const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rad); gr.addColorStop(0, `rgba(${c},${alpha})`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.beginPath(); g.arc(x + ox, y + oy, rad, 0, 7); g.fill(); });
   }
 }
-function grass(r) {
+export function grass(r) {
   const c = canvas(), g = c.getContext('2d');
   g.fillStyle = '#4c5a2a'; g.fillRect(0, 0, N, N);
   noiseLayer(g, r, 90, 0.35, ['62,74,34', '92,96,48', '58,64,30', '104,100,58']);
@@ -30,7 +30,7 @@ function grass(r) {
   }
   return c;
 }
-function earth(r) {
+export function earth(r) {
   const c = canvas(), g = c.getContext('2d');
   g.fillStyle = '#5a4a38'; g.fillRect(0, 0, N, N);
   noiseLayer(g, r, 70, 0.45, ['70,56,42', '96,82,64', '48,40,32', '120,108,88']);
@@ -48,7 +48,7 @@ function earth(r) {
   noiseLayer(g, r, 40, 0.25, ['32,26,20']);
   return c;
 }
-function chalk(r) {
+export function chalk(r) {
   const c = canvas(), g = c.getContext('2d');
   g.fillStyle = '#c4beab'; g.fillRect(0, 0, N, N);
   noiseLayer(g, r, 80, 0.4, ['214,208,190', '176,168,148', '196,186,160', '150,140,118']);
@@ -65,7 +65,7 @@ function chalk(r) {
   return c;
 }
 // normal map from the picture's brightness (lumps are lit from above-left, so brightness ~ height)
-function normalMap(src, strength) {
+export function normalMap(src, strength) {
   const d = src.getContext('2d').getImageData(0, 0, N, N).data, h = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) h[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) / 255;
   const out = new Uint8Array(N * N * 4), H = (x, y) => h[((y + N) % N) * N + ((x + N) % N)];
@@ -82,7 +82,7 @@ export function makeGroundTextures(renderer) {
   const atlas = document.createElement('canvas'); atlas.width = N; atlas.height = N * 3;
   const ag = atlas.getContext('2d'); srcs.forEach((c, i) => ag.drawImage(c, 0, i * N));
   const nrm = new Uint8Array(N * N * 3 * 4); [6, 9, 7].forEach((s, i) => nrm.set(normalMap(srcs[i], s), i * N * N * 4));
-  const color = new THREE.CanvasTexture(atlas); color.colorSpace = THREE.SRGBColorSpace;
+  const color = new THREE.CanvasTexture(atlas); color.colorSpace = THREE.SRGBColorSpace; color.flipY = false;   // rows top to bottom, like the normal-map data
   const normal = new THREE.DataTexture(nrm, N, N * 3, THREE.RGBAFormat); normal.needsUpdate = true;
   for (const t of [color, normal]) { t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); }
   return { color, normal };

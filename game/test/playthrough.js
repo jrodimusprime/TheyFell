@@ -36,7 +36,7 @@ log('[start]', o.time, 'player', o.player.x, o.player.z, 'inTrench', o.player.in
 const ok = (name, cond, extra = '') => log(cond ? 'PASS' : 'FAIL', name, extra);
 ok('starts in a British trench', o.player.inTrench);
 // 1. wait in the trench through the mines (07:28) to zero hour (07:30)
-await ev('__bot.wait(60 * 215); true');
+await ev('while (!TF.sim.flags.zero) __bot.wait(30); __bot.wait(60); true');   // zero hour comes ~30 s in
 o = await obs();
 ok('mines fired at 07:28', o.mine, o.time); ok('zero hour reached', o.zero, o.time);
 if (SHOTS) { await ev('TF.render(0.03); TF.settle(); for (let i = 0; i < 10; i++) TF.render(0.033); true'); await shot('p1_zero_hour', 85); }

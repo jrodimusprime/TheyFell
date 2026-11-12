@@ -71,3 +71,12 @@ for (const key of ['jump', 'vault']) { const [a, n] = climbTrial(key); ok(`${key
   settle(3); S._player(p, { yaw: p.yaw, jump: true }); S._move(p);
   ok('Space in the open is a jump', p.vy > 2 && !p.climbTo, `vy ${p.vy.toFixed(2)}`);
 }
+
+// ---- Rambo mode: the player survives 10 bullets, the 11th kills him; off, one rifle bullet kills ----
+{
+  const shooter = S.soldiers.find(x => !x.isPlayer) || S._spawn('GER', p.x + 5, p.z, 'rifle');
+  const hits = rambo => { S.rambo = rambo; Object.assign(p, { alive: true, hp: 100 }); let n = 0; while (p.alive && n < 30) { S._damage(p, 100, shooter, { kind: 'bullet', zone: 'body', dir: [1, 0, 0], point: [p.x, p.y, p.z] }); n++; } S.rambo = false; return n; };
+  const r = hits(true), off = hits(false);
+  ok('Rambo mode: survives 10 bullets, the 11th kills', r === 11, `died on bullet ${r}`);
+  ok('without Rambo mode a rifle bullet kills', off === 1, `died on bullet ${off}`);
+}

@@ -23,13 +23,13 @@ The game fetches its terrain, so it needs a local server (opening `index.html` f
 | G | Throw a Mills bomb (3 per life, 4 s fuse) |
 | M | Trench map of the whole 6 km map, with the play boundary |
 | P | Pixel size: the game renders at a fraction of screen resolution and scales up with hard pixels (34 / 50 / 70 / 100 %) |
-| F3 / K / Esc | Debug and performance line / sound on or off / pause |
+| F3 / K / Esc | Debug and performance line / sound on or off / pause (the pause menu has **Rambo mode**: survive 10 bullets, the 11th drops you) |
 
 URL flags: `?seed=N`, `?cheat` (no damage), `?at=x,z` (start at a world position in metres), `?lowres`, `?agent` (no menu; the sim only advances through `TF.step`, for tests).
 
 ## What happens
 
-You start in the British front-line trench opposite the **Schwabenhöhe** at **07:26:30**, with the week-long bombardment in its last minutes. At **07:28** the **Lochnagar** and **Y Sap** mines go up: the ground under the German salient becomes the real crater. At **07:30** the whistles blow and the Tyneside battalions walk forward at the historical walking pace into German rifle and machine-gun fire. The German defenders shelter in their dugouts until the barrage lifts, then race to the fire-step.
+You start in the British front-line trench opposite the **Schwabenhöhe** at **07:27:30**, with the week-long bombardment in its last minutes. Until zero hour the clock runs 5× fast, so the mines go up about 6 s in and the whistles blow about 30 s in; after that it runs in real time. At **07:28** the **Lochnagar** and **Y Sap** mines go up: the ground under the German salient becomes the real crater. At **07:30** the whistles blow and the Tyneside battalions walk forward at the historical walking pace into German rifle and machine-gun fire. The German defenders shelter in their dugouts until the barrage lifts, then race to the fire-step.
 
 - **Objectives** (frontlines style): A Schwabenhöhe (Lochnagar), B La Boisselle, C Sausage Redoubt, D Scots Redoubt, E Contalmaison. A side holding more men inside the circle pushes the capture bar. Captured objectives become spawn points.
 - **Respawn is normal.** Death is frequent, as it was. You see your body fall (ragdoll), then redeploy about 3 s later at a trench or a taken objective. AI reinforcements come up in waves (British every 20 s, German every 28 s), so the line is always fed.
@@ -77,6 +77,7 @@ On death each part becomes a **cannon-es** physics body, joined by cone-twist co
 - **Tests:** `game/test/run.sh` runs:
   - `collision_test.mjs` (Node): a man is driven at trench walls from 16 directions, at 120 places, walking and running with jump held. He must never pass through a wall, and his 0.3 m body must stay out of them.
   - `sim_test.mjs` (Node, no browser): 6 minutes of battle, twice with the same seed (identical hash) and once with another seed (a different hash), plus tick cost, mines, zero hour, men going over the top, and casualties and respawns on both sides.
+  - `flicker.js` in headless Chrome: with the camera still, and then bobbing, while the battle runs and shells land, the set of terrain tiles drawn must not change from frame to frame.
   - `assault.js` in headless Chrome: after zero hour the agent makes for the nearest German soldier, fighting what it sees. It must kill 3 once it is in the German lines (in a German trench or within 40 m of one). When killed, it respawns and goes again.
   - `playthrough.js` in headless Chrome through `cdp.mjs`: a bot waits in the trench, goes over at zero hour, crosses no man's land to the Lochnagar lip while fighting, redeploys when killed, then walks off the west edge to check the out-of-bounds warning and the hard map edge. It prints PASS/FAIL and the final hash, and saves screenshots.
 

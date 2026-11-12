@@ -10,7 +10,7 @@ const SPLIT = 1.6;          // split a tile when the camera is closer than SPLIT
 
 export class TerrainView {
   constructor(T, scene, groundTex, tex) {
-    this.T = T; this.scene = scene; this.cache = new Map(); this.queue = []; this.frame = 0;
+    this.T = T; this.scene = scene; this.cache = new Map(); this.queue = []; this.frame = 0; this.split = new Set();
     this.material = makeGroundMaterial(T, groundTex, tex);
     this.group = new THREE.Group(); scene.add(this.group);
     this.stats = { tiles: 0, tris: 0, built: 0 };
@@ -20,7 +20,9 @@ export class TerrainView {
   }
   key(l, x, z) { return l + ':' + x + ':' + z; }
   invalidate(x, z, r) {      // ground changed inside a circle: rebuild those tiles
-    for (const [k, m] of this.cache) { const u = m.userData; if (x + r < u.x0 || x - r > u.x0 + u.size || z + r < u.z0 || z - r > u.z0 + u.size) continue; u.stale = true; }
+    // only tiles fine enough to show a shell hole (coarser ones never sample craters); the old tile keeps drawing until
+    // its replacement is built, so a shell landing never makes the ground pop to a coarser tile and back
+    for (const [k, m] of this.cache) { const u = m.userData; if (u.level < 2) continue; if (x + r < u.x0 || x - r > u.x0 + u.size || z + r < u.z0 || z - r > u.z0 + u.size) continue; u.stale = true; }
   }
   _sampleH(level, x, z) {
     const T = this.T, spacing = ROOT / (1 << level) / S;
@@ -63,7 +65,7 @@ export class TerrainView {
     const m = new THREE.Mesh(g, this.material);
     m.position.set(x0, 0, z0); m.receiveShadow = true; m.castShadow = level >= 4; m.matrixAutoUpdate = false; m.updateMatrix();
     m.userData = { level, x0, z0, size, mn, mx, used: this.frame, version: this.version };
-    m.visible = false; this.group.add(m); this.cache.set(k, m); this.stats.built++;
+    m.visible = !!(old && old.visible); this.group.add(m); this.cache.set(k, m); this.stats.built++;
     return m;
   }
   // a low-detail ring of land beyond the surveyed square, so the horizon is not a cliff (out of bounds, never walkable)
@@ -89,12 +91,17 @@ export class TerrainView {
       const dy = m ? Math.max(m.userData.mn - cy, 0, cy - m.userData.mx) : 0;
       const d = Math.hypot(dx, dy * 0.7, dz);
       if (l > 0 && d > 1700) return;   // past the fog and the far plane: not drawn at all
-      if (l < MAX_LEVEL && d < size * SPLIT) {
+      // hysteresis: a split tile stays split until 15% further out, so head-bob at the boundary can't make it pop
+      const key = this.key(l, x0, z0), wasSplit = this.split.has(key);
+      if (l < MAX_LEVEL && d < size * SPLIT * (wasSplit ? 1.15 : 1)) {
+        this.split.add(key);
         const h = size / 2, kids = [[x0, z0], [x0 + h, z0], [x0, z0 + h], [x0 + h, z0 + h]];
-        const ready = kids.every(([kx, kz]) => { const c = this.cache.get(this.key(l + 1, kx, kz)); return c && !c.userData.stale; });
+        // children that exist (even if stale, being rebuilt) are drawn: no falling back to the coarse parent and back again
+        const ready = kids.every(([kx, kz]) => this.cache.has(this.key(l + 1, kx, kz)));
         if (ready || !m) { for (const [kx, kz] of kids) visit(l + 1, kx, kz, h); return; }
-        for (const [kx, kz] of kids) if (!this.cache.has(this.key(l + 1, kx, kz)) || this.cache.get(this.key(l + 1, kx, kz)).userData.stale) this.queue.push([l + 1, kx, kz, h, d]);
+        for (const [kx, kz] of kids) if (!this.cache.has(this.key(l + 1, kx, kz))) this.queue.push([l + 1, kx, kz, h, d]);
       }
+      else this.split.delete(key);
       if (!m || m.userData.stale) { this.queue.push([l, x0, z0, size, d]); if (!m) return; }
       want.push(m);
     };
@@ -107,12 +114,14 @@ export class TerrainView {
     this.pending = uniq - built;
     this.queue.length = 0;
     for (const m of this.group.children) m.visible = false;
-    let tris = 0; for (const m of want) { m.visible = true; m.userData.used = this.frame; tris += m.geometry.index.count / 3; }
+    // draw the current mesh for each wanted tile: a stale tile rebuilt this frame has replaced its old mesh (which drawing
+    // the old one would leave a one-frame hole in the ground)
+    let tris = 0; for (const w of want) { const u = w.userData, m = this.cache.get(this.key(u.level, u.x0, u.z0)) || w; m.visible = true; m.userData.used = this.frame; tris += m.geometry.index.count / 3; }
     this.stats.tiles = want.length; this.stats.tris = tris;
     // evict least-recently-used fine tiles
     if (this.cache.size > 900) {
-      const list = [...this.cache.values()].filter(m => m.userData.level > 0).sort((a, b) => a.userData.used - b.userData.used);
-      for (const m of list.slice(0, this.cache.size - 700)) { m.geometry.dispose(); this.group.remove(m); this.cache.delete(this.key(m.userData.level, m.userData.x0, m.userData.z0)); }
+      const list = [...this.cache.values()].filter(m => m.userData.level > 0 && m.userData.used < this.frame - 120).sort((a, b) => a.userData.used - b.userData.used);   // never a tile drawn in the last 2 s
+      for (const m of list.slice(0, Math.max(0, this.cache.size - 700))) { m.geometry.dispose(); this.group.remove(m); this.cache.delete(this.key(m.userData.level, m.userData.x0, m.userData.z0)); }
     }
     return want.length;
   }

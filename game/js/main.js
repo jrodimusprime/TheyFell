@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { loadTerrain } from './world/terrain.js';
 import { Features } from './world/features.js';
-import { Sim, HZ, DT, WEAPONS } from './sim/sim.js';
+import { Sim, HZ, DT, WEAPONS, PRE_ZERO_RATE, ZERO_TIME, MINE_AT } from './sim/sim.js';
 import { TerrainView, buildGroundMap } from './render/terrainView.js';
 import { Props } from './render/props.js';
 import { SoldiersView } from './render/soldiers.js';
@@ -12,6 +12,7 @@ import { Ragdolls } from './render/ragdoll.js';
 import { FX, makeSky } from './render/fx.js';
 import { Audio } from './audio.js';
 import { makeGroundTextures } from './render/groundTex.js';
+import { makePropTextures } from './render/propTex.js';
 
 // ---------- ground fog: mist lying in the valleys, on top of the distance haze (every material uses these chunks) ----------
 const GROUND_FOG_TOP = 106, GROUND_FOG_FALL = 9;   // metres above sea level: Mash and Sausage valleys sit below ~100 m
@@ -89,7 +90,7 @@ async function boot() {
   setLoad('Mapping the shell holes and the chalk…');
   const groundTex = buildGroundMap(T);
   const terrain = new TerrainView(T, scene, groundTex, makeGroundTextures(renderer));
-  const props = new Props(scene, T, F);
+  const props = new Props(scene, T, F, makePropTextures(renderer));
   const men = new SoldiersView(scene, sim);
   const rag = new Ragdolls(T);
   const fx = new FX(scene);
@@ -218,8 +219,8 @@ async function boot() {
   function hud(dt) {
     const p = sim.player, o = sim.obs ? null : null, W = WEAPONS[p.weapon];
     $('clock').textContent = sim.clock();
-    const t = sim.time, mine = 7 * 3600 + 28 * 60, zero = 7 * 3600 + 30 * 60;
-    $('phase').textContent = t < mine ? `Mines in ${Math.ceil(mine - t)} s · zero hour 07:30` : t < zero ? `Zero hour in ${Math.ceil(zero - t)} s` : 'The attack: take the Schwabenhöhe and La Boisselle';
+    const t = sim.time, mine = MINE_AT, zero = ZERO_TIME;   // before zero the clock runs PRE_ZERO_RATE x fast: count down real seconds
+    $('phase').textContent = t < mine ? `Mines in ${Math.ceil((mine - t) / PRE_ZERO_RATE)} s · zero hour 07:30` : t < zero ? `Zero hour in ${Math.ceil((zero - t) / PRE_ZERO_RATE)} s` : 'The attack: take the Schwabenhöhe and La Boisselle';
     $('ammo').textContent = p.reloading > 0 ? 'Reloading…' : `${p.mag} | ${p.reserve}`; $('weapon').textContent = `${W.name} · Mills bombs ${p.grenades ?? 3}`;
     $('hp').textContent = !p.alive ? 'Fallen' : p.hp > 80 ? 'Unwounded' : p.hp > 45 ? 'Wounded' : 'Badly wounded'; $('hpbar').firstChild.style.width = Math.max(0, p.hp) + '%';
     $('stance').textContent = (p.climb > 0 ? 'Climbing' : ['Standing', 'Crouched', 'Prone'][p.stance]) + (T.inTrench(p.x, p.z) ? ' · in the trench' : '') + (F.wireAt(p.x, p.z) > 0 ? ' · caught on wire' : '') + ` · ${Math.round(p.x)} m E, ${Math.round(6000 - p.z)} m N`;
@@ -333,7 +334,7 @@ async function boot() {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }
       return sim.obs();
     },
-    obs: () => sim.obs(), hash: () => sim.hash(),
+    obs: () => sim.obs(), hash: () => sim.hash(), rambo: on => { sim.rambo = !!on; return sim.rambo; },
     render(dt = 1 / 60) { consumeEvents(); render(dt); },
     settle() { render(0.016); for (let i = 0; i < 60; i++) { terrain.update(camera, 200); if (!terrain.pending && i > 1) break; } props.last = props.lastWire = null; props.update(camera); },
     perf: () => ({ fps, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tiles: terrain.stats.tiles, terrainTris: terrain.stats.tris, corpses: men.corpses.length, ragdolls: rag.stats.active }),
@@ -341,10 +342,13 @@ async function boot() {
   function startGame() {
     $('menu').style.display = 'none'; $('hud').hidden = false; running = true; audio.start();
     renderer.domElement.requestPointerLock?.();
-    if (!started) { started = true; message('Stand to. The bombardment is in its last minutes.', 5); }
+    if (!started) { started = true; message('Stand to. The bombardment is in its last minutes.', 4); }
   }
   let started = false;
   $('play').onclick = startGame;
+  const setRambo = on => { sim.rambo = on; $('rambo').textContent = `Rambo mode: ${on ? 'on (survive 10 bullets)' : 'off'}`; $('rambo').setAttribute('aria-pressed', on); };
+  $('rambo').onclick = () => setRambo(!sim.rambo);
+  if (Q.has('rambo')) setRambo(true);
   // first frames: build the near ground before the player sees it
   terrain.update(camera, 400);
   if (AGENT) { $('menu').style.display = 'none'; $('hud').hidden = false; running = true; }

@@ -9,7 +9,7 @@ const r = await ev(`(() => { ${cfg}
   const yawTo = (x, z) => Math.atan2(-(x - P().x), -(z - P().z));
   // wait in the trench through the mines to zero hour, as the battalions did
   while (S.time < 7 * 3600 + 30 * 60 + 2) step({ yaw: P().yaw, pitch: 0 }, 30);
-  const end = S.tick + BUDGET_MIN * 60 * H;
+  const z0 = S.tick, end = S.tick + BUDGET_MIN * 60 * H;
   let deaths = 0, shots = 0, stuck = 0, last = [P().x, P().z], target = null, retarget = 0, inKills = 0, firstIn = null, entries = 0, wasIn = false;
   const gerFire = S.trenchPts.GER;
   const inGerman = () => { const p = P(), g = T.inTrench(p.x, p.z); if (g && g.side === 'GER') return true;
@@ -49,7 +49,7 @@ const r = await ev(`(() => { ${cfg}
       if (stuck >= 2) { step({ forward: 1, side: (S.tick / H) % 2 < 1 ? 1 : -1, vault: true, jump: true, yaw: yawTo(target.x, target.z) + 0.9 }, 60); stuck = 0; } }
   }
   const p = P();
-  return { kills: p.kills, inKills, firstIn, entries, deaths, shots, time: S.clock(), minutes: +((S.tick / H - 213) / 60).toFixed(1), log: log.slice(0, 20), hash: S.hash(), score: S.score };
+  return { kills: p.kills, inKills, firstIn, entries, deaths, shots, time: S.clock(), minutes: +((S.tick - z0) / H / 60).toFixed(1), log: log.slice(0, 20), hash: S.hash(), score: S.score };
 })()`);
 log('[assault]', JSON.stringify({ killsInGermanLines: r.inKills, killsTotal: r.kills, firstInGermanTrench: r.firstIn, entries: r.entries, deaths: r.deaths, shots: r.shots, time: r.time, minutes: r.minutes, score: r.score }));
 log('[respawns]', JSON.stringify(r.log));

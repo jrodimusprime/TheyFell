@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32, hash2 } from '../core/rng.js';
+import { propMaterial, TILE } from './propTex.js';
 
 const worldPattern = (mat, kind) => {
   mat.onBeforeCompile = sh => {
@@ -59,34 +60,34 @@ const worldPattern = (mat, kind) => {
 };
 
 export class Props {
-  constructor(scene, T, F) {
+  constructor(scene, T, F, tex) {
     this.T = T; this.F = F; this.scene = scene; this.last = null; this.lastWire = null;
     const dummy = new THREE.Object3D();
     // ---------- streamed trench dressing ----------
-    this.plankMat = worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }), 'plank');
-    this.bagMat = worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), 'bag');
+    this.plankMat = propMaterial(tex, TILE.wood, 1.25, { tint: 0xc4b49c, bright: 1.1 });
+    this.bagMat = propMaterial(tex, TILE.hessian, 0.7, { roughness: 1, bright: 1.15 });
     const board = new THREE.BoxGeometry(1, 1, 1);
-    this.duck = this._im(board, new THREE.MeshStandardMaterial({ color: 0x5b4632, roughness: 0.95 }), 24000);
-    this.floor = this._im(board, new THREE.MeshStandardMaterial({ color: 0x4a4034, roughness: 1 }), 9000);       // trench floor: trodden chalky mud
+    this.duck = this._im(board, propMaterial(tex, TILE.wood, 1.25, { tint: 0x8a7a68, bright: 1.4 }), 24000);
+    this.floor = this._im(board, propMaterial(tex, TILE.earth, 2.2, { tint: 0x7a7066, roughness: 1, bright: 1.2 }), 9000);       // trench floor: trodden chalky mud
     this.step = this._im(board, this.plankMat, 6000);                                                              // the timber-faced fire-step
     // revetment, built like the real thing: an earth core, 2-inch boards in front of it, 4x4 posts and a waling beam on top
-    this.core = this._im(board, new THREE.MeshStandardMaterial({ color: 0x564b3d, roughness: 1 }), 12000);
+    this.core = this._im(board, propMaterial(tex, TILE.earth, 2.2, { tint: 0xb0a898, roughness: 1, bright: 1.35 }), 12000);
     this.boards = this._im(board, this.plankMat, 12000);
-    this.posts = this._im(board, worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), 'post'), 20000);
-    this.beams = this._im(board, worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), 'post'), 16000);
-    this.iron = this._im(board, worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, metalness: 0.35 }), 'iron'), 6000);
-    this.wattle = this._im(board, worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), 'wattle'), 6000);
+    this.posts = this._im(board, propMaterial(tex, TILE.wood, 1.25, { tint: 0x9a8a78, bright: 1.25 }), 20000);
+    this.beams = this._im(board, propMaterial(tex, TILE.wood, 1.25, { tint: 0x9a8a78, bright: 1.25 }), 16000);
+    this.iron = this._im(board, propMaterial(tex, TILE.iron, 1.3, { roughness: 0.6, metalness: 0.25, bright: 1.3 }), 6000);
+    this.wattle = this._im(board, propMaterial(tex, TILE.wattle, 1.1, { roughness: 1, bright: 1.5 }), 6000);
     const bag = new THREE.SphereGeometry(0.5, 8, 5); bag.scale(1, 0.42, 0.62);
     this.bags = this._im(bag, this.bagMat, 40000);
     // ---------- wire ----------
     const picket = new THREE.CylinderGeometry(0.03, 0.04, 1, 5); picket.translate(0, 0.5, 0);
-    this.pickets = this._im(picket, new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.9 }), 6000);
+    this.pickets = this._im(picket, propMaterial(tex, TILE.wood, 1.25, { tint: 0x8a7a6a }), 6000);
     this.wireGeo = new THREE.BufferGeometry(); this.wirePos = new Float32Array(6000 * 12 * 3);
     this.wireGeo.setAttribute('position', new THREE.BufferAttribute(this.wirePos, 3).setUsage(THREE.DynamicDrawUsage));
     this.wire = new THREE.LineSegments(this.wireGeo, new THREE.LineBasicMaterial({ color: 0x2a2622, transparent: true, opacity: 0.85 }));
     this.wire.frustumCulled = false; scene.add(this.wire);
     // ---------- ruined villages ----------
-    const brickMat = worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }), 'brick');
+    const brickMat = propMaterial(tex, TILE.brick, 2.0);
     const nWalls = F.houses.reduce((s, h) => s + h.walls.length, 0);
     const walls = this._im(new THREE.BoxGeometry(1, 1, 1), brickMat, nWalls + 10); walls.count = 0;
     for (const h of F.houses) for (const w of h.walls) {
@@ -123,7 +124,10 @@ export class Props {
     const T = this.T, m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();
     const lists = [this.duck, this.bags, this.floor, this.step, this.core, this.boards, this.posts, this.beams, this.iron, this.wattle];
     for (const im of lists) im.count = 0;
-    const put = (im, x, y, z, yaw, sx, sy, sz, rx = 0) => { if (im.count >= im.instanceMatrix.count) return; e.set(rx, yaw, 0); q.setFromEuler(e); p.set(x, y, z); s.set(sx, sy, sz); im.setMatrixAt(im.count++, m.compose(p, q, s)); };
+    const put = (im, x, y, z, yaw, sx, sy, sz, rx = 0) => { if (im.count >= im.instanceMatrix.count) return;
+      // a few millimetres of difference per piece, so where pieces overlap their faces are never coplanar (no z-fighting)
+      const j = hash2(Math.round(x * 97), Math.round(z * 97), im.count & 7) - 0.5;
+      e.set(rx, yaw, 0); q.setFromEuler(e); p.set(x, y + j * 0.008, z); s.set(sx * (1 + j * 0.006), sy * (1 + j * 0.004), sz * (1 + j * 0.01)); im.setMatrixAt(im.count++, m.compose(p, q, s)); };
     const seen = new Set(), C = 8, N = T.tN, STEP = 0.25;
     for (let gz = Math.floor((cz - R) / C); gz <= Math.floor((cz + R) / C); gz++) for (let gx = Math.floor((cx - R) / C); gx <= Math.floor((cx + R) / C); gx++) {
       const l = T.tCells.get(gz * N + gx); if (!l) continue;

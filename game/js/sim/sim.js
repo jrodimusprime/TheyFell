@@ -13,13 +13,16 @@ export const WEAPONS = {
 };
 const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 1.7 };
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
-const START_TIME = 7 * 3600 + 26 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO = 7 * 3600 + 30 * 60;
+const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO = 7 * 3600 + 30 * 60;
+// before zero hour the clock runs 5x fast: the mines go up ~6 s in and the whistles blow ~30 s in; after zero, real time
+export const PRE_ZERO_RATE = 5, ZERO_TIME = ZERO, MINE_AT = MINE_TIME;
 
 export class Sim {
   constructor(T, F, { seed = 1, playerSide = 'BRI', bri = 150, ger = 84 } = {}) {
     this.T = T; this.F = F; this.seed = seed; this.rng = mulberry32(seed); this.tick = 0;
-    this.map = T.map; this.events = []; this.soldiers = []; this.shells = []; this.grenades = [];
+    this.map = T.map; this.events = []; this.soldiers = []; this.shells = []; this.grenades = []; this.gt = 0;
     this.flags = { mine: false, zero: false };
+    this.rambo = false;
     this.objectives = this.map.objectives.map(o => ({ ...o, owner: 'GER', progress: 0 }));
     this.score = { BRI: { kills: 0, deaths: 0 }, GER: { kills: 0, deaths: 0 } };
     this.waveT = { BRI: 0, GER: 0 };
@@ -30,7 +33,7 @@ export class Sim {
     { const o = this.map.objectives[0].c; this.player.yaw = Math.atan2(-(o[0] - p0[0]), -(o[1] - p0[1])); }
     this._populate(bri, ger);
   }
-  get time() { return START_TIME + this.tick / HZ; }
+  get time() { return START_TIME + this.gt; }
   clock() { const t = Math.floor(this.time); return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; }
 
   // ---------- setup ----------
@@ -81,6 +84,7 @@ export class Sim {
     this._objectives();
     this._respawns(input);
     this.tick++;
+    this.gt += DT * (this.time < ZERO ? PRE_ZERO_RATE : 1);
   }
 
   // ---------- player input -> intent ----------
@@ -221,6 +225,8 @@ export class Sim {
   }
   _damage(v, dmg, src, info) {
     if (!v.alive) return;
+    // Rambo mode (Esc menu): the player shrugs off bullets: 10 hits and he's still standing, the 11th drops him
+    if (v.isPlayer && this.rambo && info.kind === 'bullet') dmg = 9.5;
     v.hp -= dmg; v.lastHit = info;
     this.events.push({ t: 'hit', id: v.id, dmg, ...info });
     if (v.hp > 0) return;
@@ -446,7 +452,7 @@ export class Sim {
 
   // ---------- agent interface ----------
   hash() {
-    const h = new FNV().u32(this.tick).u32(this.rng.state());
+    const h = new FNV().u32(this.tick).u32(this.rng.state()).u32(this.rambo ? 1 : 0);
     for (const s of this.soldiers) h.f(s.x).f(s.y).f(s.z).f(s.hp).u32(s.alive ? 1 : 0).u32(s.mag);
     for (const o of this.objectives) h.f(o.progress);
     return h.hex();
