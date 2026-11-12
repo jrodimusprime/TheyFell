@@ -10,6 +10,7 @@ import { Props } from './render/props.js';
 import { SoldiersView } from './render/soldiers.js';
 import { Ragdolls } from './render/ragdoll.js';
 import { Blood } from './render/blood.js';
+import { loadSkinnedMen } from './render/skinnedMen.js';
 import { FX, makeSky } from './render/fx.js';
 import { Audio } from './audio.js';
 import { makeGroundTextures } from './render/groundTex.js';
@@ -94,6 +95,8 @@ async function boot() {
   const props = new Props(scene, T, F, makePropTextures(renderer));
   const men = new SoldiersView(scene, sim, 1500);   // every body stays where it fell
   const blood = new Blood(scene, T);
+  setLoad('Dressing the men (uniforms, faces, rifles)…');
+  const skinned = await loadSkinnedMen(scene, renderer);
   const rag = new Ragdolls(T);
   rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
   const fx = new FX(scene);
@@ -153,7 +156,7 @@ async function boot() {
       else if (e.t === 'zero') { audio.zero = true; for (let i = 0; i < 6; i++) audio.whistle([p.x + (i - 3) * 40, p.y, p.z + (i % 2) * 30], i * 0.3); message('Zero hour. The whistles blow: over the top!', 6); }
       else if (e.t === 'hit') { if (e.id === p.id) { hurt = 1; audio.hurt(); } if (e.kind === 'bullet' && e.point && Math.hypot(e.point[0] - cp.x, e.point[2] - cp.z) < 400) blood.hit(e.point, e.dir); }
       else if (e.t === 'death') {
-        const s = sim.soldiers[e.id], c = men.addCorpse(s);
+        const s = sim.soldiers[e.id], c = men.addCorpse(s); skinned.toCorpse(s, c);
         rag.add(c, e, Math.hypot(s.x - cp.x, s.z - cp.z));
         if (e.by === p.id) addFeed(`You hit a ${s.side === 'GER' ? 'German' : 'British'} soldier`);
         if (e.id === p.id) { deathCam = 0; $('deadwhy').textContent = deathReason(e); }
@@ -211,6 +214,7 @@ async function boot() {
     terrain.update(camera, terrain.stats.built < 200 ? 30 : 6);
     props.update(camera);
     men.hidePlayer = p.alive && !(window.TF && TF.view);
+    skinned.update(dt, sim, men, camera, p.id); men.skip = skinned.liveIds;
     men.update(dt, camera.position, p.id, 700);
     rag.step(dt);
     blood.update(dt);
@@ -334,7 +338,7 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
-    sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, HZ,
+    sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, HZ,
     get state() { return sim; },
     step(a = {}, n = 1) {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }

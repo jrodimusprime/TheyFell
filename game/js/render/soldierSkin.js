@@ -239,9 +239,9 @@ function twoBoneIK(upper, lower, hand, target, pole) {
   aimBone(lower, hand.getWorldPosition(new THREE.Vector3()), S.clone().addScaledVector(dir, d));
 }
 // pose: 'aim' (butt in the shoulder, along the line of fire), 'port' (slanting across the body), 'low' (held low, muzzle forward)
-export function holdRifle(root, gun, pose, pitch = 0) {
+export function holdRifle(root, gun, pose, pitch = 0, bones = null) {
   root.updateMatrixWorld(true);
-  const B = n => root.getObjectByName(n), sh = B('upperarm_r').getWorldPosition(new THREE.Vector3()), pel = B('pelvis').getWorldPosition(new THREE.Vector3());
+  const B = n => (bones && bones[n]) || root.getObjectByName(n), sh = B('upperarm_r').getWorldPosition(new THREE.Vector3()), pel = B('pelvis').getWorldPosition(new THREE.Vector3());
   const fwd = new THREE.Vector3(0, 0, 1).transformDirection(root.matrixWorld), left = new THREE.Vector3(1, 0, 0).transformDirection(root.matrixWorld), up = new THREE.Vector3(0, 1, 0);
   let butt, dir;
   const headP = B('Head').getWorldPosition(new THREE.Vector3());

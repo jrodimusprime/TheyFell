@@ -198,6 +198,7 @@ export class SoldiersView {
       st.phase += d * (s.stance === 2 ? 3.5 : 2.9);
       if (!s.alive) continue;
       if (s.id === playerId && this.hidePlayer) continue;
+      if (this.skip && this.skip.has(s.id)) continue;   // drawn with the skinned model
       if (Math.abs(s.x - camPos.x) > cull || Math.abs(s.z - camPos.z) > cull) continue;
       if (Math.abs(s.x - camPos.x) + Math.abs(s.z - camPos.z) > FAR * 1.3 && Math.hypot(s.x - camPos.x, s.z - camPos.z) > FAR) {
         const im = this.far[s.side][s.stance]; q.setFromAxisAngle(up, s.yaw); im.setMatrixAt(im.count++, fm.compose(v.set(s.x, s.y, s.z), q, one)); continue;
@@ -207,7 +208,7 @@ export class SoldiersView {
       fk(this.mats, { x: s.x, y: s.y, z: s.z }, s.yaw, this.rot, this.rot.root);
       this._write(s.side, this.mats, this.rifleMatrix(this.mats, aim, s.pitch, rm));
     }
-    for (const c of this.corpses) this._write(c.side, c.mats, c.rifle, c.stain || 1);
+    for (const c of this.corpses) if (!c.skinned) this._write(c.side, c.mats, c.rifle, c.stain || 1);
     for (const side of ['BRI', 'GER']) { for (const k in this.meshes[side]) { const im = this.meshes[side][k]; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; } for (const im of this.far[side]) im.instanceMatrix.needsUpdate = true; }
   }
   // a fresh corpse at the soldier's last pose; ragdoll.js then takes over its matrices
