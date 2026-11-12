@@ -149,6 +149,9 @@ async function boot() {
     for (const e of sim.events) {
       if (e.t === 'shot') {
         const s = sim.soldiers[e.id], d = Math.hypot(e.o[0] - cp.x, e.o[2] - cp.z);
+        // fired at you (hit you, aimed at you, or the bullet went by within 2.5 m): he goes on the map where he fired from
+        if (p.alive && s.side !== p.side && (e.victim === p.id || (s.ai && s.ai.target === p.id) || segDist3(e.o, e.h, [p.x, p.y + 1.2, p.z]) < 2.5))
+          shooters.set(e.id, { x: e.o[0], z: e.o[2], fromX: p.x, fromZ: p.z });
         if (d < 1500) fx.muzzle(e.o, e.h, d < 200);
         if (Math.hypot(e.h[0] - cp.x, e.h[2] - cp.z) < 400) fx.impact(e.h, e.victim >= 0);
         audio.shot(e.o, e.w, e.id === p.id);
@@ -174,7 +177,7 @@ async function boot() {
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
       else if (e.t === 'respawn' && e.id === p.id) {
         if (e.into === undefined) p.yaw = p.side === 'BRI' ? -Math.PI / 2 : Math.PI / 2;   // (going in as a man already out there: the sim turns him to the objective)
-        yaw = p.yaw; pitch = 0; $('dead').style.display = 'none'; choose = null; pendingRespawn = null; if (!AGENT) renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
+        yaw = p.yaw; pitch = 0; $('dead').style.display = 'none'; choose = null; pendingRespawn = null; shooters.clear(); if (!AGENT) renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
         if (e.into !== undefined) addFeed('You go on as one of the men in the line');
       }
     }
@@ -300,6 +303,17 @@ async function boot() {
   const mini = $('mini'), mg = mini.getContext('2d'), MR = 200;            // metres from centre to rim
   const lines = T.map.trenches.map(t => { let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const [x, z] of t.pts) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); } return { t, box: [x0, z0, x1, z1] }; });
   let miniT = 0;
+  // men who have fired at you: until they are dead or you have moved 50 m from where they fired at you
+  const shooters = new Map();
+  function segDist3(a, b, q) { const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], aq = [q[0] - a[0], q[1] - a[1], q[2] - a[2]], L = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1;
+    const t = Math.max(0, Math.min(1, (aq[0] * ab[0] + aq[1] * ab[1] + aq[2] * ab[2]) / L)); return Math.hypot(aq[0] - ab[0] * t, aq[1] - ab[1] * t, aq[2] - ab[2] * t); }
+  function pruneShooters() { const p = sim.player; for (const [id, f] of shooters) if (!sim.soldiers[id].alive || Math.hypot(p.x - f.fromX, p.z - f.fromZ) > 50) shooters.delete(id); }
+  function shooterDots(g, S, C, R, size) {   // red dots, those off the map as pips on its rim
+    pruneShooters(); const pulse = 0.75 + 0.25 * Math.sin(performance.now() / 160);
+    for (const f of shooters.values()) { let [x, y] = S(f.x, f.z); const dx = x - C, dy = y - C, d = Math.hypot(dx, dy), out = R && d > R - size;
+      if (out) { x = C + dx / d * (R - size); y = C + dy / d * (R - size); }
+      g.fillStyle = `rgba(214,24,18,${pulse})`; g.strokeStyle = '#1d1a14'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, out ? size * 0.7 : size, 0, 7); g.fill(); g.stroke(); }
+  }
   function attackGoal(p) {
     const objs = sim.objectives.filter(o => o.owner !== p.side);
     return objs.length ? objs.reduce((b, o) => Math.hypot(o.c[0] - p.x, o.c[1] - p.z) < Math.hypot(b.c[0] - p.x, b.c[1] - p.z) ? o : b) : null;
@@ -349,7 +363,9 @@ async function boot() {
     } else $('miniGoal').textContent = 'All objectives held';
     // north mark on the rim
     mg.fillStyle = '#1d1a14'; mg.font = "bold 20px Caslon, Georgia"; mg.fillText('N', C, 22);
-    // you: what you can see (a cone the width of the view, 60 m out) and an arrow the way you face
+    // whoever has fired at you
+    shooterDots(mg, S, C, C - 2, 9);
+    // you: what you can see (a cone the width of the view, 90 m out) and an arrow the way you face
     youMarker(mg, C, C, hy, 90 * k, 2);
     mg.restore();
   }
@@ -430,6 +446,7 @@ async function boot() {
     g.fillStyle = '#222'; g.font = "13px Caslon, Georgia"; for (const v of T.map.villages) g.fillText(v.name, v.c[0] * S + 4, v.c[1] * S);
     for (const o of sim.objectives) { g.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.beginPath(); g.arc(o.c[0] * S, o.c[1] * S, o.r * S, 0, 7); g.stroke(); g.fillText(o.id, o.c[0] * S - 4, o.c[1] * S + 4); }
     const w = T.map.world; g.strokeStyle = '#000'; g.setLineDash([6, 4]); g.strokeRect(w.playMin * S, w.playMin * S, (w.playMax - w.playMin) * S, (w.playMax - w.playMin) * S); g.setLineDash([]);
+    shooterDots(g, (x, z) => [x * S, z * S], 0, 0, 5);
     const p = sim.player; youMarker(g, p.x * S, p.z * S, AGENT || !p.alive ? p.yaw : yaw, 60, 1.1);
     g.fillText('1 km', 20, cv.height - 20); g.fillRect(20, cv.height - 15, 1000 * S, 3);
   }
@@ -437,7 +454,7 @@ async function boot() {
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
     sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
-    get state() { return sim; },
+    get state() { return sim; }, get shooters() { return shooters; },
     step(a = {}, n = 1) {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.respawnNow = false; } stepSim(input); }
       return sim.obs();
