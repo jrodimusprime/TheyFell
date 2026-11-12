@@ -43,7 +43,7 @@ function segInfo(p, a, b) { // closest point param and distance from p to segmen
   return { t, d: p.distanceTo(a.clone().addScaledVector(ab, t)) };
 }
 
-export function bakeSoldier(gltf, side, seed = 1, faces = null) {
+export function bakeSoldier(gltf, side, seed = 1, faces = null, opts = {}) {
   // every skinned mesh shares the one texture (the German helmet is its own mesh): paint them all into it
   const meshes = []; gltf.scene.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); });
   if (!meshes.length) return;
@@ -52,8 +52,14 @@ export function bakeSoldier(gltf, side, seed = 1, faces = null) {
   const bone = n => { const b = gltf.scene.getObjectByName(n); return b ? b.getWorldPosition(new THREE.Vector3()) : null; };
   const parts = PARTS.map(([label, a, b]) => ({ label, a: bone(a), b: b ? bone(b) : null, side: a.endsWith('_l') ? 1 : a.endsWith('_r') ? -1 : 0 })).filter(q => q.a);
   const head = bone('Head'), pelvis = bone('pelvis'), chest = bone('spine_03'), neck = bone('neck_01');
+  const handJoints = { l: [], r: [] }, knuckles = { l: [], r: [] }, tips = { l: [], r: [] };
+  for (const hs of ['l', 'r']) for (const f of ['index', 'middle', 'ring', 'pinky', 'thumb']) {
+    for (const k of ['02', '03']) { const q = bone(`${f}_${k}_${hs}`); if (q) handJoints[hs].push(q); }
+    const k1 = bone(`${f}_01_${hs}`); if (k1 && f !== 'thumb') knuckles[hs].push(k1);
+    const t = bone(`${f}_04_leaf_${hs}`), t3 = bone(`${f}_03_${hs}`); if (t && t3) tips[hs].push(t3.clone().lerp(t, 0.6));
+  }
   const U = UNI[side], r = mulberry32(seed + (side === 'GER' ? 7 : 3));
-  const img = mesh.material.map.image, W = img.width, H = img.height;
+  const img = mesh.material.map.image, W = img.width * (opts.res || 1), H = img.height * (opts.res || 1);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
   const out = g.createImageData(W, H), px = out.data, painted = new Uint8Array(W * H);
   let helmetPass = false;
@@ -110,7 +116,19 @@ export function bakeSoldier(gltf, side, seed = 1, faces = null) {
       if ((L === 'neck' && up < neck.y + 0.11) || (L === 'head' && (hp.y < -0.045 || (hp.y < 0.005 && hp.z < 0.065)))) c = shade(U.tunic, 0.88);   // the stand collar closes up under the chin (the throat is behind the chin)
       return shade(c, 0.95 + 0.1 * noise(p.x, p.y, p.z, 40));
     }
-    if (L === 'hand') return shade(mix(SKIN, SKIN_DARK, noise(p.x, p.y, p.z, 30) * 0.3), 1 - dirt * 0.2);
+    if (L === 'hand') {
+      let c = mix(SKIN, SKIN_DARK, noise(p.x, p.y, p.z, 30) * 0.3 + noise(p.x, p.y, p.z, 140) * 0.12);
+      if (opts.detail) {
+        const hs = best.a.x > 0 ? 'l' : 'r', dorsal = n.y;   // palms face down in the rest pose: +Y is the back of the hand
+        // creases at the finger joints, deeper on the palm side; knuckles lighter on the back
+        for (const jp of handJoints[hs]) { const d = p.distanceTo(jp); if (d < 0.011) c = shade(c, dorsal > 0 ? 0.9 + d * 6 : 0.72 + d * 20); }
+        for (const kp of knuckles[hs]) if (p.distanceTo(kp) < 0.012 && dorsal > 0.2) c = shade(c, 1.1);
+        // nails on the backs of the fingertips
+        for (const tp of tips[hs]) { const d = p.distanceTo(tp); if (d < 0.013 && dorsal > 0.35) c = d < 0.0095 ? [214, 176, 160] : [150, 110, 96]; }
+        c = mix(c, [96, 80, 62], Math.max(0, noise(p.x, p.y, p.z, 70) - 0.72) * 1.6);   // grime in the skin
+      }
+      return shade(c, 1 - dirt * 0.2);
+    }
     if (L === 'foot') return shade(up < 0.035 ? U.sole : U.boot, 0.85 + 0.25 * noise(p.x, p.y, p.z, 25));
     if (L === 'shin') {
       if (side === 'BRI') {
@@ -125,6 +143,13 @@ export function bakeSoldier(gltf, side, seed = 1, faces = null) {
     if (L === 'uarm' || L === 'farm') {
       let cc = U.tunic;
       if (L === 'farm' && bt > 0.82) cc = shade(U.tunic, 0.85);   // cuff
+      if (opts.detail) {
+        // wool serge: a fine diagonal twill, and a stitched seam round the cuff
+        const tw = ((Math.floor((p.x + p.y) * 700) + Math.floor((p.z - p.y) * 700)) % 3 === 0) ? 0.86 : 1.02;
+        cc = shade(cc, tw * (0.94 + 0.12 * noise(p.x, p.y, p.z, 220)));
+        if (L === 'farm' && Math.abs(bt - 0.8) < 0.012 && Math.floor((p.x + p.z) * 400) % 2 === 0) cc = shade(U.tunic, 0.62);
+        return shade(cc, wear);
+      }
       return shade(cc, weave * wear);
     }
     // torso and chest: tunic, then the equipment over it
@@ -179,7 +204,7 @@ export function bakeSoldier(gltf, side, seed = 1, faces = null) {
       for (const j of [i - 1, i + 1, i - W, i + W]) if (painted[j]) { add.push([i, j]); break; } }
     for (const [i, j] of add) { px.set(px.subarray(j * 4, j * 4 + 4), i * 4); painted[i] = 1; } }
   g.putImageData(out, 0, 0);
-  const tex = new THREE.CanvasTexture(cv); tex.flipY = mesh.material.map.flipY; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const tex = new THREE.CanvasTexture(cv); tex.userData.canvas = cv; tex.flipY = mesh.material.map.flipY; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   const mat = mesh.material.clone(); mat.map = tex; mat.roughness = 0.9; mat.metalness = 0; mat.color.setScalar(1.2); mat.needsUpdate = true;
   for (const msh of meshes) msh.material = mat;
   return tex;

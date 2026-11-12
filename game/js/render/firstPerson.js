@@ -3,7 +3,7 @@
 // down after every shot, and the charger-clip reload. Drawn in its own pass after the world, so it never clips into walls.
 import * as THREE from 'three';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
-import { makeRifleRig, twoBoneIK } from './soldierSkin.js';
+import { makeRifleRig, twoBoneIK, bakeSoldier } from './soldierSkin.js';
 import { Hands, GRIPS, blendGrip } from './hands.js';
 
 const lerp = (a, b, t) => a + (b - a) * t, ease = t => t * t * (3 - 2 * t);
@@ -21,7 +21,14 @@ export class FirstPerson {
     this.scene.add(new THREE.HemisphereLight(0xc7d6e8, 0x7a6e58, 1.25));
     const sun = new THREE.DirectionalLight(0xfff0d8, 2.4); sun.position.copy(sunDir).multiplyScalar(10); this.scene.add(sun);
     this.rig = new THREE.Group(); this.rig.matrixAutoUpdate = false; this.scene.add(this.rig);
-    this.body = SU.clone(T.gltf.scene); this.rig.add(this.body);
+    this.body = SU.clone(T.gltf.scene);
+    // the player's own arms get their own finer texture (skin creases, nails, knuckles, serge twill) with relief,
+    // and smooth shading so the low-poly gloves read as rounded hands
+    this.body.traverse(o => { if (o.isSkinnedMesh) { o.geometry = smoothNormals(roundHands(smoothNormals(o.geometry.toNonIndexed()), o.skeleton.bones, 2)); o.material = o.material.clone(); o.material.map = T.gltf.scene.getObjectByProperty('isSkinnedMesh', true).material.map; } });
+    const tex = bakeSoldier({ scene: this.body }, 'BRI', 1, null, { detail: true, res: 2 });
+    if (tex) { const cv = tex.userData.canvas, nm = new THREE.DataTexture(reliefFrom(cv, 5), cv.width, cv.height, THREE.RGBAFormat); nm.flipY = tex.flipY; nm.needsUpdate = true; nm.generateMipmaps = true; nm.minFilter = THREE.LinearMipmapLinearFilter; nm.magFilter = THREE.LinearFilter;
+      this.body.traverse(o => { if (o.isSkinnedMesh) { o.material.normalMap = nm; o.material.normalScale.set(0.6, 0.6); o.material.roughness = 0.8; o.material.needsUpdate = true; } }); }
+    this.rig.add(this.body);
     this.body.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } });
     this.bones = {}; this.body.traverse(o => { if (o.isBone) this.bones[o.name] = o; });
     this.hands = new Hands(this.bones, this.body);   // measured in the rest pose, before anything moves
@@ -105,4 +112,60 @@ export class FirstPerson {
     this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl);
     this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend);
   }
+}
+
+// average the normals of vertices that share a position (the mesh keeps its UV seams), so facets shade smoothly
+function smoothNormals(g) {
+  const pos = g.attributes.position, nor = g.attributes.normal, map = new Map(), acc = [];
+  for (let i = 0; i < pos.count; i++) {
+    const k = `${Math.round(pos.getX(i) * 2000)},${Math.round(pos.getY(i) * 2000)},${Math.round(pos.getZ(i) * 2000)}`;
+    let a = map.get(k); if (!a) { a = new THREE.Vector3(); map.set(k, a); } a.x += nor.getX(i); a.y += nor.getY(i); a.z += nor.getZ(i); acc.push(a);
+  }
+  for (let i = 0; i < pos.count; i++) { const a = acc[i].clone().normalize(); nor.setXYZ(i, a.x, a.y, a.z); }
+  nor.needsUpdate = true; return g;
+}
+
+// a normal map from a painted canvas: brightness read as height (creases dark, weave ridges light)
+function reliefFrom(cv, strength) {
+  const W = cv.width, H = cv.height, d = cv.getContext('2d').getImageData(0, 0, W, H).data, h = new Float32Array(W * H), out = new Uint8Array(W * H * 4);
+  for (let i = 0; i < W * H; i++) h[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) / 255;
+  const at = (x, y) => h[Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = (at(x + 1, y) - at(x - 1, y)) * strength, dy = (at(x, y + 1) - at(x, y - 1)) * strength, l = Math.hypot(dx, dy, 1), k = (y * W + x) * 4;
+    out[k] = (-dx / l * 0.5 + 0.5) * 255; out[k + 1] = (-dy / l * 0.5 + 0.5) * 255; out[k + 2] = (1 / l * 0.5 + 0.5) * 255; out[k + 3] = 255;
+  }
+  return out;
+}
+
+// subdivide the hands' triangles (each into 4, `levels` times), placing the new points on the curved surface the normals
+// describe (the sagitta of a circular arc), so blocky fingers and knuckles round off; skin weights carried across
+function roundHands(g, bones, levels) {
+  const isHand = n => /hand_|index_|middle_|ring_|pinky_|thumb_/.test(n);
+  for (let lv = 0; lv < levels; lv++) {
+    const A = g.attributes, P = A.position, N = A.normal, UV = A.uv, SI = A.skinIndex, SW = A.skinWeight, out = { p: [], n: [], uv: [], si: [], sw: [] };
+    const V = i => ({ p: new THREE.Vector3().fromBufferAttribute(P, i), n: new THREE.Vector3().fromBufferAttribute(N, i), uv: [UV.getX(i), UV.getY(i)], si: [SI.getX(i), SI.getY(i), SI.getZ(i), SI.getW(i)], sw: [SW.getX(i), SW.getY(i), SW.getZ(i), SW.getW(i)] });
+    const push = v => { out.p.push(v.p.x, v.p.y, v.p.z); out.n.push(v.n.x, v.n.y, v.n.z); out.uv.push(...v.uv); out.si.push(...v.si); out.sw.push(...v.sw); };
+    const mid = (a, b) => {
+      const m = a.p.clone().add(b.p).multiplyScalar(0.5), nn = a.n.clone().add(b.n).normalize();
+      m.addScaledVector(nn, 0.125 * b.p.clone().sub(a.p).dot(b.n.clone().sub(a.n)));
+      // skin weights: the two ends' influences averaged, best four kept, in a fixed order (so neighbouring triangles agree)
+      const acc = new Map(); for (const v of [a, b]) v.si.forEach((bi, k) => { if (v.sw[k] > 0) acc.set(bi, (acc.get(bi) || 0) + v.sw[k] / 2); });
+      const top = [...acc].sort((x, y) => y[1] - x[1] || x[0] - y[0]).slice(0, 4), tot = top.reduce((t, x) => t + x[1], 0) || 1;
+      while (top.length < 4) top.push([0, 0]);
+      return { p: m, n: nn, uv: [(a.uv[0] + b.uv[0]) / 2, (a.uv[1] + b.uv[1]) / 2], si: top.map(x => x[0]), sw: top.map(x => x[1] / tot) };
+    };
+    const dominant = v => { let k = 0; for (let j = 1; j < 4; j++) if (v.sw[j] > v.sw[k]) k = j; return bones[v.si[k]] ? bones[v.si[k]].name : ''; };
+    for (let t = 0; t < P.count; t += 3) {
+      const a = V(t), b = V(t + 1), c = V(t + 2);
+      if (!(isHand(dominant(a)) || isHand(dominant(b)) || isHand(dominant(c)))) { push(a); push(b); push(c); continue; }
+      const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a);
+      for (const tri of [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]]) tri.forEach(push);
+    }
+    const ng = new THREE.BufferGeometry();
+    ng.setAttribute('position', new THREE.Float32BufferAttribute(out.p, 3)); ng.setAttribute('normal', new THREE.Float32BufferAttribute(out.n, 3));
+    ng.setAttribute('uv', new THREE.Float32BufferAttribute(out.uv, 2)); ng.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(out.si, 4)); ng.setAttribute('skinWeight', new THREE.Float32BufferAttribute(out.sw, 4));
+    g = ng;
+  }
+  if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);   // the uniform painter walks indexed triangles
+  return g;
 }
