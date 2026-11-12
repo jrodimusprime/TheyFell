@@ -343,7 +343,7 @@ export class Sim {
       else if (I.jump && s.onGround) this._tryClimb(s, mx, mz);
     }
     // other men are solid: a man is a 0.3 m circle and can't walk into another (the player can never pass through anyone)
-    if ((s.x !== x0 || s.z !== z0) && !s.climb) {
+    if ((s.x !== x0 || s.z !== z0) && !s.climb && !far) {   // men far from the player skip it (simulation level of detail)
       const gx = Math.floor(s.x / 2), gz = Math.floor(s.z / 2);
       for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) {
         const l = this.bump && this.bump.get((cx << 12) | cz); if (!l) continue;
