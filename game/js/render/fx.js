@@ -173,7 +173,7 @@ export class MistBanks {
           vec2 d = (vUv - .5) * vec2(2., 2.);
           float r = length(d * vec2(1., 1.25)), body = smoothstep(1., .2, r) * smoothstep(-1., -.2, d.y * 1.6);
           float wisp = n(vUv * vec2(5., 2.) + vec2(uTime * .02 + vSeed * 9., vSeed * 4.)) * .6 + n(vUv * vec2(11., 4.) - uTime * .03) * .4;
-          float a = body * (.3 + .7 * wisp) * .5 * smoothstep(4., 18., vD);
+          float a = body * (.3 + .7 * wisp) * .62 * smoothstep(4., 18., vD);
           if (a < .004) discard;
           float f = 1. - exp(-uFogD * uFogD * vD * vD);
           gl_FragColor = vec4(mix(uCol, uFogC, f * .4), a * (1. - f * .5));

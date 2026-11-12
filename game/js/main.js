@@ -45,12 +45,16 @@ THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
   #endif
   // ground mist: thick in the hollows, thinning with height, building up with distance along the line of sight
   float gm = clamp(exp(-(vFogWorld.y - ${GROUND_FOG_TOP.toFixed(1)}) / ${GROUND_FOG_FALL.toFixed(1)}), 0.0, 3.0);
-  float mist = 1.0 - exp(-vFogDepth * 0.0045 * gm);
-  fogFactor = max(fogFactor, mist * 0.85);
-  // low mist settled on the ground everywhere: thickest at foot level, gone by head height, building up with distance
-  float low = clamp(exp(-(vFogWorld.y - (cameraPosition.y - 1.55)) / 1.1), 0.0, 1.0);
-  float lowMist = 1.0 - exp(-vFogDepth * 0.014 * low);
-  fogFactor = max(fogFactor, lowMist * 0.78);
+  float mist = 1.0 - exp(-vFogDepth * 0.006 * gm);
+  fogFactor = max(fogFactor, mist * 0.88);
+  // low mist settled on the ground everywhere, in patches: thickest at foot level, thin by head height, building up with
+  // distance (a few tens of metres off, the ground swims in it)
+  vec2 mp = vFogWorld.xz * 0.018; vec2 mi = floor(mp), mf = fract(mp); mf = mf * mf * (3.0 - 2.0 * mf);
+  float mh = mix(mix(fract(sin(dot(mi, vec2(127.1, 311.7))) * 43758.5), fract(sin(dot(mi + vec2(1, 0), vec2(127.1, 311.7))) * 43758.5), mf.x),
+                 mix(fract(sin(dot(mi + vec2(0, 1), vec2(127.1, 311.7))) * 43758.5), fract(sin(dot(mi + vec2(1, 1), vec2(127.1, 311.7))) * 43758.5), mf.x), mf.y);
+  float low = clamp(exp(-(vFogWorld.y - (cameraPosition.y - 1.9)) / 1.9), 0.0, 1.0) * (0.45 + 0.9 * mh);
+  float lowMist = 1.0 - exp(-vFogDepth * 0.03 * low);
+  fogFactor = max(fogFactor, lowMist * 0.86);
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
 #endif`;
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -108,7 +112,7 @@ async function boot() {
   const rag = new Ragdolls(T);
   rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
   const fx = new FX(scene);
-  const mist = new MistBanks(scene, T);
+  const mist = new MistBanks(scene, T, 230);
   const audio = new Audio();
   const vm = makeViewModel(camera);
 
