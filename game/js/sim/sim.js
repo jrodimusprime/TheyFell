@@ -89,7 +89,7 @@ export class Sim {
     if (a.yaw !== undefined) p.yaw = a.yaw; if (a.pitch !== undefined) p.pitch = Math.max(-1.45, Math.min(1.45, a.pitch));
     if (a.crouch) p.stance = p.stance === 1 ? 0 : 1; if (a.prone) p.stance = p.stance === 2 ? 0 : 2;
     p.ads = !!a.ads;
-    p.intent = { f: a.forward || 0, s: a.side || 0, run: !!a.run && p.stance === 0, jump: !!a.jump };
+    p.intent = { f: a.forward || 0, s: a.side || 0, run: !!a.run && p.stance === 0, jump: !!a.jump, vault: !!a.vault };
     if (a.reload) this._startReload(p);
     if (a.fire) this._fire(p, p.yaw, p.pitch);
     if (a.grenade) this._throwGrenade(p);
@@ -251,6 +251,13 @@ export class Sim {
       return;
     }
     if (I && I.yaw !== undefined) s.yaw = I.yaw;
+    if (s.isPlayer && I && (I.jump || I.vault) && s.onGround) {
+      // the way he's going, or the way he's facing if he's standing still
+      let dx = -Math.sin(s.yaw), dz = -Math.cos(s.yaw);
+      if (I.f || I.s) { const sy = Math.sin(s.yaw), cy = Math.cos(s.yaw), L = Math.hypot(I.f, I.s); dx = (-sy * I.f + cy * I.s) / L; dz = (-cy * I.f - sy * I.s) / L; }
+      if (this._tryClimb(s, dx, dz, 2.8, 1.6)) return;          // up and out: anything up to head height (a trench wall and its sandbags), reaching over the fire-step
+      if (I.vault && this._tryLeap(s, dx, dz)) return;           // E on the lip of a trench: jump across it
+    }
     let sp = 0, mx = 0, mz = 0;
     if (I && (I.f || I.s)) {
       const run = I.run && s.stamina > 0.05;
@@ -286,21 +293,22 @@ export class Sim {
       else if (Math.abs(dz) > 1e-5 && ok(s.x, nz, 0, dz)) s.z = nz;
       else if (I.jump && s.onGround) this._tryClimb(s, mx, mz);
     }
-    if (s.x !== x0 || s.z !== z0 || !s.onGround) this._depenetrate(s);
+    const moved = s.x !== x0 || s.z !== z0 || !s.onGround;
     // vertical: follow the ground, fall into trenches and shell holes
     const gh = T.height(s.x, s.z);
     if (I && I.jump && s.onGround && s.isPlayer && sp === 0) { s.vy = 3.6; s.onGround = false; }
     if (I && I.jump && s.onGround && s.isPlayer && sp > 0 && gh - s.y < 0.1) { /* jumping while walking: a hop */ s.vy = 3.6; s.onGround = false; }
     s.vy -= G * DT; s.y += s.vy * DT;
     if (s.y <= gh) { if (!s.onGround && s.vy < -9) this._damage(s, (-s.vy - 9) * 18, null, { dir: [0, -1, 0], zone: 'legs', point: [s.x, s.y, s.z], kind: 'fall' }); s.y = gh; s.vy = 0; s.onGround = true; }
-    else if (s.y - gh > 0.3) s.onGround = false; else { s.y = gh; s.vy = 0; s.onGround = true; }
+    else if (s.y - gh > 0.3 || s.vy > 0) s.onGround = false; else { s.y = gh; s.vy = 0; s.onGround = true; }   // rising (a jump) is never snapped back down
+    if (moved || !s.onGround) this._depenetrate(s);   // after the fall step, so a man dropping in beside a wall is pushed clear the same tick
   }
   // push a man out of any wall his 0.3 m body overlaps (dropping in beside a wall, a crater opening up under him)
   _depenetrate(s) {
     const T = this.T, n = s.isPlayer ? 16 : 8, R = 0.3;
     const t = T.trenchAt(s.x, s.z, this._dp || (this._dp = {}));
     if (t.seg < 0 || t.d > T.segs[t.seg].hw + 0.5) { if (!T.craterAt(s.x, s.z)) return; }   // walls only exist at trench edges (and steep crater sides)
-    for (let it = 0; it < 6; it++) {
+    for (let it = 0; it < 8; it++) {
       let px = 0, pz = 0, hit = 0;
       for (let k = 0; k < n; k++) {
         const a = k * Math.PI * 2 / n, cx = Math.cos(a), cz = Math.sin(a);
@@ -308,21 +316,42 @@ export class Sim {
       }
       if (!hit) return;
       const L = Math.hypot(px, pz); if (L < 1e-6) return;
-      const step = Math.min(0.06, L / hit + 0.01), nx = s.x + px / L * step, nz = s.z + pz / L * step;
-      if (T.height(nx, nz) - s.y > 0.75) return;   // nowhere better to go
+      const step = Math.min(s.onGround ? 0.06 : 0.12, L / hit + 0.01), nx = s.x + px / L * step, nz = s.z + pz / L * step;
+      if (s.onGround && T.height(nx, nz) - s.y > 0.75) return;   // nowhere better to go (falling, he is always pushed clear)
       s.x = nx; s.z = nz;
     }
   }
-  _tryClimb(s, mx, mz) {
-    // find the top of the wall ahead: up to 2.7 m (a trench wall with a parapet), with somewhere to stand beyond it
+  // climb the wall ahead: its top no more than maxH above his feet, the wall starting within reach, somewhere to stand beyond
+  _tryClimb(s, mx, mz, maxH = 3.6, reach = 3.3) {
     const T = this.T;
-    for (let d = 0.5; d <= 3.3; d += 0.35) {
+    let start = -1;
+    for (let d = 0.3; d <= reach + 2.2; d += 0.15) {
       const x = s.x + mx * d, z = s.z + mz * d, h = T.height(x, z);
-      if (h - s.y > 3.6) return;
-      if (h - s.y < 0.75) continue;
-      const fx = x + mx * 0.9, fz = z + mz * 0.9, fh = T.height(fx, fz);
-      if (Math.abs(fh - h) < 1.0 && !this.F.wallAt(fx, fz, fh)) { s.climb = 0.5 + (h - s.y) * 0.35; s.climbTo = [fx, fz]; this.events.push({ t: 'climb', id: s.id, h: h - s.y }); return; }
+      if (h - s.y < 0.75) { start = -1; continue; }   // below a step (or back down off a fire-step): keep looking
+      if (start < 0) { if (d > reach) return false; start = d; }
+      if (h - s.y > maxH) return false;
+      // the top: ground beyond that is roughly level with this point
+      const fx = x + mx * 0.7, fz = z + mz * 0.7, fh = T.height(fx, fz);
+      if (Math.abs(fh - h) < 0.9 && !T.isTrench(fx, fz) && !this.F.wallAt(fx, fz, fh)) {
+        s.climb = 0.45 + (h - s.y) * 0.3; s.climbTo = [fx, fz]; s.vy = 0;
+        this.events.push({ t: 'climb', id: s.id, h: h - s.y }); return true;
+      }
     }
+    return false;
+  }
+  // leap a trench from its lip: a drop just ahead, and level ground on the far side within ~3 m
+  _tryLeap(s, mx, mz) {
+    const T = this.T;
+    let gap = -1;
+    for (let d = 0.2; d <= 3.2; d += 0.1) {
+      const x = s.x + mx * d, z = s.z + mz * d, h = T.height(x, z);
+      if (gap < 0) { if (h < s.y - 0.8) gap = d; else if (d > 1.0) return false; continue; }
+      if (Math.abs(h - s.y) < 0.7 && !T.isTrench(x, z)) {
+        const fx = x + mx * 0.35, fz = z + mz * 0.35, fh = T.height(fx, fz);
+        if (Math.abs(fh - s.y) < 0.8 && !this.F.wallAt(fx, fz, fh)) { s.climb = 0.35 + d * 0.08; s.climbTo = [fx, fz]; s.vy = 0; this.events.push({ t: 'leap', id: s.id, d }); return true; }
+      }
+    }
+    return false;
   }
 
   // ---------- the battle's own clock: barrage, mines, zero hour, enemy shellfire ----------

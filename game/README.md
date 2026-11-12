@@ -14,7 +14,8 @@ The game fetches its terrain, so it needs a local server (opening `index.html` f
 |---|---|
 | W A S D, mouse | Move and look |
 | Shift | Run (uses stamina) |
-| Space | Jump; against a trench wall or parapet, **climb out** (go over the top) |
+| Space | Jump. Facing a wall up to head height (a trench wall with its sandbags, a crater lip), **climb out**, moving or standing still |
+| E | Climb out, as Space does. On the lip of a trench, **jump across it** |
 | C / Z | Crouch / prone (toggle) |
 | Left mouse | Fire (bolt-action: about one aimed shot a second) |
 | Right mouse | Aim down the sights |
@@ -71,7 +72,7 @@ On death each part becomes a **cannon-es** physics body, joined by cone-twist co
 ## AI testing (after Cimmerian §11)
 
 - **Determinism:** a fixed 60 Hz tick, a seeded PRNG (one stream per soldier), no wall clock in the sim, and an FNV-1a state hash. Ragdolls, particles and sound are cosmetic and never feed back.
-- **Agent API:** `window.TF.step({forward, side, yaw, pitch, run, jump, crouch, prone, fire, ads, reload, grenade, respawn}, ticks)` returns an observation with the clock, the player, every soldier, objectives, score and the hash. Also `TF.obs()`, `TF.hash()` and `TF.perf()`, plus `TF.view = {pos, look}` for a free test camera.
+- **Agent API:** `window.TF.step({forward, side, yaw, pitch, run, jump, vault, crouch, prone, fire, ads, reload, grenade, respawn}, ticks)` returns an observation with the clock, the player, every soldier, objectives, score and the hash. Also `TF.obs()`, `TF.hash()` and `TF.perf()`, plus `TF.view = {pos, look}` for a free test camera.
 - **Tests:** `game/test/run.sh` runs:
   - `collision_test.mjs` (Node): a man is driven at trench walls from 16 directions, at 120 places, walking and running with jump held. He must never pass through a wall, and his 0.3 m body must stay out of them.
   - `sim_test.mjs` (Node, no browser): 6 minutes of battle, twice with the same seed (identical hash) and once with another seed (a different hash), plus tick cost, mines, zero hour, men going over the top, and casualties and respawns on both sides.
