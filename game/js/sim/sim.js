@@ -6,6 +6,8 @@ import { segDist } from '../world/terrain.js';
 
 export const HZ = 60, DT = 1 / HZ;
 // the enemy's chance of hitting with a round at distance d metres: 50% at 25 m, 1% at 100 m, linear between (and beyond, capped)
+// how far a man will engage: riflemen 300 m, machine guns 700 m
+export const engageRange = s => s.role === 'mg' ? 700 : 300;
 export const hitChance = d => Math.max(0.01, Math.min(0.66, 0.5 - (d - 25) * 0.49 / 75));
 const G = 9.81;
 export const WEAPONS = {
@@ -134,7 +136,7 @@ export class Sim {
       else { s.intent = null; s.stance = 1; return; }
     }
     // look for an enemy: nearest visible within range
-    const W = WEAPONS[s.weapon], range = s.role === 'mg' ? 900 : s.side === 'GER' ? 450 : 300;
+    const W = WEAPONS[s.weapon], range = engageRange(s);
     let best = -1, bd = range;
     const cand = [], gx = Math.floor(s.x / 100), gz = Math.floor(s.z / 100), gr = Math.ceil(range / 100);
     for (let cz = gz - gr; cz <= gz + gr; cz++) for (let cx = gx - gr; cx <= gx + gr; cx++) {
@@ -189,6 +191,11 @@ export class Sim {
     if (s.cool > 0 || s.reloading) return;
     const W = WEAPONS[s.weapon];
     if (!W.auto && s.rng() > 0.05) return;   // riflemen take their time over a shot
+    // only at a man he can see, now, and within range: if the target has ducked, dropped behind a lip or gone out of
+    // range since he picked him, he holds his fire and looks for another
+    // (a sight check holds for 0.1 s on the same man, so a machine gun isn't re-tracing 700 m for every round of a burst)
+    if (d > engageRange(s)) { ai.target = -1; ai.think = Math.min(ai.think, 6); return; }
+    if (!(ai.losFor === o.id && this.tick - ai.losAt < 6)) { if (!this._canSee(s, o, d)) { ai.target = -1; ai.losFor = -1; ai.think = Math.min(ai.think, 6); return; } ai.losFor = o.id; ai.losAt = this.tick; }
     if (s.side !== this.player.side) {
       // the enemy's shooting: each round hits with a chance falling linearly from 50% at 25 m to 1% at 100 m (1% beyond).
       // A hit is aimed true at what shows of the man (cover still stops it); a miss goes a metre or more wide.
