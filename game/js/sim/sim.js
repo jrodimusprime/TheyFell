@@ -170,7 +170,7 @@ export class Sim {
       if (d < 6) { ai.goal = this._goalFor(s, true); }
       const firing = this.tick < ai.fireUntil;
       s.stance = firing ? 1 : 0;
-      s.intent = firing ? null : { f: 1, s: 0, run: best >= 0 && bd < 120, jump: true, yaw: Math.atan2(-dx, -dz) + s.rng.range(-0.15, 0.15) };
+      s.intent = firing ? null : { f: 1, s: 0, run: best >= 0 && bd < 120, jump: true, yaw: this._wireDetour(s, Math.atan2(-dx, -dz)) + s.rng.range(-0.15, 0.15) };
     } else if (ai.mode === 'hold' || ai.mode === 'mg') {
       // German defenders man the fire-step: stand to fire, duck to reload
       s.stance = s.reloading ? 1 : 0;
@@ -499,6 +499,18 @@ export class Sim {
       if (owner !== o.owner) { o.owner = owner; this.events.push({ t: 'captured', id: o.id, name: o.name, side: owner }); }
     }
   }
+  // ---------- wire: a man going forward goes round a belt when he can see a way through ----------
+  // The heading toward his goal if the next 12 m are clear of wire; else the nearest heading that is (up to 80 degrees
+  // off), keeping to the side he chose last so he works along the belt to a gap instead of dithering; if there is no
+  // way round in reach, or he is already in it, straight on through.
+  _wireDetour(s, h0) {
+    const F = this.F, clear = h => { const sx = -Math.sin(h), sz = -Math.cos(h); for (let d = 2; d <= 12; d += 1.5) if (F.wireAt(s.x + sx * d, s.z + sz * d) > 0) return false; return true; };
+    if (F.wireAt(s.x, s.z) > 0 || clear(h0)) { s.ai.wireSide = 0; return h0; }
+    const first = s.ai.wireSide || (s.id % 2 ? 1 : -1);
+    for (let a = 0.2; a <= 1.41; a += 0.2) for (const side of [first, -first]) if (clear(h0 + side * a)) { s.ai.wireSide = side; return h0 + side * a; }
+    return h0;
+  }
+
   // ---------- respawn: death is common and the line is always fed with fresh men ----------
   spawnPoints(side) {
     const pts = this.map.spawns[side].map(p => ({ p, name: 'Trench' }));
