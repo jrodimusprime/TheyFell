@@ -128,7 +128,7 @@ async function boot() {
   document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && sim.player.alive) { $('menu').style.display = 'grid'; $('play').textContent = 'Back to the line'; } });
   function humanInput() {
     const a = { forward: (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0), side: (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0),
-      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG,
+      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK,
       fire: mouseDown, ads, yaw, pitch };
     edge = {};
     return a;
@@ -137,7 +137,7 @@ async function boot() {
   // ---------- the loop ----------
   let running = false, acc = 0, last = performance.now(), frames = 0, fpsT = 0, fps = 0;
   const camPos = new THREE.Vector3();
-  let deathCam = 0, hurt = 0, bob = 0, recoil = 0, lastHp = 100, msgT = 0;
+  let deathCam = 0, hurt = 0, bob = 0, recoil = 0, lastHp = 100, msgT = 0, tallyT = 0;
   const feed = [];
   function message(t, secs = 4) { $('msg').textContent = t; $('msg').style.opacity = 1; msgT = secs; }
   function stepSim(input) {
@@ -171,11 +171,15 @@ async function boot() {
         if (e.id === p.id) { deathCam = 0; $('deadwhy').textContent = deathReason(e); }
       } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
-      else if (e.t === 'respawn' && e.id === p.id) { yaw = p.yaw = p.side === 'BRI' ? -Math.PI / 2 : Math.PI / 2; pitch = 0; $('dead').style.display = 'none'; if (!AGENT) renderer.domElement.requestPointerLock?.(); }
+      else if (e.t === 'respawn' && e.id === p.id) {
+        if (e.into === undefined) p.yaw = p.side === 'BRI' ? -Math.PI / 2 : Math.PI / 2;   // (going in as a man already out there: the sim turns him to the objective)
+        yaw = p.yaw; pitch = 0; $('dead').style.display = 'none'; choose = null; pendingRespawn = null; if (!AGENT) renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
+        if (e.into !== undefined) addFeed('You go on as one of the men in the line');
+      }
     }
     sim.events.length = 0;
   }
-  function deathReason(e) { return e.kind === 'bullet' ? (sim.soldiers[e.by]?.role === 'mg' ? 'Cut down by machine-gun fire' : e.zone === 'head' ? 'Shot through the head' : 'Hit by a rifle bullet') : e.kind === 'mine' ? 'Caught in the mine blast' : e.kind === 'shrapnel' ? 'Shrapnel' : e.kind === 'grenade' ? 'A bomb' : e.kind === 'fall' ? 'A bad fall' : 'Killed by shellfire'; }
+  function deathReason(e) { return e.kind === 'gaveup' ? 'You chose to go back in as another man' : e.kind === 'bullet' ? (sim.soldiers[e.by]?.role === 'mg' ? 'Cut down by machine-gun fire' : e.zone === 'head' ? 'Shot through the head' : 'Hit by a rifle bullet') : e.kind === 'mine' ? 'Caught in the mine blast' : e.kind === 'shrapnel' ? 'Shrapnel' : e.kind === 'grenade' ? 'A bomb' : e.kind === 'fall' ? 'A bad fall' : 'Killed by shellfire'; }
   function addFeed(t) { feed.unshift([t, 6]); feed.length = Math.min(feed.length, 5); }
 
   function frame(now) {
@@ -210,7 +214,8 @@ async function boot() {
       const a = deathCam * 0.25 + p.yaw, r = 3 + Math.min(deathCam, 4);
       camera.position.set(cx + Math.sin(a) * r, Math.max(T.height(cx + Math.sin(a) * r, cz + Math.cos(a) * r) + 1.2, cy + 1.5 + deathCam * 0.6), cz + Math.cos(a) * r);
       camera.lookAt(cx, cy + 0.3, cz); vm.visible = false;
-      if (deathCam > 3 && !AGENT) showRespawn();
+      if ((deathCam > 1.5 || p.gaveUp) && !AGENT) showRespawn();
+      drawSpawnMap(dt);
     }
     if (window.TF && TF.view) { const v = TF.view; camera.position.set(...v.pos); camera.lookAt(...v.look); vm.visible = false; men.hidePlayer = false; }
     // screen shake from big bursts
@@ -273,6 +278,8 @@ async function boot() {
     const deg = ((-((AGENT ? p.yaw : yaw)) * 180 / Math.PI) % 360 + 360) % 360, dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     $('compass').textContent = `${dirs[Math.round(deg / 45) % 8]} ${Math.round(deg)}°`;
     sim.objectives.forEach((ob, i) => { const el = objEl.children[i]; el.className = 'obj ' + ob.owner; el.firstChild.style.height = (Math.max(0, ob.progress) * 100) + '%'; });
+    tallyT -= dt; if (tallyT < 0) { tallyT = 0.25; const row = (side, name) => { const t = sim.tally(side); return `<div><b>${name}</b> <span class="gone">${t.fallen.toLocaleString('en-GB')} fallen</span> · ${t.left.toLocaleString('en-GB')} left</div>`; };
+      $('tally').innerHTML = row('BRI', 'British') + row('GER', 'German'); }
     $('feed').innerHTML = feed.map(f => `<div>${f[0]}</div>`).join(''); for (const f of feed) f[1] -= dt; while (feed.length && feed[feed.length - 1][1] < 0) feed.pop();
     msgT -= dt; if (msgT < 0) $('msg').style.opacity = 0;
     hurt = Math.max(0, hurt - dt * 1.2); $('hurt').style.opacity = hurt * 0.8 + (p.alive && p.hp < 50 ? (50 - p.hp) / 80 : 0);
@@ -288,7 +295,7 @@ async function boot() {
         `tick ${sim.tick}  hash ${sim.hash()}  pos ${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`;
     }
   }
-  // ---------- minimap (bottom left): heading-up, 400 m across, pointing the way to the attack ----------
+  // ---------- minimap (bottom left): north up, 400 m across, you and the way you face, pointing the way to the attack ----------
   const mini = $('mini'), mg = mini.getContext('2d'), MR = 200;            // metres from centre to rim
   const lines = T.map.trenches.map(t => { let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const [x, z] of t.pts) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); } return { t, box: [x0, z0, x1, z1] }; });
   let miniT = 0;
@@ -299,9 +306,8 @@ async function boot() {
   function drawMini(dt) {
     miniT -= dt; if (miniT > 0) return; miniT = 1 / 15;
     const p = sim.player, W = mini.width, C = W / 2, k = C / MR, hy = AGENT || !p.alive ? p.yaw : yaw;
-    const cs = Math.cos(hy), sn = Math.sin(hy);
-    // world (x east, z south) -> screen, rotated so the way you face is up
-    const S = (x, z) => { const dx = x - p.x, dz = z - p.z; return [C + (dx * cs - dz * sn) * k, C + (dx * sn + dz * cs) * k]; };
+    // world (x east, z south) -> screen, north up, you at the centre
+    const S = (x, z) => [C + (x - p.x) * k, C + (z - p.z) * k];
     mg.clearRect(0, 0, W, W); mg.save(); mg.beginPath(); mg.arc(C, C, C - 1, 0, 7); mg.clip();
     mg.fillStyle = '#d8cfb5'; mg.fillRect(0, 0, W, W);
     // grid every 100 m, like a trench map's squares
@@ -341,20 +347,75 @@ async function boot() {
       $('miniGoal').textContent = `Attack ${goal.id}: ${goal.name.replace(/ \(.*\)/, '')} · ${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'} · ${Math.round(brg)}°`;
     } else $('miniGoal').textContent = 'All objectives held';
     // north mark on the rim
-    const [nx, ny] = S(p.x, p.z - MR * 0.9); mg.fillStyle = '#1d1a14'; mg.font = "bold 20px Caslon, Georgia"; mg.fillText('N', nx, ny);
+    mg.fillStyle = '#1d1a14'; mg.font = "bold 20px Caslon, Georgia"; mg.fillText('N', C, 22);
+    // you: what you can see (a cone the width of the view, 60 m out) and an arrow the way you face
+    youMarker(mg, C, C, hy, 90 * k, 2);
     mg.restore();
-    // you: an arrow pointing up (the way you face)
-    mg.fillStyle = '#1d1a14'; mg.strokeStyle = '#f2d7a6'; mg.lineWidth = 2; mg.beginPath(); mg.moveTo(C, C - 11); mg.lineTo(C - 7, C + 8); mg.lineTo(C, C + 4); mg.lineTo(C + 7, C + 8); mg.closePath(); mg.fill(); mg.stroke();
   }
+  // the player on a map: a pale cone the width of the view and a dark arrow pointing the way he faces (yaw 0 = north)
+  function youMarker(g, x, y, hy, coneR, s = 1) {
+    const half = THREE.MathUtils.degToRad(camera.fov * camera.aspect) / 2;
+    g.save(); g.translate(x, y); g.rotate(-hy);
+    const cone = g.createRadialGradient(0, 0, 0, 0, 0, coneR); cone.addColorStop(0, 'rgba(29,26,20,.55)'); cone.addColorStop(1, 'rgba(29,26,20,0)');
+    g.fillStyle = cone; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, coneR, -Math.PI / 2 - Math.min(half, 1.2), -Math.PI / 2 + Math.min(half, 1.2)); g.closePath(); g.fill();
+    g.scale(s, s); g.fillStyle = '#1d1a14'; g.strokeStyle = '#f2d7a6'; g.lineWidth = 2.5 / s;
+    g.beginPath(); g.moveTo(0, -14); g.lineTo(-9, 10); g.lineTo(0, 5); g.lineTo(9, 10); g.closePath(); g.fill(); g.stroke();
+    g.restore();
+  }
+  // ---------- you fell: ten seconds to choose a man of your side on the map to go back in as, or one at random near the objective ----------
+  const spawnCv = $('spawnmap'), sg = spawnCv.getContext('2d');
+  let choose = null;   // { left (s), view { cx, cz, span }, hover id, picked id }
   function showRespawn() {
-    if ($('dead').style.display === 'grid') return;
+    if (choose) return;
     if (document.pointerLockElement) document.exitPointerLock();
     $('dead').style.display = 'grid';
-    const sp = $('spawns'); sp.innerHTML = '';
-    for (const s of sim.spawnPoints(sim.player.side)) {
-      const b = document.createElement('button'); b.textContent = s.name === 'Trench' ? `Front-line trench (${Math.round(s.p[0])} E, ${Math.round(6000 - s.p[1])} N)` : `${s.name} (taken)`;
-      b.onclick = () => { pendingRespawn = s.name; }; sp.appendChild(b);
-    }
+    const p = sim.player, goal = sim.target(p.side, p.x, p.z), gx = goal ? goal.c[0] : p.x, gz = goal ? goal.c[1] : p.z;
+    // framed on where you fell and the objective, with room round them for the men coming up
+    const span = Math.min(1400, Math.max(450, Math.hypot(gx - p.x, gz - p.z) * 1.6 + 200));
+    choose = { left: 10, view: { cx: (p.x + gx) / 2, cz: (p.z + gz) / 2, span }, hover: -1, picked: -1 };
+    const t = sim.tally(p.side);
+    $('spawns').innerHTML = t.left <= 0 ? '<p>No one is left to send. <button onclick="location.reload()">Begin again</button></p>' : '';
+    $('spawnRandom').disabled = t.left <= 0;
+  }
+  function goIn(id) { if (!choose) return; choose.picked = id; pendingRespawn = { into: id }; }
+  $('spawnRandom').onclick = () => goIn('random');
+  const toMap = (x, z) => { const v = choose.view, k = spawnCv.width / v.span; return [(x - v.cx) * k + spawnCv.width / 2, (z - v.cz) * k + spawnCv.height / 2]; };
+  function manAt(ev) {   // the man of your side under the pointer (within 14 px on the map)
+    const r = spawnCv.getBoundingClientRect(), mx = (ev.clientX - r.left) * spawnCv.width / r.width, my = (ev.clientY - r.top) * spawnCv.height / r.height;
+    let best = -1, bd = 14 * spawnCv.width / r.width;
+    for (const o of sim.soldiers) { if (!o.alive || o.isPlayer || o.side !== sim.player.side || o.climb > 0) continue; const [x, y] = toMap(o.x, o.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = o.id; } }
+    return best;
+  }
+  spawnCv.addEventListener('pointermove', ev => { if (choose) choose.hover = manAt(ev); });
+  spawnCv.addEventListener('pointerleave', () => { if (choose) choose.hover = -1; });
+  spawnCv.addEventListener('click', ev => { if (!choose) return; const id = manAt(ev); if (id >= 0) goIn(id); });
+  function drawSpawnMap(dt) {
+    if (!choose) return;
+    const p = sim.player, g = sg, W = spawnCv.width, k = W / choose.view.span;
+    if (choose.picked < 0 && sim.tally(p.side).left > 0) { choose.left -= dt; if (choose.left <= 0) goIn('random'); }
+    $('spawnCount').textContent = choose.picked >= 0 ? 'Going in…' : `random in ${Math.max(0, Math.ceil(choose.left))} s`;
+    g.fillStyle = '#d8cfb5'; g.fillRect(0, 0, W, W);
+    g.strokeStyle = 'rgba(80,70,50,.18)'; g.lineWidth = 1;   // 100 m squares
+    const v = choose.view, x0 = v.cx - v.span / 2, z0 = v.cz - v.span / 2;
+    for (let q = Math.ceil(x0 / 100) * 100; q < x0 + v.span; q += 100) { const [x] = toMap(q, 0); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, W); g.stroke(); }
+    for (let q = Math.ceil(z0 / 100) * 100; q < z0 + v.span; q += 100) { const [, y] = toMap(0, q); g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    if (sim.flags.mine) { const [mx, my] = toMap(...T.map.mines[0].c); g.fillStyle = 'rgba(120,110,90,.5)'; g.beginPath(); g.arc(mx, my, 50 * k, 0, 7); g.fill(); }
+    g.strokeStyle = 'rgba(40,35,30,.45)'; g.lineWidth = 2; g.setLineDash([3, 3]);
+    for (const w of F.wire.items) { if (Math.abs(w.ax - v.cx) > v.span || Math.abs(w.az - v.cz) > v.span) continue; g.beginPath(); g.moveTo(...toMap(w.ax, w.az)); g.lineTo(...toMap(w.bx, w.bz)); g.stroke(); }
+    g.setLineDash([]);
+    for (const t of T.map.trenches) { g.strokeStyle = t.side === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = t.kind === 'fire' ? 4 : 2; g.beginPath(); t.pts.forEach((q, i) => { const [x, y] = toMap(q[0], q[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
+    g.font = "bold 30px Caslon, Georgia"; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const o of sim.objectives) { const [x, y] = toMap(o.c[0], o.c[1]); g.strokeStyle = g.fillStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, Math.max(o.r * k, 14), 0, 7); g.stroke(); g.fillText(o.id, x, y); }
+    // your side's men (the enemy you can't see); the ones a random pick would go in as ringed
+    const near = new Set(sim.takeoverChoices(p.side).map(o => o.id)), side = p.side === 'BRI' ? '#7a2414' : '#24305a';
+    for (const o of sim.soldiers) { if (!o.alive || o.isPlayer || o.side !== p.side || o.climb > 0) continue; const [x, y] = toMap(o.x, o.z); if (x < -10 || y < -10 || x > W + 10 || y > W + 10) continue;
+      g.fillStyle = side; g.fillRect(x - 3.5, y - 3.5, 7, 7); if (near.has(o.id)) { g.strokeStyle = '#1d1a14'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, 8, 0, 7); g.stroke(); } }
+    for (const [id, col, r] of [[choose.hover, '#f2d7a6', 14], [choose.picked, '#fff', 17]]) { const o = sim.soldiers[id]; if (!o || !o.alive) continue; const [x, y] = toMap(o.x, o.z); g.strokeStyle = col; g.lineWidth = 4; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); g.strokeStyle = '#1d1a14'; g.lineWidth = 1.5; g.stroke(); }
+    // where you fell
+    const [fx, fy] = toMap(p.x, p.z); g.strokeStyle = '#1d1a14'; g.lineWidth = 3; g.beginPath(); g.moveTo(fx - 9, fy - 9); g.lineTo(fx + 9, fy + 9); g.moveTo(fx + 9, fy - 9); g.lineTo(fx - 9, fy + 9); g.stroke();
+    g.fillStyle = '#1d1a14'; g.font = "italic 22px Caslon, Georgia"; g.textAlign = 'left'; g.fillText('you fell here', fx + 14, fy);
+    g.font = "bold 26px Caslon, Georgia"; g.textAlign = 'center'; g.fillText('N', W / 2, 22);
+    g.fillRect(20, W - 22, 100 * k, 4); g.font = "20px Caslon, Georgia"; g.textAlign = 'left'; g.fillText('100 m', 20, W - 38);
   }
   let pendingRespawn = null;   // the respawn choice goes in with the next tick's input, so recorded runs replay it
 
@@ -368,7 +429,7 @@ async function boot() {
     g.fillStyle = '#222'; g.font = "13px Caslon, Georgia"; for (const v of T.map.villages) g.fillText(v.name, v.c[0] * S + 4, v.c[1] * S);
     for (const o of sim.objectives) { g.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.beginPath(); g.arc(o.c[0] * S, o.c[1] * S, o.r * S, 0, 7); g.stroke(); g.fillText(o.id, o.c[0] * S - 4, o.c[1] * S + 4); }
     const w = T.map.world; g.strokeStyle = '#000'; g.setLineDash([6, 4]); g.strokeRect(w.playMin * S, w.playMin * S, (w.playMax - w.playMin) * S, (w.playMax - w.playMin) * S); g.setLineDash([]);
-    const p = sim.player; g.fillStyle = '#000'; g.beginPath(); g.arc(p.x * S, p.z * S, 5, 0, 7); g.fill();
+    const p = sim.player; youMarker(g, p.x * S, p.z * S, AGENT || !p.alive ? p.yaw : yaw, 60, 1.1);
     g.fillText('1 km', 20, cv.height - 20); g.fillRect(20, cv.height - 15, 1000 * S, 3);
   }
 
@@ -377,7 +438,7 @@ async function boot() {
     sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
     get state() { return sim; },
     step(a = {}, n = 1) {
-      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }
+      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.respawnNow = false; } stepSim(input); }
       return sim.obs();
     },
     obs: () => sim.obs(), hash: () => sim.hash(), rambo: on => { sim.rambo = !!on; return sim.rambo; }, god: on => { sim.god = !!on; return sim.god; },
@@ -387,7 +448,7 @@ async function boot() {
   };
   function startGame() {
     $('menu').style.display = 'none'; $('hud').hidden = false; running = true; audio.start();
-    renderer.domElement.requestPointerLock?.();
+    renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
     if (!started) { started = true; message('Stand to. The bombardment is in its last minutes.', 4); }
   }
   let started = false;
@@ -404,7 +465,8 @@ async function boot() {
   else { $('play').disabled = false; $('play').textContent = 'Go to the line'; setLoad(''); }
   // respawn from the card: inject into the next tick
   const realStep = sim.step.bind(sim);
-  sim.step = input => { if (pendingRespawn !== null && !sim.player.alive) { input = { ...input, respawn: true, respawnAt: pendingRespawn }; pendingRespawn = null; } return realStep(input); };
+  // (sent with every tick until the sim takes it: it may only go in three seconds after the fall)
+  sim.step = input => { if (pendingRespawn !== null && !sim.player.alive) input = { ...input, respawn: true, respawnInto: pendingRespawn.into }; return realStep(input); };
   requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
 }
 

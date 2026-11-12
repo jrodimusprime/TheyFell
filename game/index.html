@@ -40,6 +40,12 @@
   #dead .card { text-align: center; background: rgba(20,18,14,.82); padding: 22px 34px; border: 1px solid rgba(233,226,207,.3); }
   #dead h2 { margin: 0 0 4px; font-weight: normal; letter-spacing: 2px; } #dead p { margin: 4px 0 14px; font-style: italic; opacity: .85; }
   #spawns { display: flex; flex-direction: column; gap: 6px; }
+  #dead .card { max-height: 96vh; overflow: auto; padding: 16px 22px; } #dead .choose { margin: 0 0 8px; font-size: 14px; }
+  #spawnmap { width: min(560px, 86vw, 62vh); height: min(560px, 86vw, 62vh); margin: 0 auto; border: 1px solid rgba(233,226,207,.5); cursor: pointer; image-rendering: auto; background: #d8cfb5; }
+  .spawnrow { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+  #spawnCount { font-variant-numeric: tabular-nums; font-style: italic; opacity: .9; min-width: 12ch; }
+  #tally { display: inline-block; font-size: 13px; line-height: 1.45; margin-bottom: 8px; padding: 3px 8px; background: rgba(20,18,14,.55); font-variant-numeric: tabular-nums; }
+  #tally b { font-weight: normal; letter-spacing: 1px; } #tally .gone { color: #f2b3a6; }
   button { font: inherit; color: var(--ink); background: var(--paper); border: 0; padding: 8px 16px; cursor: pointer; min-height: 40px; }
   button:hover, button:focus-visible { background: #fff; outline: 2px solid #f2d7a6; }
   button:disabled { opacity: .5; cursor: default; }
@@ -61,7 +67,7 @@
 <div id="hud" hidden>
   <div class="tl"><div id="clock">07:26:30</div><div id="phase"></div></div>
   <div class="tc"><div id="compass">N</div><div id="objectives"></div></div>
-  <div class="tr"><div id="feed"></div></div>
+  <div class="tr"><div id="tally"></div><div id="feed"></div></div>
   <div class="bl"><div id="hp">Unwounded</div><div id="hpbar"><div></div></div><div id="stance" style="font-size:12px;opacity:.8;margin-top:4px"></div></div>
   <div class="br"><div id="ammo">10 | 60</div><div id="weapon">SMLE Mk III*</div></div>
   <div class="bc"><div id="msg"></div></div>
@@ -70,7 +76,11 @@
 <div id="cross" hidden></div>
 <div id="vignette"></div><div id="hurt"></div>
 <div id="oob"><h2>Out of bounds</h2><p>Return to the battlefield</p></div>
-<div id="dead"><div class="card"><h2>You fell</h2><p id="deadwhy"></p><div id="spawns"></div></div></div>
+<div id="dead"><div class="card"><h2>You fell</h2><p id="deadwhy"></p>
+  <p class="choose">Choose a man to go back in as, or go in at random near the objective</p>
+  <canvas id="spawnmap" width="900" height="900" aria-label="Map of the front: click one of your side's men to go in as him"></canvas>
+  <div class="spawnrow"><button id="spawnRandom">Random, near the objective</button><span id="spawnCount"></span></div>
+  <div id="spawns"></div></div></div>
 <div id="map"><canvas width="1200" height="1200"></canvas></div>
 <div id="debug"></div>
 <div id="menu"><div class="card">
@@ -82,7 +92,7 @@
     <button id="god" aria-pressed="false" title="Nothing hurts you: bullets, shells, bombs, the mine or a fall">God mode: off</button>
   </div>
   <div id="load"></div>
-  <small>WASD move · Shift run · Space jump, climb out · E climb out, jump a trench · C crouch · Z prone · Mouse fire · Right mouse aim · R reload · G Mills bomb · M map · P pixel size · Esc pause · F3 debug<br>
+  <small>WASD move · Shift run · Space jump, climb out · E climb out, jump a trench · C crouch · Z prone · Mouse fire · Right mouse aim · R reload · G Mills bomb · K respawn · M map · P pixel size · Esc pause · F3 debug<br>
   The ground is the real terrain, at true scale (IGN lidar, 6 km × 6 km); the trenches are traced from the 1916 sector map.</small>
 </div></div>
 <script type="module" src="js/main.js"></script>

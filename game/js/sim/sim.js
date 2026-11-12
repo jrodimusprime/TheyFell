@@ -22,7 +22,7 @@ const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO
 export const PRE_ZERO_RATE = 5, ZERO_TIME = ZERO, MINE_AT = MINE_TIME;
 
 export class Sim {
-  constructor(T, F, { seed = 1, playerSide = 'BRI', bri = 900, ger = 400, mgs = 16 } = {}) {
+  constructor(T, F, { seed = 1, playerSide = 'BRI', bri = 900, ger = 400, mgs = 16, strength = { BRI: 10000, GER: 2000 } } = {}) {
     this.nMG = mgs;
     this.T = T; this.F = F; this.seed = seed; this.rng = mulberry32(seed); this.tick = 0;
     this.map = T.map; this.events = []; this.soldiers = []; this.shells = []; this.grenades = []; this.gt = 0;
@@ -37,7 +37,12 @@ export class Sim {
     this.player = this._spawn(playerSide, p0[0], p0[1], 'rifle', true);
     { const o = this.map.objectives[0].c; this.player.yaw = Math.atan2(-(o[0] - p0[0]), -(o[1] - p0[1])); }
     this._populate(bri, ger);
+    // the men still to come: each side's whole strength (historically ~10,000 British in 12 battalions against ~2,000 of
+    // Reserve Infantry Regiment 110 here) less those already in the line; every man sent in comes out of it
+    this.reserve = {}; for (const side of ['BRI', 'GER']) this.reserve[side] = Math.max(0, strength[side] - this.soldiers.filter(o => o.side === side).length);
   }
+  // the tally: fallen, still standing in the field, and the reserve still to come
+  tally(side) { let field = 0; for (const o of this.soldiers) if (o.side === side && o.alive) field++; return { fallen: this.score[side].deaths, field, reserve: this.reserve[side], left: field + this.reserve[side] }; }
   get time() { return START_TIME + this.gt; }
   clock() { const t = Math.floor(this.time); return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; }
 
@@ -114,7 +119,12 @@ export class Sim {
 
   // ---------- player input -> intent ----------
   _player(p, a) {
-    if (!p.alive) { p.intent = null; if (a.respawn && this.tick - p.deadAt > HZ * 3) this._respawn(p, a.respawnAt); return; }
+    // K: give up this man and go straight back to the respawn choice (counts as a death; no 3 s wait)
+    if (a.respawnNow && p.alive) {
+      p.alive = false; p.hp = 0; p.deadAt = this.tick; p.deaths++; this.score[p.side].deaths++; p.gaveUp = true; p.intent = null;
+      this.events.push({ t: 'death', id: p.id, by: -1, kind: 'gaveup', dir: [0, -1, 0], zone: 'chest', point: [p.x, p.y + 1, p.z] }); return;
+    }
+    if (!p.alive) { p.intent = null; if (a.respawn && this.tick - p.deadAt > HZ * (p.gaveUp ? 0.5 : 3)) { if (a.respawnInto !== undefined) this._takeOver(p, a.respawnInto); else this._respawn(p, a.respawnAt); } return; }
     if (a.yaw !== undefined) p.yaw = a.yaw; if (a.pitch !== undefined) p.pitch = Math.max(-1.45, Math.min(1.45, a.pitch));
     if (a.crouch) p.stance = p.stance === 1 ? 0 : 1; if (a.prone) p.stance = p.stance === 2 ? 0 : 2;
     p.ads = !!a.ads;
@@ -495,7 +505,36 @@ export class Sim {
     for (const o of this.objectives) if (o.owner === side) pts.push({ p: o.c, name: o.name });
     return pts;
   }
+  // the objective a side is going for (the nearest it doesn't hold), or, when it holds them all, the nearest it holds
+  target(side, x, z) {
+    const near = l => l.length ? l.reduce((b, o) => Math.hypot(o.c[0] - x, o.c[1] - z) < Math.hypot(b.c[0] - x, b.c[1] - z) ? o : b) : null;
+    return near(this.objectives.filter(o => o.owner !== side)) || near(this.objectives);
+  }
+  // men the player may go back in as: alive, his side, not halfway up a wall, no enemy within 25 m; nearest the
+  // objective first (the fight, not the far end of the line)
+  takeoverChoices(side, x = this.player.x, z = this.player.z, n = 12) {
+    const goal = this.target(side, x, z), gx = goal ? goal.c[0] : x, gz = goal ? goal.c[1] : z;
+    const foes = this.soldiers.filter(o => o.alive && o.side !== side), out = [];
+    const mine = this.soldiers.filter(o => o.alive && !o.isPlayer && o.side === side && !(o.climb > 0)).sort((a, b) => Math.hypot(a.x - gx, a.z - gz) - Math.hypot(b.x - gx, b.z - gz) || a.id - b.id);
+    for (const o of mine) { if (foes.some(f => Math.abs(f.x - o.x) < 25 && Math.abs(f.z - o.z) < 25 && Math.hypot(f.x - o.x, f.z - o.z) < 25)) continue; out.push(o); if (out.length >= n) break; }
+    return out;
+  }
+  // going back in as a man already in the field (his place, his kit, his wounds); 'random' is one of the men nearest the
+  // objective. He leaves the line as the player takes his place (his slot is filled from the reserve later, as any gap)
+  _takeOver(p, id) {
+    let o = id === 'random' ? null : this.soldiers[id];
+    if (!o || !o.alive || o.isPlayer || o.side !== p.side || o.climb > 0) { const c = this.takeoverChoices(p.side); o = c.length ? c[p.rng.int(c.length)] : null; }
+    if (!o) return this._respawn(p);
+    const g = this.target(p.side, o.x, o.z), yaw = g ? Math.atan2(-(g.c[0] - o.x), -(g.c[1] - o.z)) : o.yaw;   // facing the objective
+    Object.assign(p, { x: o.x, z: o.z, y: o.y, yaw, pitch: 0, vy: 0, hp: o.hp, alive: true, climb: 0, climbTo: null, stance: o.stance, stamina: 1, onGround: true,
+      mag: o.mag, reserve: o.reserve, reloading: 0, cool: 0, grenades: o.grenades ?? 3, lastHit: null });
+    o.alive = false; o.hp = 0; o.deadAt = this.tick; o.intent = null;
+    p.gaveUp = false; this.events.push({ t: 'respawn', id: p.id, p: [p.x, p.y, p.z], into: o.id });
+    return true;
+  }
   _respawn(s, at) {
+    if (this.reserve[s.side] <= 0) return false;   // no one left to send
+    this.reserve[s.side]--;
     const pts = this.spawnPoints(s.side), r = s.rng;
     let pick = at ? pts.find(q => q.name === at) : null;
     if (!pick) { // nearest to where the fight is, for the player; spread for AI
@@ -506,14 +545,15 @@ export class Sim {
       mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, lastHit: null });
     if (s.ai) Object.assign(s.ai, { mode: s.side === 'BRI' ? 'advance' : s.role === 'mg' ? 'mg' : 'hold', target: -1, goal: null, post: [x, z], think: 30 + r.int(60) });
     if (s.ai && s.side === 'BRI') { s.ai.goal = this._goalFor(s); if (this.time < ZERO) s.ai.mode = 'hold'; }
-    this.events.push({ t: 'respawn', id: s.id, p: [x, s.y, z] });
+    s.gaveUp = false; this.events.push({ t: 'respawn', id: s.id, p: [x, s.y, z] });
+    return true;
   }
   _respawns() {
     // AI reinforcements come up in waves, as fresh platoons did
     for (const side of ['BRI', 'GER']) {
       if (this.tick < this.waveT[side]) continue;
       this.waveT[side] = this.tick + HZ * (side === 'BRI' ? 20 : 28);
-      for (const s of this.soldiers) if (!s.isPlayer && s.side === side && !s.alive && this.tick - s.deadAt > HZ * 8) this._respawn(s);
+      for (const s of this.soldiers) if (!s.isPlayer && s.side === side && !s.alive && this.tick - s.deadAt > HZ * 8 && this.reserve[side] > 0) this._respawn(s);
     }
   }
 
@@ -531,10 +571,10 @@ export class Sim {
       tick: this.tick, time: this.clock(), hash: this.hash(), mine: this.flags.mine, zero: this.flags.zero,
       player: { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), yaw: p.yaw, pitch: p.pitch, hp: Math.round(p.hp), alive: p.alive, stance: p.stance,
         weapon: W.name, mag: p.mag, reserve: p.reserve, reloading: p.reloading > 0, oob: this.outOfBounds(), inTrench: !!this.T.inTrench(p.x, p.z), kills: p.kills, deaths: p.deaths,
-        canRespawn: !p.alive && this.tick - p.deadAt > HZ * 3, wire: +this.F.wireAt(p.x, p.z).toFixed(2), climbing: p.climb > 0 },
+        canRespawn: !p.alive && this.tick - p.deadAt > HZ * (p.gaveUp ? 0.5 : 3), wire: +this.F.wireAt(p.x, p.z).toFixed(2), climbing: p.climb > 0 },
       soldiers: this.soldiers.filter(s => !s.isPlayer).map(s => ({ id: s.id, side: s.side, role: s.role, x: +s.x.toFixed(1), z: +s.z.toFixed(1), alive: s.alive, mode: s.ai.mode })),
       objectives: this.objectives.map(o => ({ id: o.id, name: o.name, owner: o.owner, progress: +o.progress.toFixed(2) })),
-      score: this.score,
+      score: this.score, tally: { BRI: this.tally('BRI'), GER: this.tally('GER') },
     };
   }
 }
