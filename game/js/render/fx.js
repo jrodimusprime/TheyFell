@@ -135,15 +135,15 @@ export class FX {
 export function makeSky(scene, sunDir) {
   const g = new THREE.SphereGeometry(5200, 32, 16);
   const m = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { uSun: { value: sunDir.clone().normalize() }, uHaze: { value: new THREE.Color(0xc9cbc4) } },
+    uniforms: { uSun: { value: sunDir.clone().normalize() }, uHaze: { value: new THREE.Color(0xb7b6ab) } },
     vertexShader: `varying vec3 vD0; void main(){ vD0 = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.); gl_Position = p.xyww; }`,
     fragmentShader: `uniform vec3 uSun; uniform vec3 uHaze; varying vec3 vD0;
       void main(){
         vec3 vD = normalize(vD0);
         float e = max(vD.y, 0.), s = max(dot(vD, uSun), 0.);
-        vec3 zen = vec3(.36, .52, .74), hor = uHaze;
-        vec3 c = mix(hor, zen, pow(e, .55));
-        c += vec3(1., .82, .58) * pow(s, 12.) * .28 + vec3(1., .9, .7) * pow(s, 1800.) * .9 + vec3(1., .97, .9) * smoothstep(.99985, .9999, s) * 1.6;
+        vec3 zen = vec3(.47, .54, .62), hor = uHaze;   // a smoke-greyed sky
+        vec3 c = mix(hor, zen, smoothstep(.0, .55, pow(e, .7)));   // a deep band of haze over the horizon
+        c += vec3(1., .82, .58) * pow(s, 8.) * .35 + vec3(1., .9, .7) * pow(s, 1800.) * .55 + vec3(1., .95, .85) * smoothstep(.99985, .9999, s) * .9;   // the sun dimmed by the smoke
         c = mix(c, uHaze * .92, smoothstep(.0, -.08, vD.y));
         gl_FragColor = vec4(c, 1.);
       }` });

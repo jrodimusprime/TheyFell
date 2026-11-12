@@ -20,7 +20,7 @@ const setLoad = t => { $('load').textContent = t; };
 
 // ---------- the sun at 07:30 on 1 July 1916 (French summer time, GMT+1): azimuth ~85°, ~24° up, low in the east ----------
 const SUN = new THREE.Vector3(0.91, 0.41, -0.08).normalize();
-const HAZE = new THREE.Color(0xc4c7c0);
+const HAZE = new THREE.Color(0xb7b6ab);
 
 async function boot() {
   setLoad('Reading the ground (IGN lidar, 6 × 6 km)…');
@@ -39,7 +39,7 @@ async function boot() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   document.body.prepend(renderer.domElement);
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(HAZE, 0.00062);      // ~55% visible at 1 km, ~10% at 2.5 km: the morning haze and the smoke of the barrage
+  scene.fog = new THREE.FogExp2(HAZE, 0.0019);       // half-hidden at ~400 m, gone by ~1.2 km: morning mist and the smoke of a week's bombardment
   scene.background = HAZE;
   const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 7000);
   scene.add(camera);
@@ -193,6 +193,7 @@ async function boot() {
     hurt = Math.max(0, hurt - dt * 1.2); $('hurt').style.opacity = hurt * 0.8 + (p.alive && p.hp < 50 ? (50 - p.hp) / 80 : 0);
     // out of bounds: just tell the player
     $('oob').style.display = p.alive && sim.outOfBounds() ? 'block' : 'none';
+    drawMini(dt);
     $('cross').hidden = !p.alive || p.ads;
     if ($('debug').style.display === 'block') {
       const info = renderer.info;
@@ -201,6 +202,64 @@ async function boot() {
         `soldiers ${sim.soldiers.filter(s => s.alive).length}/${sim.soldiers.length}  corpses ${men.corpses.length}  ragdolls ${rag.stats.active}\n` +
         `tick ${sim.tick}  hash ${sim.hash()}  pos ${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`;
     }
+  }
+  // ---------- minimap (bottom left): heading-up, 400 m across, pointing the way to the attack ----------
+  const mini = $('mini'), mg = mini.getContext('2d'), MR = 200;            // metres from centre to rim
+  const lines = T.map.trenches.map(t => { let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const [x, z] of t.pts) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); } return { t, box: [x0, z0, x1, z1] }; });
+  let miniT = 0;
+  function attackGoal(p) {
+    const objs = sim.objectives.filter(o => o.owner !== p.side);
+    return objs.length ? objs.reduce((b, o) => Math.hypot(o.c[0] - p.x, o.c[1] - p.z) < Math.hypot(b.c[0] - p.x, b.c[1] - p.z) ? o : b) : null;
+  }
+  function drawMini(dt) {
+    miniT -= dt; if (miniT > 0) return; miniT = 1 / 15;
+    const p = sim.player, W = mini.width, C = W / 2, k = C / MR, hy = AGENT || !p.alive ? p.yaw : yaw;
+    const cs = Math.cos(hy), sn = Math.sin(hy);
+    // world (x east, z south) -> screen, rotated so the way you face is up
+    const S = (x, z) => { const dx = x - p.x, dz = z - p.z; return [C + (dx * cs - dz * sn) * k, C + (dx * sn + dz * cs) * k]; };
+    mg.clearRect(0, 0, W, W); mg.save(); mg.beginPath(); mg.arc(C, C, C - 1, 0, 7); mg.clip();
+    mg.fillStyle = '#d8cfb5'; mg.fillRect(0, 0, W, W);
+    // grid every 100 m, like a trench map's squares
+    mg.strokeStyle = 'rgba(80,70,50,.18)'; mg.lineWidth = 1;
+    for (let g = Math.floor((p.x - MR * 1.5) / 100) * 100; g < p.x + MR * 1.5; g += 100) { const a = S(g, p.z - MR * 1.5), b = S(g, p.z + MR * 1.5); mg.beginPath(); mg.moveTo(...a); mg.lineTo(...b); mg.stroke(); }
+    for (let g = Math.floor((p.z - MR * 1.5) / 100) * 100; g < p.z + MR * 1.5; g += 100) { const a = S(p.x - MR * 1.5, g), b = S(p.x + MR * 1.5, g); mg.beginPath(); mg.moveTo(...a); mg.lineTo(...b); mg.stroke(); }
+    // Lochnagar crater once blown
+    if (sim.flags.mine) { const [cx, cz] = T.map.mines[0].c, [sx, sy] = S(cx, cz); mg.fillStyle = 'rgba(120,110,90,.5)'; mg.beginPath(); mg.arc(sx, sy, 50 * k, 0, 7); mg.fill(); }
+    // wire belts
+    mg.strokeStyle = 'rgba(40,35,30,.45)'; mg.lineWidth = 2; mg.setLineDash([2, 2]);
+    for (const w of F.wire.items) { if (Math.abs(w.ax - p.x) > MR * 1.5 || Math.abs(w.az - p.z) > MR * 1.5) continue; mg.beginPath(); mg.moveTo(...S(w.ax, w.az)); mg.lineTo(...S(w.bx, w.bz)); mg.stroke(); }
+    mg.setLineDash([]);
+    // trenches: British red, German blue (the colours of the 1916 maps)
+    for (const { t, box } of lines) {
+      if (box[2] < p.x - MR * 1.5 || box[0] > p.x + MR * 1.5 || box[3] < p.z - MR * 1.5 || box[1] > p.z + MR * 1.5) continue;
+      mg.strokeStyle = t.side === 'BRI' ? '#b3261e' : '#1f3a9e'; mg.lineWidth = t.kind === 'fire' ? 3 : 1.5;
+      mg.beginPath(); t.pts.forEach((q, i) => { const [sx, sy] = S(q[0], q[1]); i ? mg.lineTo(sx, sy) : mg.moveTo(sx, sy); }); mg.stroke();
+    }
+    // friendly men
+    mg.fillStyle = 'rgba(120,40,20,.8)';
+    for (const o of sim.soldiers) if (o.alive && !o.isPlayer && o.side === p.side && Math.abs(o.x - p.x) < MR && Math.abs(o.z - p.z) < MR) { const [sx, sy] = S(o.x, o.z); mg.fillRect(sx - 1.5, sy - 1.5, 3, 3); }
+    // objectives
+    mg.font = 'bold 18px Georgia'; mg.textAlign = 'center'; mg.textBaseline = 'middle';
+    for (const o of sim.objectives) { const [sx, sy] = S(o.c[0], o.c[1]); if (Math.hypot(sx - C, sy - C) > C + o.r * k) continue;
+      mg.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; mg.lineWidth = 2; mg.beginPath(); mg.arc(sx, sy, o.r * k, 0, 7); mg.stroke(); mg.fillStyle = mg.strokeStyle; mg.fillText(o.id, sx, sy); }
+    // the way to the attack: the nearest objective your side doesn't hold
+    const goal = attackGoal(p);
+    if (goal) {
+      let [gx, gy] = S(goal.c[0], goal.c[1]); const dx = gx - C, dy = gy - C, d = Math.hypot(dx, dy), inside = d < C - 18;
+      if (!inside) { gx = C + dx / d * (C - 18); gy = C + dy / d * (C - 18); }
+      const a = Math.atan2(dy, dx);
+      mg.save(); mg.translate(gx, gy); mg.rotate(a); mg.fillStyle = '#b3261e'; mg.strokeStyle = '#fff'; mg.lineWidth = 2;
+      mg.beginPath(); mg.moveTo(14, 0); mg.lineTo(-8, -10); mg.lineTo(-3, 0); mg.lineTo(-8, 10); mg.closePath(); mg.stroke(); mg.fill(); mg.restore();
+      // dashed line from you towards it
+      mg.strokeStyle = 'rgba(179,38,30,.6)'; mg.lineWidth = 2; mg.setLineDash([6, 6]); mg.beginPath(); mg.moveTo(C, C); mg.lineTo(gx, gy); mg.stroke(); mg.setLineDash([]);
+      const dist = Math.hypot(goal.c[0] - p.x, goal.c[1] - p.z), brg = ((Math.atan2(goal.c[0] - p.x, -(goal.c[1] - p.z)) * 180 / Math.PI) + 360) % 360;
+      $('miniGoal').textContent = `Attack ${goal.id}: ${goal.name.replace(/ \(.*\)/, '')} · ${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'} · ${Math.round(brg)}°`;
+    } else $('miniGoal').textContent = 'All objectives held';
+    // north mark on the rim
+    const [nx, ny] = S(p.x, p.z - MR * 0.9); mg.fillStyle = '#1d1a14'; mg.font = 'bold 20px Georgia'; mg.fillText('N', nx, ny);
+    mg.restore();
+    // you: an arrow pointing up (the way you face)
+    mg.fillStyle = '#1d1a14'; mg.strokeStyle = '#f2d7a6'; mg.lineWidth = 2; mg.beginPath(); mg.moveTo(C, C - 11); mg.lineTo(C - 7, C + 8); mg.lineTo(C, C + 4); mg.lineTo(C + 7, C + 8); mg.closePath(); mg.fill(); mg.stroke();
   }
   function showRespawn() {
     if ($('dead').style.display === 'grid') return;

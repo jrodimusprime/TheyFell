@@ -1,6 +1,6 @@
 // Synthesised sound (WebAudio), like Cimmerian's: no audio files. Sound travels at 343 m/s, so a distant burst
 // is seen before it is heard, and distance muffles it. A constant drumfire bed sits under everything; larks sang over
-// the Somme on the morning of 1 July 1916, and they sing here until zero hour.
+// the Somme on the morning of 1 July 1916 (no birdsong: removed at the player's request).
 export class Audio {
   constructor() { this.ctx = null; this.enabled = true; this.listener = { x: 0, y: 0, z: 0 }; this.zero = false; }
   start() {
@@ -14,7 +14,6 @@ export class Audio {
     // drumfire bed
     const src = C.createBufferSource(); src.buffer = this.brown; src.loop = true; const lp = C.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 160;
     this.bed = C.createGain(); this.bed.gain.value = 0.35; src.connect(lp).connect(this.bed).connect(this.out); src.start();
-    this._larks();
   }
   setEnabled(on) { this.enabled = on; if (this.master) this.master.gain.value = on ? 0.7 : 0; }
   _dist(p) { const l = this.listener; return Math.hypot(p[0] - l.x, (p[1] ?? l.y) - l.y, p[2] - l.z); }
