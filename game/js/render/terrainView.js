@@ -9,9 +9,9 @@ const ROOT = 1000, MAX_LEVEL = 6;
 const SPLIT = 1.6;          // split a tile when the camera is closer than SPLIT x its size
 
 export class TerrainView {
-  constructor(T, scene, groundTex) {
+  constructor(T, scene, groundTex, tex) {
     this.T = T; this.scene = scene; this.cache = new Map(); this.queue = []; this.frame = 0;
-    this.material = makeGroundMaterial(T, groundTex);
+    this.material = makeGroundMaterial(T, groundTex, tex);
     this.group = new THREE.Group(); scene.add(this.group);
     this.stats = { tiles: 0, tris: 0, built: 0 };
     this.version = 0;       // bumped when the ground changes (a mine goes up): stale tiles rebuild
@@ -45,7 +45,7 @@ export class TerrainView {
       nor[p * 3] = nx / l; nor[p * 3 + 1] = ny / l; nor[p * 3 + 2] = nz / l;
     }
     // skirts: a curtain hanging under each edge hides cracks between tiles of different detail
-    const drop = Math.max(1.5, step * 1.5), edges = [];
+    const drop = Math.max(3.5, step * 1.5), edges = [];   // deeper than any trench, so a cut crossing a tile edge never opens a hole
     const edgeIdx = [[...Array(N).keys()].map(i => i), [...Array(N).keys()].map(i => (N - 1) * N + i), [...Array(N).keys()].map(j => j * N), [...Array(N).keys()].map(j => j * N + N - 1)];
     for (const e of edgeIdx) { const start = p; for (const vi of e) { pos[p * 3] = pos[vi * 3]; pos[p * 3 + 1] = pos[vi * 3 + 1] - drop; pos[p * 3 + 2] = pos[vi * 3 + 2]; nor.set(nor.subarray(vi * 3, vi * 3 + 3), p * 3); cut[p] = cut[vi]; p++; } edges.push([e, start]); }
     const idx = [];
@@ -88,6 +88,7 @@ export class TerrainView {
       const m = this.cache.get(this.key(l, x0, z0));
       const dy = m ? Math.max(m.userData.mn - cy, 0, cy - m.userData.mx) : 0;
       const d = Math.hypot(dx, dy * 0.7, dz);
+      if (l > 0 && d > 1700) return;   // past the fog and the far plane: not drawn at all
       if (l < MAX_LEVEL && d < size * SPLIT) {
         const h = size / 2, kids = [[x0, z0], [x0 + h, z0], [x0, z0 + h], [x0 + h, z0 + h]];
         const ready = kids.every(([kx, kz]) => { const c = this.cache.get(this.key(l + 1, kx, kz)); return c && !c.userData.stale; });
@@ -149,53 +150,68 @@ export function buildGroundMap(T, res = 4) {
   return tex;
 }
 
-function makeGroundMaterial(T, groundTex) {
+function makeGroundMaterial(T, groundTex, tex) {
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0 });
   m.onBeforeCompile = sh => {
     sh.uniforms.uGround = { value: groundTex };
     sh.uniforms.uSize = { value: T.size };
+    sh.uniforms.uTex = { value: tex.color };
+    sh.uniforms.uNrm = { value: tex.normal };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aCut; varying float vCut; varying vec3 vWPos; varying vec3 vWNorm;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vWNorm = normalize(mat3(modelMatrix) * objectNormal); vCut = aCut;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
       varying vec3 vWPos; varying vec3 vWNorm; varying float vCut; uniform sampler2D uGround; uniform float uSize;
+      uniform sampler2D uTex; uniform sampler2D uNrm;
       float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
         return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
-      float fbm(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= .5; } return s; }`)
+      float fbm(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 4; i++) { s += a * vn(p); p *= 2.03; a *= .5; } return s; }
+      // one of the three 512px ground tiles (0 grass, 1 earth, 2 chalk), seamless, with correct mip selection across the wrap
+      vec4 tile(sampler2D t, float i, vec2 p) { vec2 dx = dFdx(p), dy = dFdy(p);
+        return textureGrad(t, vec2(fract(p.x), (i + clamp(fract(p.y), .002, .998)) / 3.), dx, dy * vec2(1., 1. / 3.)); }
+      // two scales and a rotation, blended, so the repeat never shows
+      const mat2 R1 = mat2(.8, .6, -.6, .8);
+      vec4 groundTile(sampler2D t, float i, vec2 w) { return mix(tile(t, i, w / 2.2), tile(t, i, R1 * w / 7.3 + .37), .38); }
+      vec3 gN; float gCut;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
       {
         vec2 uv = vWPos.xz / uSize; vec4 g = texture2D(uGround, uv);
         float camD = length(vWPos - cameraPosition);
-        float n1 = fbm(vWPos.xz * 0.012), n2 = fbm(vWPos.xz * 0.11), n3 = vn(vWPos.xz * 1.7), n4 = vn(vWPos.xz * 7.0);
-        float fine = mix(n3 * .6 + n4 * .4, .5, smoothstep(8., 45., camD));
-        // July 1916 fields: summer grass, rough meadow, standing crops in the back areas
-        vec3 grass = mix(vec3(.25, .33, .13), vec3(.40, .42, .20), n1);
-        grass = mix(grass, vec3(.52, .48, .27), smoothstep(.55, .75, fbm(vWPos.xz * .004 + 7.)) * (1. - g.g));
-        grass *= .82 + .3 * fine;
-        vec3 mud = mix(vec3(.30, .25, .19), vec3(.44, .38, .30), n2) * (.8 + .3 * fine) * (.9 + .2 * vn(vWPos.xz * .35));
-        vec3 chalk = mix(vec3(.60, .58, .52), vec3(.76, .74, .67), n2) * (.86 + .18 * fine);
-        chalk = mix(chalk, mud, .25 * smoothstep(.3, .8, vn(vWPos.xz * .9)));   // trampled, mud-spattered
-        vec3 road = mix(vec3(.55, .51, .43), vec3(.64, .60, .50), n2);
-        vec3 wood = mix(vec3(.20, .22, .12), vec3(.28, .25, .16), n2);
-        // Picardy fields behind the lines: a patchwork of meadow, wheat, oats and fallow
+        float n1 = fbm(vWPos.xz * 0.012), n2 = fbm(vWPos.xz * 0.09);
+        vec3 tg = groundTile(uTex, 0., vWPos.xz).rgb, te = groundTile(uTex, 1., vWPos.xz).rgb, tc = groundTile(uTex, 2., vWPos.xz).rgb;
+        // July 1916: summer grass, dried here and there; crop fields behind the lines
+        vec3 grass = tg * mix(vec3(.95, 1.02, .9), vec3(1.12, 1.05, .82), n1);
         vec2 fp = mat2(.83, .55, -.55, .83) * vWPos.xz; vec2 fc = floor(fp / vec2(210., 95.));
         float fh = h21(fc), edge = smoothstep(0., 3., min(min(mod(fp.x, 210.), 210. - mod(fp.x, 210.)), min(mod(fp.y, 95.), 95. - mod(fp.y, 95.))));
-        vec3 field = fh < .3 ? vec3(.30, .38, .16) : fh < .55 ? vec3(.55, .52, .28) : fh < .75 ? vec3(.42, .45, .22) : vec3(.48, .42, .3);
-        grass = mix(grass, field * (.85 + .3 * fine), (1. - smoothstep(.05, .3, g.g)) * edge * .75);
-        vec3 c = grass;
+        vec3 tint = fh < .3 ? vec3(.92, 1.0, .88) : fh < .55 ? vec3(1.32, 1.12, .78) : fh < .75 ? vec3(1.08, 1.06, .86) : vec3(1.15, .98, .85);
+        grass *= mix(vec3(1.), tint, (1. - smoothstep(.05, .3, g.g)) * edge * .8);
+        vec3 mud = te * (.85 + .3 * n2);
+        vec3 chalk = tc * (.9 + .15 * n2);
+        vec3 road = mix(te, tc, .45) * vec3(1.05, 1.02, .95);
+        vec3 wood = tg * vec3(.62, .58, .55);
+        vec3 c = grass; float w;
         c = mix(c, wood, clamp(g.a * 1.2, 0., 1.) * .8);
-        c = mix(c, mud, smoothstep(.12, .55, g.g + (n2 - .5) * .35));
-        c = mix(c, chalk * .9, smoothstep(.55, .9, g.g) * smoothstep(.55, .8, n3) * .5);   // chalk thrown up in the churned ground
-        c = mix(c, chalk, smoothstep(.3, .85, g.r + (n3 - .5) * .45) * .85);
+        w = smoothstep(.12, .55, g.g + (n2 - .5) * .45); c = mix(c, mud, w);
+        // shell-torn ground breaks up: grass survives in tufts between the craters
+        c = mix(c, grass, w * smoothstep(.62, .78, vn(vWPos.xz * .8)) * (1. - smoothstep(.5, .9, g.g)) * .7);
+        c = mix(c, chalk, smoothstep(.55, .9, g.g) * smoothstep(.55, .8, vn(vWPos.xz * 1.3)) * .5);   // chalk thrown up by the shells
+        c = mix(c, chalk, smoothstep(.3, .85, g.r + (vn(vWPos.xz * 1.7) - .5) * .45) * .85 * (1. - smoothstep(120., 450., camD) * .7));   // spoil lines fade into the haze
         c = mix(c, road, smoothstep(.25, .5, g.b));
-        // steep cuts (trench walls, crater sides, sunken lanes) show the Somme chalk under the topsoil
+        // steep cuts (crater sides, sunken lanes) show the chalk under the topsoil
         float steep = 1. - clamp(vWNorm.y, 0., 1.);
-        c = mix(c, mix(chalk, mud, .45 + .3 * n4), smoothstep(.45, .8, steep) * .85);
-        // inside the trench: wet chalky mud on the floor, cut chalk on the walls
-        vec3 floorMud = mix(vec3(.17, .14, .11), vec3(.25, .21, .16), n3);   // wet, trodden mud under the duckboards
-        c = mix(c, mix(floorMud, chalk * .85, smoothstep(.4, .75, steep)), smoothstep(.3, .9, vCut));
+        c = mix(c, mix(chalk, mud, .4), smoothstep(.45, .8, steep) * .85);
+        // under the duckboards: wet trodden mud
+        c = mix(c, te * vec3(.45, .42, .4), smoothstep(.3, .9, vCut));
         diffuseColor.rgb *= c;
-      }`);
+        // which tile's surface relief to use, by the same weights
+        float wg = (1. - w) * (1. - smoothstep(.3, .85, g.r)), wc = smoothstep(.3, .85, g.r) + smoothstep(.45, .8, steep) * .6;
+        gN = groundTile(uNrm, 0., vWPos.xz).xyz * wg + groundTile(uNrm, 1., vWPos.xz).xyz * w + groundTile(uNrm, 2., vWPos.xz).xyz * wc;
+        gN = gN / max(wg + w + wc, .001) * 2. - 1.;
+        gCut = 1. - smoothstep(25., 90., camD);
+      }`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      // surface relief from the ground tiles (in world XZ, carried into view space), fading out with distance
+      { vec3 wn = normalize(vWNorm + vec3(gN.x, 0., gN.y) * .9 * gCut); normal = normalize((viewMatrix * vec4(wn, 0.)).xyz); }`);
   };
   return m;
 }

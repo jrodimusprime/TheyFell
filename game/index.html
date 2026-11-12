@@ -7,7 +7,8 @@
 <style>
   :root { --paper: #e9e2cf; --ink: #1d1a14; --red: #b3261e; --hud: rgba(233, 226, 207, .92); }
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; color: var(--paper); }
-  canvas { display: block; }
+  canvas { display: block; image-rendering: pixelated; }
+  #mini { image-rendering: auto; }
   #hud { position: fixed; inset: 0; pointer-events: none; user-select: none; }
   .tl, .tr, .bl, .br, .tc, .bc { position: absolute; text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.6); }
   .tl { left: 16px; top: 14px; } .tr { right: 16px; top: 14px; text-align: right; } .bl { left: 16px; bottom: 240px; } .br { right: 16px; bottom: 14px; text-align: right; }
@@ -72,7 +73,7 @@
   <p>34th Division, III Corps. The week-long bombardment is in its last minutes. At 07:28 the mines go up under the Schwabenhöhe and Y Sap; at 07:30 the whistles blow and the Tyneside battalions go over the top.</p>
   <button id="play" disabled>Loading the ground…</button>
   <div id="load"></div>
-  <small>WASD move · Shift run · Space jump, climb out · E climb out, jump a trench · C crouch · Z prone · Mouse fire · Right mouse aim · R reload · G Mills bomb · M map · Esc pause · F3 debug<br>
+  <small>WASD move · Shift run · Space jump, climb out · E climb out, jump a trench · C crouch · Z prone · Mouse fire · Right mouse aim · R reload · G Mills bomb · M map · P pixel size · Esc pause · F3 debug<br>
   The ground is the real terrain, at true scale (IGN lidar, 6 km × 6 km); the trenches are traced from the 1916 sector map.</small>
 </div></div>
 <script type="module" src="js/main.js"></script>

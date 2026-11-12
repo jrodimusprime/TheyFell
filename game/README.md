@@ -22,6 +22,7 @@ The game fetches its terrain, so it needs a local server (opening `index.html` f
 | R | Reload (SMLE charger clips, 5 rounds at a time) |
 | G | Throw a Mills bomb (3 per life, 4 s fuse) |
 | M | Trench map of the whole 6 km map, with the play boundary |
+| P | Pixel size: the game renders at a fraction of screen resolution and scales up with hard pixels (34 / 50 / 70 / 100 %) |
 | F3 / K / Esc | Debug and performance line / sound on or off / pause |
 
 URL flags: `?seed=N`, `?cheat` (no damage), `?at=x,z` (start at a world position in metres), `?lowres`, `?agent` (no menu; the sim only advances through `TF.step`, for tests).
@@ -55,11 +56,11 @@ Everything south of the 1916 sheet's lower edge (world z > 4355 m, towards Frico
 Indoor engines (Quake, Cimmerian) use BSP trees and precomputed visibility (PVS) to skip hidden rooms. That doesn't help on an open battlefield, where almost everything is in view of almost everything else. This demo uses what open-world engines use instead:
 
 1. **Quadtree terrain LOD (CDLOD-style).** 36 root tiles of 1000 m split down to 15.6 m tiles (0.49 m vertex spacing) near the camera. Each tile is a 32 × 32 grid, so detail falls off with distance: 0.5 m within ~25 m, 1 m to ~50 m, then 2, 4, 8 … 31 m. Skirts hide the cracks between levels. Tiles build nearest-first within a few milliseconds per frame, and an LRU cache keeps about 700 of them.
-2. **Fog as the far clip.** Exponential haze (about 55 % visibility at 1 km, 10 % at 2.5 km) for the morning mist and the smoke of the bombardment. The far plane is 7 km. A coarse ring of land outside the map carries the horizon.
+2. **Fog as the far clip.** Exponential haze (half-hidden at ~250 m, gone by ~650 m), plus ground mist that pools in the valleys. Nothing past 1.6 km is drawn. The depth range is tight (0.12 m to 1.6 km), so distant surfaces don't flicker.
 3. **Frustum culling** of every tile (three.js does this per mesh).
 4. **Instancing everywhere.** Each soldier part, sandbag, duckboard slat, picket, wall and tree type is a single draw call. 234 soldiers cost about 24 draw calls.
 5. **Streaming of near detail.** Trench dressing (revetment, fire-step, duckboards, sandbags) is rebuilt within 150 m whenever you move 18 m, and wire within 350 m.
-6. **One sun shadow map** that follows the player (140 m box). GPU particles (two draw calls for up to 11,500 particles) draw shell bursts across the whole front.
+6. **One sun shadow map** that follows the player (140 m box), snapped to a 0.5 m grid so shadows don't shimmer. The scene renders at half resolution by default, scaled up with hard pixels. GPU particles (two draw calls for up to 11,500 particles) draw shell bursts across the whole front.
 
 Typical numbers (headless Chrome, Metal, 1280 × 720): about 300 terrain tiles, 150–220 draw calls and 45–60 fps. F3 shows them live.
 
@@ -76,6 +77,7 @@ On death each part becomes a **cannon-es** physics body, joined by cone-twist co
 - **Tests:** `game/test/run.sh` runs:
   - `collision_test.mjs` (Node): a man is driven at trench walls from 16 directions, at 120 places, walking and running with jump held. He must never pass through a wall, and his 0.3 m body must stay out of them.
   - `sim_test.mjs` (Node, no browser): 6 minutes of battle, twice with the same seed (identical hash) and once with another seed (a different hash), plus tick cost, mines, zero hour, men going over the top, and casualties and respawns on both sides.
+  - `assault.js` in headless Chrome: after zero hour the agent makes for the nearest German soldier, fighting what it sees. It must kill 3 once it is in the German lines (in a German trench or within 40 m of one). When killed, it respawns and goes again.
   - `playthrough.js` in headless Chrome through `cdp.mjs`: a bot waits in the trench, goes over at zero hour, crosses no man's land to the Lochnagar lip while fighting, redeploys when killed, then walks off the west edge to check the out-of-bounds warning and the hard map edge. It prints PASS/FAIL and the final hash, and saves screenshots.
 
 ## Files

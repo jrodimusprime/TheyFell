@@ -116,8 +116,8 @@ export class Props {
   _im(g, m, n, double) { const im = new THREE.InstancedMesh(g, m, n); im.count = 0; im.frustumCulled = false; im.receiveShadow = true; im.castShadow = !double; if (double) m.side = THREE.DoubleSide; this.scene.add(im); return im; }
   update(cam) {
     const x = cam.position.x, z = cam.position.z;
-    if (!this.last || Math.hypot(x - this.last[0], z - this.last[1]) > 18) { this.last = [x, z]; this._trenches(x, z, 150); }
-    if (!this.lastWire || Math.hypot(x - this.lastWire[0], z - this.lastWire[1]) > 30) { this.lastWire = [x, z]; this._wire(x, z, 350); }
+    if (!this.last || Math.hypot(x - this.last[0], z - this.last[1]) > 18) { this.last = [x, z]; this._trenches(x, z, 120); }
+    if (!this.lastWire || Math.hypot(x - this.lastWire[0], z - this.lastWire[1]) > 30) { this.lastWire = [x, z]; this._wire(x, z, 260); }
   }
   _trenches(cx, cz, R) {
     const T = this.T, m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();

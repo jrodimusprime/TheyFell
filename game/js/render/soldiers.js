@@ -176,7 +176,8 @@ export class SoldiersView {
     for (const s of this.sim.soldiers) {
       const st = this.state[s.id];
       const dx = s.x - st.px, dz = s.z - st.pz, d = Math.hypot(dx, dz); st.px = s.x; st.pz = s.z;
-      const sp = d / Math.max(dt, 1e-3); st.moving = sp > 0.3 && sp < 20; st.run = sp > 3.2;
+      // speed smoothed over ~0.2 s: render frames outnumber sim ticks, so a raw per-frame speed flickers between walking and standing
+      const sp = Math.min(20, d / Math.max(dt, 1e-3)); st.speed = (st.speed ?? 0) + (sp - (st.speed ?? 0)) * Math.min(1, dt * 6); st.moving = st.speed > 0.35; st.run = st.speed > 3.2;
       st.phase += d * (s.stance === 2 ? 3.5 : 2.9);
       if (!s.alive) continue;
       if (s.id === playerId && this.hidePlayer) continue;

@@ -73,7 +73,7 @@ export class FX {
   }
   explosion(p, kind, camPos) {
     const [x, y, z] = p, t = this.time, S = this.smoke, G = this.glow, d = Math.hypot(x - camPos.x, z - camPos.z);
-    if (d > 4500) return;
+    if (d > 1700) return;   // beyond the fog
     const R = Math.random;
     const big = kind === 'heavy' ? 1.8 : kind === 'mine' ? 6 : kind === 'grenade' ? 0.5 : 1;
     if (kind === 'shrapnel') {

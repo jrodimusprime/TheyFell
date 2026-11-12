@@ -11,6 +11,39 @@ import { SoldiersView } from './render/soldiers.js';
 import { Ragdolls } from './render/ragdoll.js';
 import { FX, makeSky } from './render/fx.js';
 import { Audio } from './audio.js';
+import { makeGroundTextures } from './render/groundTex.js';
+
+// ---------- ground fog: mist lying in the valleys, on top of the distance haze (every material uses these chunks) ----------
+const GROUND_FOG_TOP = 106, GROUND_FOG_FALL = 9;   // metres above sea level: Mash and Sausage valleys sit below ~100 m
+THREE.ShaderChunk.fog_pars_vertex = '#ifdef USE_FOG\n varying float vFogDepth; varying vec3 vFogWorld;\n#endif';
+THREE.ShaderChunk.fog_vertex = `#ifdef USE_FOG
+  vFogDepth = - mvPosition.z;
+  { vec4 fw = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+    fw = instanceMatrix * fw;
+  #endif
+    vFogWorld = (modelMatrix * fw).xyz; }
+#endif`;
+THREE.ShaderChunk.fog_pars_fragment = `#ifdef USE_FOG
+  uniform vec3 fogColor; varying float vFogDepth; varying vec3 vFogWorld;
+  #ifdef FOG_EXP2
+    uniform float fogDensity;
+  #else
+    uniform float fogNear; uniform float fogFar;
+  #endif
+#endif`;
+THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
+  #ifdef FOG_EXP2
+    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+  #else
+    float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+  #endif
+  // ground mist: thick in the hollows, thinning with height, building up with distance along the line of sight
+  float gm = clamp(exp(-(vFogWorld.y - ${GROUND_FOG_TOP.toFixed(1)}) / ${GROUND_FOG_FALL.toFixed(1)}), 0.0, 3.0);
+  float mist = 1.0 - exp(-vFogDepth * 0.0045 * gm);
+  fogFactor = max(fogFactor, mist * 0.85);
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+#endif`;
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const Q = new URLSearchParams(location.search);
@@ -32,16 +65,20 @@ async function boot() {
   if (Q.get('at')) { const [x, z] = Q.get('at').split(',').map(Number); Object.assign(sim.player, { x, z, y: T.height(x, z) }); }
 
   // ---------- renderer ----------
-  const renderer = new THREE.WebGLRenderer({ antialias: !Q.has('lowres'), powerPreference: 'high-performance', preserveDrawingBuffer: AGENT });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, Q.has('lowres') ? 0.75 : 1.5));
+  // rendered at a fraction of screen resolution and scaled up with hard pixels: the slightly pixelated look, and far less work
+  const SCALES = [0.34, 0.5, 0.7, 1];
+  let scaleI = Q.get('scale') ? SCALES.indexOf(+Q.get('scale')) : 1; if (scaleI < 0) scaleI = 1;
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: AGENT });
+  renderer.setPixelRatio(SCALES[scaleI]);
+  renderer.domElement.style.imageRendering = 'pixelated';
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   document.body.prepend(renderer.domElement);
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(HAZE, 0.0019);       // half-hidden at ~400 m, gone by ~1.2 km: morning mist and the smoke of a week's bombardment
+  scene.fog = new THREE.FogExp2(HAZE, 0.0034);       // half-hidden at ~250 m, gone by ~650 m: the mist and the smoke of a week's bombardment
   scene.background = HAZE;
-  const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 7000);
+  const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.12, 1600);   // nothing past the fog is drawn; a tight depth range, no z-fighting
   scene.add(camera);
   const sky = makeSky(scene, SUN);
   const hemi = new THREE.HemisphereLight(0xc7d6e8, 0x7a6e58, 1.25); scene.add(hemi);
@@ -51,7 +88,7 @@ async function boot() {
 
   setLoad('Mapping the shell holes and the chalk…');
   const groundTex = buildGroundMap(T);
-  const terrain = new TerrainView(T, scene, groundTex);
+  const terrain = new TerrainView(T, scene, groundTex, makeGroundTextures(renderer));
   const props = new Props(scene, T, F);
   const men = new SoldiersView(scene, sim);
   const rag = new Ragdolls(T);
@@ -64,7 +101,8 @@ async function boot() {
   addEventListener('keydown', e => { if (e.repeat) return; keys.add(e.code); edge[e.code] = true;
     if (e.code === 'F3') { e.preventDefault(); $('debug').style.display = $('debug').style.display === 'block' ? 'none' : 'block'; }
     if (e.code === 'KeyM') $('map').style.display = $('map').style.display === 'block' ? 'none' : 'block', drawMap();
-    if (e.code === 'KeyK') audio.setEnabled(!audio.enabled); });
+    if (e.code === 'KeyK') audio.setEnabled(!audio.enabled);
+    if (e.code === 'KeyP') { scaleI = (scaleI + 1) % SCALES.length; renderer.setPixelRatio(SCALES[scaleI]); renderer.setSize(innerWidth, innerHeight); } });
   addEventListener('keyup', e => keys.delete(e.code));
   addEventListener('mousedown', e => { if (document.pointerLockElement) { if (e.button === 0) mouseDown = true; if (e.button === 2) ads = true; } });
   addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) ads = false; });
@@ -161,13 +199,13 @@ async function boot() {
     recoil = Math.max(0, recoil - dt * 6);
     updateViewModel(vm, p, W, dt, recoil, bob);
     // shadows follow the player
-    sun.position.copy(camera.position).addScaledVector(SUN, 300); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld();
+    { const sx = Math.round(camera.position.x / 0.5) * 0.5, sz = Math.round(camera.position.z / 0.5) * 0.5, sy = Math.round(camera.position.y); sun.target.position.set(sx, sy, sz); sun.position.set(sx, sy, sz).addScaledVector(SUN, 300); sun.target.updateMatrixWorld(); }   // snapped: no shimmering
     sky.position.copy(camera.position);
     audio.listener = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
     terrain.update(camera, terrain.stats.built < 200 ? 30 : 6);
     props.update(camera);
     men.hidePlayer = p.alive && !(window.TF && TF.view);
-    men.update(dt, camera.position, p.id);
+    men.update(dt, camera.position, p.id, 700);
     rag.step(dt);
     fx.update(dt, scene.fog);
     renderer.render(scene, camera);
