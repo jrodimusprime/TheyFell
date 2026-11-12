@@ -18,13 +18,14 @@ const UNI = {
   BRI: { tunic: C(0x8f8058), trousers: C(0x887a52), web: C(0xb0a882), webDark: C(0x948c66), brass: C(0xc49a44), puttee: C(0x80724c), boot: C(0x5a3e2a), sole: C(0x2a1e16), helmet: C(0x6e6c4c) },
   GER: { tunic: C(0x7c8272), trousers: C(0x70746a), web: C(0x2e2822), webDark: C(0x201c18), brass: C(0x9a9a94), puttee: C(0x2a2420), boot: C(0x2a2520), sole: C(0x161310), helmet: C(0x6a7068) },
 };
-const SKIN = C(0xc9a593), SKIN_DARK = C(0x9c7a6a), HAIR = C(0x3e2e22);   // a pale, weathered English complexion
+const SKIN = C(0xc8ab9c), SKIN_DARK = C(0x9c806f), HAIR = C(0x3e2e22);   // a pale, weathered English complexion
 
 // period portraits (AWM, public domain), cropped to the face; landmark pixels within each crop
 export const FACES = [
   { url: 'models/faces/arnold.png', eyeR: [45, 53], eyeL: [85, 57], mouth: [60, 99] },
   { url: 'models/faces/law.png', eyeR: [33, 58], eyeL: [66, 56], mouth: [54, 91] },
-  { url: 'models/faces/mark.png', eyeR: [73, 80], eyeL: [175, 78], mouth: [130, 220], side: 'BRI' },
+  { url: 'models/faces/borzard.png', eyeR: [85, 87], eyeL: [218, 82], mouth: [155, 240], side: 'BRI' },
+  { url: 'models/faces/mark.png', eyeR: [73, 80], eyeL: [175, 78], mouth: [130, 220] },
 ];
 export async function loadFaces() {
   // each photo's studio lighting is taken out (a high-pass: the features stay, the light-to-shadow gradient goes),
@@ -34,7 +35,7 @@ export async function loadFaces() {
     const d = g.getImageData(0, 0, w, h).data, L = new Float32Array(w * h), B = new Float32Array(w * h), R = 12;
     for (let i = 0; i < w * h; i++) L[i] = d[i * 4];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let s2 = 0, n = 0; for (let yy = Math.max(0, y - R); yy <= Math.min(h - 1, y + R); yy += 2) for (let xx = Math.max(0, x - R); xx <= Math.min(w - 1, x + R); xx += 2) { s2 += L[yy * w + xx]; n++; } B[y * w + x] = s2 / n; }
-    for (let i = 0; i < w * h; i++) d[i * 4] = Math.max(0, Math.min(255, 165 + (L[i] - B[i]) * 1.5));
+    for (let i = 0; i < w * h; i++) d[i * 4] = Math.max(0, Math.min(255, 158 + (L[i] - B[i]) * 2.4));
     res({ ...f, w, h, data: d }); }; im.src = f.url; })));
 }
 function segInfo(p, a, b) { // closest point param and distance from p to segment ab
@@ -90,7 +91,7 @@ export function bakeSoldier(gltf, side, seed = 1, faces = null) {
           let lum = 0, cnt = 0; for (let yy = Math.floor(fy - BLK / 2); yy < fy + BLK / 2; yy++) for (let xx = Math.floor(fx - BLK / 2); xx < fx + BLK / 2; xx++) { if (xx >= 0 && yy >= 0 && xx < face.w && yy < face.h) { lum += face.data[(yy * face.w + xx) * 4]; cnt++; } }
           lum = lum / Math.max(1, cnt) / 255;
           // the photo's light and shade on a warm skin tone; feathered out to the painted skin at the face's edge
-          const t = Math.min(1.08, Math.max(0, 0.1 + lum * 1.12)), photo = [SKIN[0] * t, SKIN[1] * t * 0.97, SKIN[2] * t * 0.95];
+          const t = Math.min(1.12, Math.max(0, lum * 1.2)), photo = [SKIN[0] * t * 0.96, SKIN[1] * t * 0.97, SKIN[2] * t * 1.0];
           const rx = Math.abs(hp.x) / 0.07, ry = Math.abs(hp.y - (EYE - 0.035)) / 0.075, edge = Math.max(rx, ry);
           const w = Math.min(1, Math.max(0, (1 - edge) / 0.25)) * Math.min(1, n.z / 0.35);
           c = mix(c, photo, w);

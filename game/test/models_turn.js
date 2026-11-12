@@ -16,7 +16,7 @@ await ev(`(async () => {
   const pose = '${clip}'.includes('Aim') || '${clip}'.includes('Shoot') ? 'aim' : '${clip}'.includes('Walk') || '${clip}'.includes('Run') ? 'port' : 'low';
   holdRifle(o, gun3, pose, 0);
   window.__doll = o; return true; })()`);
-for (const [name, ang, dist, h] of [['front', 0, 2.6, 1.45], ['quarter', 0.8, 2.4, 1.5], ['back', Math.PI, 2.6, 1.45], ['face', 0.12, 0.75, 1.64]]) {
+for (const [name, ang, dist, h] of [['front', 0, 2.6, 1.45], ['quarter', 0.8, 2.4, 1.5], ['back', Math.PI, 2.6, 1.45], ['face', 0.12, 0.75, 1.64], ['faceclose', 0.0, 0.5, 1.66]]) {
   await ev(`(() => { const o = __doll.position, a = ${ang} + Math.PI / 2; TF.view = { pos: [o.x + Math.sin(a) * ${dist}, o.y + ${h}, o.z + Math.cos(a) * ${dist}], look: [o.x, o.y + ${h > 1.6 ? 1.62 : 1.0}, o.z] }; TF.render(0.03); TF.settle(); for (let i = 0; i < 6; i++) TF.render(0.03); return true; })()`);
   await shot(`${tag}_${side}_${name}`, 92);
 }
