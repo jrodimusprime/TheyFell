@@ -12,7 +12,7 @@ import { Ragdolls } from './render/ragdoll.js';
 import { Blood } from './render/blood.js';
 import { loadSkinnedMen } from './render/skinnedMen.js';
 import { FirstPerson } from './render/firstPerson.js';
-import { FX, makeSky } from './render/fx.js';
+import { FX, makeSky, MistBanks } from './render/fx.js';
 import { Audio } from './audio.js';
 import { makeGroundTextures } from './render/groundTex.js';
 import { makePropTextures } from './render/propTex.js';
@@ -46,6 +46,10 @@ THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
   float gm = clamp(exp(-(vFogWorld.y - ${GROUND_FOG_TOP.toFixed(1)}) / ${GROUND_FOG_FALL.toFixed(1)}), 0.0, 3.0);
   float mist = 1.0 - exp(-vFogDepth * 0.0045 * gm);
   fogFactor = max(fogFactor, mist * 0.85);
+  // low mist settled on the ground everywhere: thickest at foot level, gone by head height, building up with distance
+  float low = clamp(exp(-(vFogWorld.y - (cameraPosition.y - 1.55)) / 1.1), 0.0, 1.0);
+  float lowMist = 1.0 - exp(-vFogDepth * 0.014 * low);
+  fogFactor = max(fogFactor, lowMist * 0.78);
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
 #endif`;
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -70,8 +74,8 @@ async function boot() {
 
   // ---------- renderer ----------
   // rendered at a fraction of screen resolution and scaled up with hard pixels: the slightly pixelated look, and far less work
-  const SCALES = [0.34, 0.5, 0.7, 1];
-  let scaleI = Q.get('scale') ? SCALES.indexOf(+Q.get('scale')) : 1; if (scaleI < 0) scaleI = 1;
+  const SCALES = [0.3, 0.4, 0.55, 0.75, 1];
+  let scaleI = Q.get('scale') ? SCALES.indexOf(+Q.get('scale')) : 1; if (scaleI < 0) scaleI = 1;   // 40% by default: chunkier pixels
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: AGENT });
   renderer.setPixelRatio(SCALES[scaleI]);
   renderer.domElement.style.imageRendering = 'pixelated';
@@ -80,7 +84,7 @@ async function boot() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   document.body.prepend(renderer.domElement);
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(HAZE, 0.0034);       // half-hidden at ~250 m, gone by ~650 m: the mist and the smoke of a week's bombardment
+  scene.fog = new THREE.FogExp2(HAZE, 0.0042);       // half-hidden at ~200 m, gone by ~520 m: the mist and the smoke of a week's bombardment
   scene.background = HAZE;
   const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.12, 1600);   // nothing past the fog is drawn; a tight depth range, no z-fighting
   scene.add(camera);
@@ -103,6 +107,7 @@ async function boot() {
   const rag = new Ragdolls(T);
   rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
   const fx = new FX(scene);
+  const mist = new MistBanks(scene, T);
   const audio = new Audio();
   const vm = makeViewModel(camera);
 
@@ -224,6 +229,7 @@ async function boot() {
     rag.step(dt);
     blood.update(dt);
     fx.update(dt, scene.fog);
+    mist.update(dt, camera, scene.fog);
     renderer.render(scene, camera);
     if (p.alive && !(window.TF && TF.view)) {   // the player's arms and rifle, in their own pass on top of the world
       camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving, rifleBlock());

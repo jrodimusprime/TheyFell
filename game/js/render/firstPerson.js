@@ -19,8 +19,8 @@ export class FirstPerson {
   constructor(skinned, sunDir) {
     const T = skinned.T.BRI;
     this.scene = new THREE.Scene();
-    this.scene.add(new THREE.HemisphereLight(0xc7d6e8, 0x7a6e58, 1.25));
-    const sun = new THREE.DirectionalLight(0xfff0d8, 2.4); sun.position.copy(sunDir).multiplyScalar(10); this.scene.add(sun);
+    this.scene.add(new THREE.HemisphereLight(0xb9c6d6, 0x4a4234, 0.95));
+    const sun = new THREE.DirectionalLight(0xfff0d8, 1.9); sun.position.copy(sunDir).multiplyScalar(10); this.scene.add(sun);
     this.rig = new THREE.Group(); this.rig.matrixAutoUpdate = false; this.scene.add(this.rig);
     this.body = SU.clone(T.gltf.scene);
     // the player's own arms get their own finer texture (skin creases, nails, knuckles, serge twill) with relief,
@@ -59,8 +59,8 @@ export class FirstPerson {
         // the wrist: a serge cuff from the forearm over the base of the hand, closing the hand's open end; flattened like a
         // real wrist and turned with the palm, so the join follows the hand
         const wide = P('index-finger-metacarpal').distanceTo(P('pinky-finger-metacarpal')) + 0.03;
-        const g = new THREE.CylinderGeometry(1, 1.08, 1, 20, 1, false); g.translate(0, 0.5, 0);   // 0 at the hand end, 1 at the forearm end
-        const cuff = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: 0x5f5236, roughness: 1, side: THREE.DoubleSide });
+        const g = new THREE.CylinderGeometry(1.32, 1.0, 1, 20, 4, true); g.translate(0, 0.5, 0);   // 0 at the wrist, 1 at the elbow (fuller there)
+        const cuff = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: 0x6f6142, roughness: 1, side: THREE.DoubleSide, map: sergeTexture() });
         cuff.add(new THREE.Mesh(g, m));
         cuff.userData = { wide }; this.scene.add(cuff); h.cuff = cuff;
       }
@@ -128,6 +128,7 @@ export class FirstPerson {
       else hand = lerpV(KNOB, GRIP_R, (t - 0.93) / 0.07);
     }
     this.handle.rotation.z = -lift * 1.35; this.bolt.position.z = -back;
+    this.bolt.visible = lift > 0.01 || back > 0.001;   // the model's own bolt shows at rest; this one only while it is worked
     // arms: the clip for the body, then each wrist placed so the hand (oriented for its grip) closes on the rifle
     this.mixer.update(dt); this.body.updateMatrixWorld(true);
     const B = this.bones, G = this.gun.matrixWorld, w = v => v.clone().applyMatrix4(G), d = v => v.clone().transformDirection(G);
@@ -138,7 +139,7 @@ export class FirstPerson {
     const Nr = d(V(1, 0, 0)).lerp(pressing ? d(V(0, -1, 0)) : d(V(0.7, -0.3, 0.2)), away).normalize();
     const gripR = blendGrip(GRIPS.stock, pressing ? GRIPS.press : GRIPS.pinch, away);
     // left hand: palm up under the fore-end, fingers across to the far side
-    const Fl = d(V(-0.75, 0.1, 0.65)).normalize(), Nl = d(V(0, 1, 0));
+    const Fl = d(V(-0.97, -0.05, 0.22)).normalize(), Nl = d(V(0, 1, 0));   // fingers straight across under the fore-end, wrapping its far side
     const wrist = (grip, F, N, palm = 0.03, reach = 0.055) => w(grip).addScaledVector(N, -palm).addScaledVector(F, -reach);
     let wR = wrist(hand, Fr, Nr, away > 0.5 ? 0.015 : 0.035, away > 0.5 ? 0.075 : 0.05), wL = wrist(GRIP_L, Fl, Nl, 0.035, 0.05);
     if (this.xr) {
@@ -163,15 +164,16 @@ export class FirstPerson {
       const palmW = h.palmLocal.clone().transformDirection(h.object.matrixWorld);
       const flat = palmW.addScaledVector(along, -palmW.dot(along)).normalize(), side = new THREE.Vector3().crossVectors(along, flat);
       const c = h.cuff, w = c.userData.wide / 2;
+      // the whole forearm sleeve, wrist to elbow, so the arm runs unbroken from the hand out of view (no cut-off wrist)
       c.position.copy(wristW).addScaledVector(along, -0.015);                      // starts 1.5 cm over the base of the hand
       c.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, along, flat));
-      c.scale.set(w, Math.min(0.12, wristW.distanceTo(elbow) * 0.5), w * 0.68);   // wider across the palm than through it
+      c.scale.set(w, wristW.distanceTo(elbow) + 0.04, w * 0.72);                  // wider across the palm than through it
       c.visible = true;
     }   // the sleeve's own gloves hidden (after the clip, which resets scale)
     if (this.xr) {
       const mix = (a, b, t) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] + (b[k] - a[k]) * t]));
       this.xr.right.setPose(mix(POSES.trigger, pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
-      this.xr.left.setPose(POSES.grip);
+      this.xr.left.setPose({ thumb: 0.5, index: 0.7, middle: 0.72, ring: 0.74, pinky: 0.76 });   // cradling: fingertips on the far side, not over the top
       for (const h of [this.xr.left, this.xr.right]) h.object.visible = true;
     } else { this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl); this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend); }
   }
@@ -231,4 +233,13 @@ function roundHands(g, bones, levels) {
   }
   if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);   // the uniform painter walks indexed triangles
   return g;
+}
+
+// khaki serge for the forearm sleeves: a diagonal twill with wear
+function sergeTexture() {
+  const N = 128, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d');
+  g.fillStyle = '#b8a77e'; g.fillRect(0, 0, N, N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if ((x + y) % 4 < 1) { g.fillStyle = 'rgba(70,60,40,0.22)'; g.fillRect(x, y, 1, 1); }
+  for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '60,50,34' : '220,205,170'},0.08)`; g.fillRect(Math.random() * N, Math.random() * N, 2 + Math.random() * 6, 2); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); return t;
 }

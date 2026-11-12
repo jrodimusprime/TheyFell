@@ -30,7 +30,7 @@ export async function loadSkinnedMen(scene, renderer) {
   const [bri, ger, le, k98, faces] = await Promise.all([load('models/characters/soldier_british.glb'), load('models/characters/soldier_german.glb'), load('models/weapons/lee_enfield.glb'), load('models/weapons/kar98k.glb'), loadFaces()]);
   bakeSoldier(bri, 'BRI', 1, faces); bakeSoldier(ger, 'GER', 1, faces); addBrodie(bri);
   const men = new SkinnedMen(scene, { BRI: { gltf: bri, gun: le.scene, kind: 'smle' }, GER: { gltf: ger, gun: k98.scene, kind: 'g98' } });
-  men.xrHands = await loadHands('models/hands/', { skin: 0xc49a82 });   // the player's own hands (WebXR generic hands, MIT)
+  men.xrHands = await loadHands('models/hands/', { skin: 0xa77a64 });   // the player's own hands (WebXR generic hands, MIT)
   return men;
 }
 

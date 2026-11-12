@@ -150,3 +150,50 @@ export function makeSky(scene, sunDir) {
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = -1; scene.add(mesh);
   return mesh;
 }
+
+// drifting banks of ground mist round the player: soft, wide, low sheets that thin toward their edges and near the camera,
+// recycled ahead of you as you move. One draw call.
+export class MistBanks {
+  constructor(scene, T, n = 160, R = 140) {
+    this.T = T; this.n = n; this.R = R; this.t = 0;
+    const g = new THREE.InstancedBufferGeometry(), q = new THREE.PlaneGeometry(1, 1);
+    g.index = q.index; g.attributes.position = q.attributes.position; g.attributes.uv = q.attributes.uv;
+    this.pos = new Float32Array(n * 4); this.attr = new THREE.InstancedBufferAttribute(this.pos, 4); this.attr.setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('aBank', this.attr); g.instanceCount = n;
+    this.mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false,
+      uniforms: { uCol: { value: new THREE.Color(0xe2e1da) }, uFogC: { value: new THREE.Color() }, uFogD: { value: 0 }, uTime: { value: 0 } },
+      vertexShader: `attribute vec4 aBank; varying vec2 vUv; varying float vD; varying float vSeed;
+        void main(){ vec4 mv = modelViewMatrix * vec4(aBank.xyz, 1.); float w = aBank.w;
+          mv.xy += (uv - .5) * vec2(w, w * .28);   // wide and low
+          gl_Position = projectionMatrix * mv; vUv = uv; vD = -mv.z; vSeed = fract(aBank.x * .013 + aBank.z * .021); }`,
+      fragmentShader: `uniform vec3 uCol; uniform vec3 uFogC; uniform float uFogD; uniform float uTime; varying vec2 vUv; varying float vD; varying float vSeed;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+        void main(){
+          vec2 d = (vUv - .5) * vec2(2., 2.);
+          float r = length(d * vec2(1., 1.25)), body = smoothstep(1., .2, r) * smoothstep(-1., -.2, d.y * 1.6);
+          float wisp = n(vUv * vec2(5., 2.) + vec2(uTime * .02 + vSeed * 9., vSeed * 4.)) * .6 + n(vUv * vec2(11., 4.) - uTime * .03) * .4;
+          float a = body * (.3 + .7 * wisp) * .5 * smoothstep(4., 18., vD);
+          if (a < .004) discard;
+          float f = 1. - exp(-uFogD * uFogD * vD * vD);
+          gl_FragColor = vec4(mix(uCol, uFogC, f * .4), a * (1. - f * .5));
+        }` });
+    this.mesh = new THREE.Mesh(g, this.mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = 1; scene.add(this.mesh);
+    this.ready = false;
+  }
+  _place(i, cx, cz, anywhere) {
+    const a = Math.random() * Math.PI * 2, r = anywhere ? Math.sqrt(Math.random()) * this.R : this.R * (0.75 + Math.random() * 0.25);
+    const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r, w = 14 + Math.random() * 26;
+    this.pos[i * 4] = x; this.pos[i * 4 + 1] = this.T.height(x, z) + w * 0.06 + 0.3; this.pos[i * 4 + 2] = z; this.pos[i * 4 + 3] = w;
+  }
+  update(dt, cam, fog) {
+    this.t += dt; const cx = cam.position.x, cz = cam.position.z;
+    if (!this.ready) { for (let i = 0; i < this.n; i++) this._place(i, cx, cz, true); this.ready = true; }
+    for (let i = 0; i < this.n; i++) {
+      this.pos[i * 4] += dt * 0.6; this.pos[i * 4 + 2] -= dt * 0.15;   // the light morning wind, from the west
+      if (Math.hypot(this.pos[i * 4] - cx, this.pos[i * 4 + 2] - cz) > this.R) this._place(i, cx, cz, false);
+    }
+    this.attr.needsUpdate = true;
+    this.mat.uniforms.uTime.value = this.t; this.mat.uniforms.uFogC.value.copy(fog.color); this.mat.uniforms.uFogD.value = fog.density;
+  }
+}
