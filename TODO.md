@@ -22,6 +22,69 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 > **Playable demo:** [`game/`](game/README.md) is a browser vertical-slice demo of **MAP-S02 La Boisselle & Lochnagar**: the real terrain at true scale (6 km × 6 km from IGN lidar), the 1916 trench lines, the 07:28 mines, the 07:30 attack, AI on both sides, ragdoll deaths, frequent respawn, out-of-bounds handling and headless AI playthrough tests. Items it covers are marked *(demo)* below. Demo work is a prototype, not "done" by the rule above.
 
 ---
+HIGHEST PRIORITY
+✓ attacker AI should avoid barbed wire if it can — done 12 Nov 2026: goes round a belt when he can see a way through
+
+✓ there should be a death counter that counts deaths on both sides — done 12 Nov 2026: fallen and left, both sides, top right
+
+✓ you should be able to press e to pick up rifle but then it is animated and bends down to swap rifles, either type of rifle german or french or english whatever — done 12 Nov 2026: E by a fallen man: stoop and swap, either nation's rifle
+
+✓ to make it less confusing if someone fires at you their position should appear on the map as a red dot until dead — done 12 Nov 2026: red dots on the minimap and map
+or you have moved away
+
+
+✓ sandbags arent that stripe — done 12 Nov 2026: the bags were drawn with the planks' shader; fixed
+
+✓ wood texture should be lower quality and less striped — done 12 Nov 2026: coarser, a few soft grain lines
+
+✓ attacker running looks pretty lame like a strange gallop — done 12 Nov 2026: stride cut to a real jog's, bounce damped
+
+✓ attackers should be able to jump over trenches that are narrow if they want — done 12 Nov 2026: about two in three leap at the lip
+
+✓ i want to see total death counts as they go up on both sides — done 12 Nov 2026: top right
+
+✓ i want to be able to select a different alive player on the map when i die — done 12 Nov 2026: click a man on the map, or random near the objective
+
+✓ i want to see low level fog on the ground and fog further away, at the moment theres no fog — done 12 Nov 2026: patchy ground mist, haze, mist banks
+
+✓ the horizon looks weird, the sky also looks werid no cloud map etc, no forest in the distance or something? add some variety but do it properly — done 12 Nov 2026: clouds; ridges and woods beyond the field
+
+✓ combat inside trenches can be boring. make them use bayonets, knives, clubs with spikes, have their rifles jam also? run out of ammo, run away when you jump in…. do a combo to keep it exciting — done 12 Nov 2026: bayonets, clubs, knives (F), jams (R), out of rounds, men who run
+
+✓ inside trenches it seems like theres 1 enemy per section maybe sometimes have none, sometimes have 5 in there — done 12 Nov 2026: clusters of 0-5 along the bays
+
+the grenade doesn’t have an animation or much thinking in it and i cant see where it is thrown. also not seeing many others being thrown and soldiers throwing them
+
+
+✓ it is really important the animation for getting out of trenches is done well, take your time looking at trenches of different height to see the characters get out, it is super important — done 12 Nov 2026: height-adaptive climb, checked at seven places
+
+
+✓ review shooting accuracy and do one of those accuracy gauges for when couching standing prone and add the sway etc like all the games do — done 12 Nov 2026: ring round the crosshair; sway by stance
+
+if we overtake an area and there is a new spawn point make sure the troops come out of a fox hole or something like that, a tunnel underground that is dark… as it looks like they’re coming otu of the air lol. also it looks like heaaaaps of troops are coming out of those just use a couple troops the rest should be coming from the back spawn points as they would in a real battle
+
+reload with a straight wrist on the right wrist, let the fingers do te work
+
+
+✓ tthe enemgies seem to know where you are as soon as you jump in a trench… lets say only 1 in 10 enemies know this, the others are suprised and take half a second to turn to face you — done 12 Nov 2026: one in ten ready, the rest 0.5 s+ to turn
+
+
+✓ at point 8 theres like a heap of enemies standing in one spot all shooting at the same time its totally weird fixit — done 12 Nov 2026: respawns spread through strongpoints
+
+
+addmachine guns, take a lot of time to do this properly and take your time
+
+
+i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly
+
+✓ the player should have some weapon sway when standing, less when crouching, virtually none when lying down. the player should be able to shoot people at 200 yards at least — done 12 Nov 2026: sway by stance; 17/30 hits at 183 m standing
+
+
+
+✓ easy one but the map should show where you are and where you're facing. it should show how many troops have died and how many are left. also when you die it should give you 10s to choose who you want to spawn into on the map or random (that is relatively close to a target, not ages away on the map) — done 12 Nov 2026: north-up map with you and your view; 10 s respawn choice
+
+✓ enemies all stand in one exacy spot at a a defence spot but hey should spread out in defensive clusters, trenches dont seem to have many enemies — done 12 Nov 2026: clusters along the bays
+
 
 ## 0. Scope
 
@@ -76,35 +139,7 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **PRE-014** [P0] Define game modes for launch (see `SYS-MODE-*`)
 - [ ] **PRE-015** [P1] Monetisation / DLC policy, if any (cosmetics must stay historically accurate)
 
-### 1.2 Pipeline & tooling
-- [ ] **PIPE-001** [P0] Source control with LFS for binary assets; branching strategy
-- [ ] **PIPE-002** [P0] Asset naming convention (`T_`, `SM_`, `SK_`, `A_`, `M_`, `MI_`, `SFX_`…) and folder structure (per battlefield / per kit)
-- [ ] **PIPE-003** [P0] DCC → engine export presets (scale, units, axes, LOD naming, collision naming)
-- [ ] **PIPE-004** [P0] Texture standards (PBR, texel density per asset class, channel packing)
-- [ ] **PIPE-005** [P0] **Data-driven gameplay:** weapon, unit, faction and map definitions in JSON / data assets, not hard-coded (§11.1, arf20 `properties.cfg`)
-- [ ] **PIPE-006** [P0] CI builds (nightly), automated smoke tests, crash reporting. **AI playthroughs as regression tests:** deterministic sim + agent API + headless browser runs with state hashes (Cimmerian §11) *(demo: `game/test/run.sh`)*
-- [ ] **PIPE-007** [P0] Performance capture tooling (per-map perf runs)
-- [ ] **PIPE-008** [P1] Localisation pipeline (EN, FR, DE minimum; voice and text)
-- [ ] **PIPE-009** [P1] Mod / map-editor support decision & tooling
-- [ ] **PIPE-010** [P0] Attribution tracker: every external reference image, map, sound and music track with its licence (CC-BY NLS maps, PD IWM/AWM/LAC photos)
 
-### 1.3 Custom editor tools
-- [ ] **TOOL-001** [P0] **Georeferenced trench-map importer:** load an NLS GeoTIFF / trench map as a terrain overlay in-editor (§12). *(demo: affine georeference + automatic vectorisation of trench lines, `tools/terrain/`)*
-- [ ] **TOOL-002** [P0] **Heightmap builder:** start from **real lidar terrain** (France: IGN RGE ALTI 1 m; Belgium: Digitaal Hoogtemodel Vlaanderen), then hand-correct for 1916–17 (remove post-war roads and embankments, restore filled craters, pre-blast ground under mines). *(demo: `tools/terrain/fetch_dem.mjs`, Lochnagar pre-blast fill)*
-- [ ] **TOOL-003** [P0] **Trench spline tool:** draw a trench centre-line → auto-generate fire bays, traverses, revetment, duckboards, parapet/parados, collision and navmesh links (§2) *(demo: crenellation, fire-step, parapet/parados cut, streamed revetment/duckboards/sandbags; no navmesh)*
-- [ ] **TOOL-004** [P0] **Communication-trench zig-zag generator** from a path
-- [ ] **TOOL-005** [P0] **Wire-belt tool:** paint a belt → auto-place pickets + wire type (entanglement, double apron, low, concertina) with randomised sag (§9.1)
-- [ ] **TOOL-006** [P0] **Crater stamper:** terrain deformation + decal + water fill, with size presets (shell / heavy shell / mine)
-- [ ] **TOOL-007** [P0] **Shattered-woodland scatter tool:** trunk damage states, fallen logs, debris (§9.5)
-- [ ] **TOOL-008** [P1] **Tunnel / subway spline tool:** timber props, lights, junction pieces (§9.2, Vimy)
-- [ ] **TOOL-009** [P1] **Barrage-map editor:** draw timed barrage lifts on the map, exported to the artillery director (§3 barrage maps)
-- [ ] **TOOL-010** [P1] Dugout room builder (modular interior snapping)
-- [ ] **TOOL-011** [P1] Ruined-building destruction state baker (intact → damaged → ruin)
-- [ ] **TOOL-012** [P0] Audio zone & reverb volume painter (trench, dugout, tunnel, open ground)
-- [ ] **TOOL-013** [P1] AI cover-point & fire-position auto-generator for trench geometry
-- [ ] **TOOL-014** [P2] In-game "historical overlay" debug view: show the real trench map over the level
-
----
 
 ## 2. Research & reference gathering
 
@@ -121,92 +156,8 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 
 ---
 
-## 3. Map creation
 
-### 3.1 Map list
 
-| ID | Map | Battlefield | Date / conditions | Factions | Signature features | Pri |
-|---|---|---|---|---|---|---|
-| **MAP-S02** | **La Boisselle & Lochnagar** (6 × 6 km, true scale) | Somme | 1 Jul 1916, 07:28 mines, 07:30 zero hour, clear | British vs German | Lochnagar & Y Sap mines, chalk, deep dugouts, Sausage & Mash Valleys | **P0 (vertical slice)** *(demo)* |
-| MAP-S01 | Hawthorn Ridge & Beaumont-Hamel | Somme | 1 Jul 1916, 07:20 mine | British, Newfoundland vs German | Hawthorn mine, Y Ravine, uncut wire, sunken lane | P1 |
-| MAP-S03 | Delville Wood | Somme | 15–20 Jul 1916 | South African/British vs German | Shattered wood, close-quarters, constant shelling | P1 |
-| MAP-S04 | Pozières & Mouquet Farm | Somme | 23 Jul–Sep 1916 | Australian vs German | Village ruins, OG Lines, Gibraltar bunker, extreme shelling | P1 |
-| MAP-S05 | Thiepval Ridge | Somme | 26–28 Sep 1916 | British/Canadian vs German | Château ruins, Schwaben Redoubt, fortified village | P1 |
-| MAP-S07 | Montauban & the French sector | Somme | 1 Jul 1916 | British & **French** vs German | The most successful sector on 1 July: British & French gains around Montauban, south of the Albert–Bapaume road | **PH2** (option B) |
-| MAP-S06 | The Ancre (Beaumont-Hamel) | Somme | 13 Nov 1916, fog & mud | British/Highland vs German | Winter mud, fog, captured dugouts | P2 |
-| MAP-Y01 | Messines Ridge | Ypres | 7 Jun 1917, 03:10 | Australian, NZ, British vs German | 19-mine opening event, ridge assault, pillboxes | P1 |
-| MAP-Y02 | Hill 60 (underground + surface) | Ypres | 1916–17 | Australian tunnellers vs German | Tunnel warfare, counter-mining, craters | P1 |
-| MAP-Y03 | Polygon Wood | Ypres | 26 Sep 1917 | Australian vs German | Pillboxes (MEBU), Butte, shattered wood | P1 |
-| MAP-Y04 | Broodseinde | Ypres | 4 Oct 1917, rain | Australian/NZ vs German | Two attacks colliding in no man's land | P2 |
-| MAP-Y05 | Passchendaele | Ypres | 26 Oct–10 Nov 1917 | Canadian vs German | Extreme mud, flooded craters, duckboard tracks, ruined village | P1 |
-| MAP-V01 | Vimy Ridge: Hill 145 | Vimy | 9–10 Apr 1917, sleet | Canadian vs German | Crater line, creeping barrage, ridge crest, memorial site | P1 |
-| MAP-V02 | The Pimple | Vimy | 12 Apr 1917, snowstorm | Canadian vs German | Snow, short brutal assault | P1 |
-| MAP-V03 | Grange Subway | Vimy | 9 Apr 1917, 05:30 | Canadian | Underground approach, assembly, exit to the assault | P1 |
-| MAP-V04 | Vimy Crater Raids | Vimy | Feb–Mar 1917, night | Canadian vs German | Night raid mode, flares, crater line | P2 |
-| MAP-T01 | **Rehearsal Ground** (tutorial) | Behind the lines | 1917 | Any | Taped-out practice trenches (as used for Vimy), firing range, gas drill | **P0** |
-| MAP-M01 | Main-menu diorama | Any | — | — | Animated trench scene for menus | P0 |
-
-### 3.2 Per-map pipeline (repeat for **every** map above)
-- [ ] **MAP-x-01** Gather the sector trench maps, barrage maps, photos and war diaries ⛓ RES-001..003
-- [ ] **MAP-x-02** Georeference the trench map and import it as an editor overlay ⛓ TOOL-001
-- [ ] **MAP-x-03** Build the heightmap (ridges, valleys, sunken roads) ⛓ TOOL-002
-- [ ] **MAP-x-04** Write the gameplay layout doc: lanes, sectors, objectives, spawn waves, sightlines, flanks
-- [ ] **MAP-x-05** **Greybox:** terrain + trench splines + objectives; first playable
-- [ ] **MAP-x-06** Trench network from the real map: front, support and reserve lines, communication trenches, saps (§2) ⛓ TOOL-003/004
-- [ ] **MAP-x-07** Wire belts per the trench map (density, gaps, types) ⛓ TOOL-005
-- [ ] **MAP-x-08** No man's land: craters, shell-hole field, debris, bodies-optional set ⛓ TOOL-006
-- [ ] **MAP-x-09** Dugouts, HQs, aid posts, shelters, pillboxes placed and furnished
-- [ ] **MAP-x-10** Ruins & landmark structures (villages, châteaux, windmills, woods)
-- [ ] **MAP-x-11** Underground spaces where relevant (mines, subways, cellars)
-- [ ] **MAP-x-12** Frontline sector volumes & capture logic hooked up ⛓ SYS-OBJ-*
-- [ ] **MAP-x-13** Barrage plan authored (timed lifts, preliminary bombardment zones) ⛓ TOOL-009, AI-ART-*
-- [ ] **MAP-x-14** Scripted events (mine detonations, gas releases, counter-attacks)
-- [ ] **MAP-x-15** Navmesh, ladder / vault links, cover points, fire positions, MG arcs ⛓ TOOL-013
-- [ ] **MAP-x-16** Lighting & weather preset (time of day, fog, rain, snow, flares)
-- [ ] **MAP-x-17** Audio zones, ambience beds, reverb volumes, distant-battle soundscape ⛓ TOOL-012
-- [ ] **MAP-x-18** Set dressing pass (props, signs, letters, personal items)
-- [ ] **MAP-x-19** Out-of-bounds handling and map edge: an out-of-bounds warning past the play boundary, a hard stop at the map edge, and coarse land beyond it to the horizon (distant battlefield matte, barrage-glow horizon) *(demo)*
-- [ ] **MAP-x-20** LODs, occlusion, streaming, performance pass ⛓ PIPE-007
-- [ ] **MAP-x-21** Historical review against trench map + photos (sign-off) ⛓ PRE-006
-- [ ] **MAP-x-22** Playtest → iterate (≥3 rounds) → balance sign-off
-- [ ] **MAP-x-23** Loading screen art, briefing map, codex entry, minimap render
-- [ ] **MAP-x-24** Bot / AI tuning pass for this map
-
-### 3.3 Map-specific work
-- [ ] **MAP-S02-A** [P0] Lochnagar mine event: shaft, gallery, charge, 07:28 detonation, crater formation, debris rain, a crater that can be occupied afterwards
-- [ ] **MAP-S02-B** [P0] Y Sap mine event (second, smaller detonation)
-- [ ] **MAP-S02-C** [P0] Deep German dugout complex under La Boisselle (multi-exit stairs)
-- [ ] **MAP-S02-D** [P0] Sausage Valley & Mash Valley approach lanes with machine-gun killing zones
-- [ ] **MAP-S02-E** [P0] Chalk spoil heaps and white parapets; Tara–Usna ridge backdrop
-- [ ] **MAP-S01-A** [P1] Hawthorn Ridge mine at 07:20 (10 minutes before zero; warns the defenders)
-- [ ] **MAP-S01-B** [P1] Newfoundland approach (St John's Road, the "Danger Tree" landmark), exposed slope
-- [ ] **MAP-S01-C** [P1] Y Ravine German dugout network
-- [ ] **MAP-S03-A** [P1] Delville Wood: tree-damage progression over the match (wood degrades as shelling continues)
-- [ ] **MAP-S03-B** [P1] Named rides (paths) through the wood as lanes (e.g. Princes Street)
-- [ ] **MAP-S04-A** [P1] Pozières village ruins → rubble field; "Gibraltar" concrete bunker
-- [ ] **MAP-S04-B** [P1] OG1/OG2 German lines; windmill site; very heavy shelling profile
-- [ ] **MAP-S04-C** [P1] Mouquet Farm cellar complex
-- [ ] **MAP-S05-A** [P1] Thiepval château ruins and village fortress
-- [ ] **MAP-S05-B** [P1] Schwaben Redoubt strongpoint
-- [ ] **MAP-Y01-A** [P1] **Messines opening:** 19 mine charges detonating near-simultaneously (staggered by seconds), screen shake, ridge-wide craters (§3)
-- [ ] **MAP-Y01-B** [P1] Spanbroekmolen / Lone Tree crater, Kruisstraat craters
-- [ ] **MAP-Y01-C** [P1] Messines village ruins (NZ objective); ridge-top observation
-- [ ] **MAP-Y02-A** [P1] Hill 60 surface: crater-pocked hillock, railway cutting
-- [ ] **MAP-Y02-B** [P1] Underground layer: British & German gallery systems, listening posts, camouflet events (§10.2)
-- [ ] **MAP-Y03-A** [P1] Polygon Wood: the Butte (mound), pillbox belt, Black Watch Corner
-- [ ] **MAP-Y04-A** [P2] Broodseinde: simultaneous-attack scripted event (both sides attack at dawn)
-- [ ] **MAP-Y05-A** [P1] **Extreme mud mode:** most of the map is impassable mud; duckboard tracks & plank roads are the lanes
-- [ ] **MAP-Y05-B** [P1] Flooded craters (drowning hazard), pillboxes on high ground, ruined Passchendaele church
-- [ ] **MAP-Y05-C** [P1] Rain intensity rising over the match → mud depth rising
-- [ ] **MAP-V01-A** [P1] Vimy crater line (Durand, Grange and others) as no-man's-land features
-- [ ] **MAP-V01-B** [P1] Creeping barrage at a 100-yard-per-3-minutes style pace (author from the barrage map); Hill 145 summit objective
-- [ ] **MAP-V01-C** [P1] Sleet weather; reverse slope beyond the crest
-- [ ] **MAP-V02-A** [P1] Snowstorm visibility; steep Pimple slope; short-match format
-- [ ] **MAP-V03-A** [P1] Grange Subway interior: electric lighting, water pipes, aid post, chalk walls, exits to front-line saps
-- [ ] **MAP-V03-B** [P1] Assembly → zero hour → exit sequence (05:30)
-- [ ] **MAP-V04-A** [P2] Night raid map: box barrage, prisoner snatch, extraction
-- [ ] **MAP-T01-A** [P0] Rehearsal ground: tape-marked trench outlines, flags for objectives, firing range, bombing pit, gas hut drill, wire-cutting lane, ladder course
-- [ ] **MAP-M01-A** [P0] Menu diorama: dawn stand-to in a fire bay, ambient soldiers, distant barrage
 
 ---
 
@@ -739,7 +690,6 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **AI-ART-002** [P1] **Counter-battery logic:** enemy barrage strength decreases if counter-battery objectives are met
 - [ ] **AI-ART-003** [P1] Shell-type selection by target (shrapnel vs troops in the open, HE vs trenches, gas vs batteries / rear areas, smoke for cover)
 - [ ] **AI-GAS-001** [P1] **Gas director:** scheduled / opportunistic gas shelling, cloud-release events when the wind is favourable
-- [ ] **AI-WTH-001** [P1] **Weather director:** rain / snow progression per map script, mud-depth evolution
 - [ ] **AI-EVT-001** [P0] **Event director:** mine detonations, counter-attack waves, reinforcement timing, pacing (quiet periods vs storms of fire)
 - [ ] **AI-FLR-001** [P1] **Flare logic:** both sides' sentries fire flares on suspicious noise; frequency rises with alarm level
 
