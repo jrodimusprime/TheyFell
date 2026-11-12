@@ -169,9 +169,12 @@ export class SoldiersView {
     this.corpses = [];
     this.hidePlayer = true;
   }
-  _write(side, mats, rifleM) {
+  _write(side, mats, rifleM, stained = 0) {
     const m = this.meshes[side], i = m.pelvis.count;
     for (let k = 0; k < RIG.length; k++) m[RIG[k][0]].setMatrixAt(i, mats[k]);
+    // the dead: tunic and trousers darkened with blood where he was hit
+    const W = this._white || (this._white = new THREE.Color(1, 1, 1)), Bd = this._bloody || (this._bloody = new THREE.Color(0.42, 0.24, 0.22));
+    for (const k of ['chest', 'pelvis', 'thighL', 'thighR', 'uarmL', 'uarmR']) m[k].setColorAt(i, stained && (k === 'chest' || k === 'pelvis' || (stained > 1 && k.startsWith('thigh'))) ? Bd : W);
     m.rifle.setMatrixAt(i, rifleM);
     for (const k in m) m[k].count = i + 1;
   }
@@ -204,15 +207,15 @@ export class SoldiersView {
       fk(this.mats, { x: s.x, y: s.y, z: s.z }, s.yaw, this.rot, this.rot.root);
       this._write(s.side, this.mats, this.rifleMatrix(this.mats, aim, s.pitch, rm));
     }
-    for (const c of this.corpses) this._write(c.side, c.mats, c.rifle);
-    for (const side of ['BRI', 'GER']) { for (const k in this.meshes[side]) this.meshes[side][k].instanceMatrix.needsUpdate = true; for (const im of this.far[side]) im.instanceMatrix.needsUpdate = true; }
+    for (const c of this.corpses) this._write(c.side, c.mats, c.rifle, c.stain || 1);
+    for (const side of ['BRI', 'GER']) { for (const k in this.meshes[side]) { const im = this.meshes[side][k]; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; } for (const im of this.far[side]) im.instanceMatrix.needsUpdate = true; }
   }
   // a fresh corpse at the soldier's last pose; ragdoll.js then takes over its matrices
   addCorpse(s) {
     const st = this.state[s.id];
     pose(this.rot, { stance: s.stance, moving: false, pitch: s.pitch }, st.phase, false, 0);
     fk(this.mats, { x: s.x, y: s.y, z: s.z }, s.yaw, this.rot, this.rot.root);
-    const c = { side: s.side, id: s.id, mats: this.mats.map(m => m.clone()), rifle: this.rifleMatrix(this.mats, false, 0), yaw: s.yaw, x: s.x, z: s.z };
+    const c = { side: s.side, id: s.id, mats: this.mats.map(m => m.clone()), rifle: this.rifleMatrix(this.mats, false, 0), yaw: s.yaw, x: s.x, z: s.z, stain: s.lastHit && s.lastHit.zone === 'legs' ? 2 : 1 };
     this.corpses.push(c);
     const max = this.cap - this.sim.soldiers.length - 2;
     while (this.corpses.length > max) { const old = this.corpses.shift(); old.removed = true; }

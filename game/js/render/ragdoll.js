@@ -22,7 +22,7 @@ export class Ragdolls {
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
     this.world.solver.iterations = 12;
     this.world.defaultContactMaterial.friction = 0.7; this.world.defaultContactMaterial.restitution = 0.05;
-    this.active = []; this.maxActive = 18;
+    this.active = []; this.maxActive = 40;
     this.stats = { active: 0, bodies: 0 };
   }
   _ground(x, z) {
@@ -37,8 +37,9 @@ export class Ragdolls {
   }
   // corpse: from SoldiersView.addCorpse (mats = world matrices per part at the moment of death); hit: sim death event
   add(corpse, hit, camDist) {
-    if (camDist > 260) return this._settleStatic(corpse, hit);
-    if (this.active.length >= this.maxActive) this._freeze(this.active[0]);
+    // far away, or the physics budget is full (a mine or a machine-gun burst kills dozens at once): lay him down on the
+    // ground directly. Never freeze a ragdoll mid-fall, or the dead are left standing.
+    if (camDist > 260 || this.active.length >= this.maxActive) return this._settleStatic(corpse, hit);
     const bodies = [], m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
     for (let i = 0; i < RIG.length; i++) {
       const [name, , , he, co] = RIG[i];
@@ -49,11 +50,13 @@ export class Ragdolls {
       b.position.set(c.x, c.y, c.z); b.quaternion.set(q.x, q.y, q.z, q.w);
       this.world.addBody(b); bodies.push(b);
     }
-    for (const [child, parent, cone, twist] of JOINTS) {
+    const T_ = (typeof window !== "undefined" && window.__ragTest) || {};   // test switches (noGround, noJoints, p2p), used by the ragdoll diagnostics
+    if (!T_.noJoints) for (const [child, parent, cone, twist] of JOINTS) {
       const ci = PART[child], pi = PART[parent], [, , off] = RIG[ci], pco = RIG[pi][4], cco = RIG[ci][4];
       // pivot = the child's joint: in the parent body frame it is (joint offset - parent centre offset); in the child frame, -child centre offset
       const pivA = new CANNON.Vec3(off[0] - pco[0], off[1] - pco[1], off[2] - pco[2]), pivB = new CANNON.Vec3(-cco[0], -cco[1], -cco[2]);
-      const c = new CANNON.ConeTwistConstraint(bodies[pi], bodies[ci], { pivotA: pivA, pivotB: pivB, axisA: new CANNON.Vec3(0, child === 'chest' || child === 'head' ? 1 : -1, 0), axisB: new CANNON.Vec3(0, child === 'chest' || child === 'head' ? 1 : -1, 0), angle: cone, twistAngle: twist, collideConnected: false });
+      const c = !T_.p2p ? new CANNON.ConeTwistConstraint(bodies[pi], bodies[ci], { pivotA: pivA, pivotB: pivB, axisA: new CANNON.Vec3(0, child === 'chest' || child === 'head' ? 1 : -1, 0), axisB: new CANNON.Vec3(0, child === 'chest' || child === 'head' ? 1 : -1, 0), angle: cone, twistAngle: twist, collideConnected: false })
+        : new CANNON.PointToPointConstraint(bodies[pi], pivA, bodies[ci], pivB);
       this.world.addConstraint(c); c._rd = true;
       bodies[ci]._c = (bodies[ci]._c || []).concat(c);
     }
@@ -61,15 +64,16 @@ export class Ragdolls {
     const dir = hit && hit.dir ? hit.dir : [0, 0, 0];
     if (hit && hit.kind === 'bullet') {
       const target = bodies[hit.zone === 'head' ? PART.head : hit.zone === 'legs' ? PART.thighL : PART.chest];
-      target.applyImpulse(new CANNON.Vec3(dir[0] * 55, dir[1] * 20 + 6, dir[2] * 55), target.position);
-      bodies[PART.pelvis].applyImpulse(new CANNON.Vec3(dir[0] * 20, 0, dir[2] * 20), bodies[PART.pelvis].position);
+      // (cannon-es takes the point relative to the body's centre: a little above it, so the hit also turns him)
+      target.applyImpulse(new CANNON.Vec3(dir[0] * 55, dir[1] * 20 + 6, dir[2] * 55), new CANNON.Vec3(0, 0.08, 0));
+      bodies[PART.pelvis].applyImpulse(new CANNON.Vec3(dir[0] * 20, 0, dir[2] * 20), new CANNON.Vec3(0, 0, 0));
     } else if (hit) {
       const k = (hit.blast || 0.6) * (hit.kind === 'mine' ? 9 : 4);
       for (const b of bodies) { b.velocity.set(dir[0] * k * 2.2 + (Math.random() - 0.5) * k, 2 + k * 1.6 * Math.random(), dir[2] * k * 2.2 + (Math.random() - 0.5) * k); b.angularVelocity.set((Math.random() - 0.5) * k, (Math.random() - 0.5) * k, (Math.random() - 0.5) * k); }
-    } else { bodies[PART.chest].applyImpulse(new CANNON.Vec3(Math.random() - 0.5, 0, Math.random() - 0.5), bodies[PART.chest].position); }
+    } else { bodies[PART.chest].applyImpulse(new CANNON.Vec3(Math.random() - 0.5, 0, Math.random() - 0.5), new CANNON.Vec3(0, 0, 0)); }
     // knees buckle: a little forward drift so men crumple instead of falling like planks
     bodies[PART.shinL].velocity.x += (Math.random() - 0.5) * 0.6; bodies[PART.shinR].velocity.z += (Math.random() - 0.5) * 0.6;
-    const ground = this._ground(corpse.x, corpse.z);
+    const ground = T_.noGround ? null : this._ground(corpse.x, corpse.z);
     const rd = { corpse, bodies, ground, t: 0 };
     this.active.push(rd);
     return rd;
@@ -83,11 +87,13 @@ export class Ragdolls {
     const M = new THREE.Matrix4().makeTranslation(pel.x, g, pel.z).multiply(R).multiply(new THREE.Matrix4().makeTranslation(-pel.x, -pel.y, -pel.z));
     for (const m of corpse.mats) m.premultiply(M);
     corpse.rifle.premultiply(M);
+    if (this.onSettle) { const e = corpse.mats[PART.chest].elements; this.onSettle(e[12], e[14]); }
     return null;
   }
   _freeze(rd) {
+    if (this.onSettle && !rd.corpse.removed) { const c = rd.bodies[PART.chest].position; this.onSettle(c.x, c.z); }
     for (const b of rd.bodies) { for (const c of b._c || []) this.world.removeConstraint(c); this.world.removeBody(b); }
-    this.world.removeBody(rd.ground);
+    if (rd.ground) this.world.removeBody(rd.ground);
     this.active.splice(this.active.indexOf(rd), 1);
   }
   step(dt) {
@@ -110,8 +116,9 @@ export class Ragdolls {
       else if (!rd.rifleDown) { rd.rifleDown = true; const y = this.T.height(hand.x, hand.z) + 0.04; corpse.rifle.compose(new THREE.Vector3(hand.x, y, hand.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * 6.28, Math.PI / 2, 'YXZ')), one); }
       const asleep = bodies.every(b => b.sleepState === CANNON.Body.SLEEPING);
       // never let a body sink through the ground (safety net under the solver)
-      for (const b of bodies) { const gh = this.T.height(b.position.x, b.position.z); if (b.position.y < gh - 0.05) { b.position.y = gh + 0.05; b.velocity.y = Math.max(0, b.velocity.y); } }
-      if (asleep || rd.t > 9) this._freeze(rd);
+      if (!(typeof window !== 'undefined' && window.__ragTest && window.__ragTest.noNet)) for (const b of bodies) { const gh = this.T.height(b.position.x, b.position.z); if (b.position.y < gh - 0.05) { b.position.y = gh + 0.05; b.velocity.y = Math.max(0, b.velocity.y); } }
+      if (asleep) this._freeze(rd);
+      else if (rd.t > 9) { this._freeze(rd); if (rd.corpse.mats[PART.pelvis].elements[13] - this.T.height(rd.corpse.x, rd.corpse.z) > 0.6) this._settleStatic(rd.corpse, null); }   // never left upright
     }
     this.stats.active = this.active.length; this.stats.bodies = this.world.bodies.length;
   }

@@ -174,3 +174,12 @@ On weapons the muzzle or blade tip points **+Z**, and each model is centred on i
 ## Attribution text for the game credits (CC-BY 3.0 items)
 
 Kar98k model by AdamKokrito · gas mask by Marisha · sandbag pile by Jeremy Eyring · ammo box by Carwyn Pelley · scattered planks by MiniPoly · shattered tree by Zsky · tree stump by Poly by Google · broken stump by Jarlan Perez · rubble by Kyle Hickman. All are via poly.pizza (model pages linked in the tables above) and licensed CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/). Models were converted to glTF, and some were decimated or recoloured.
+
+## Faces (`faces/`)
+
+Photographs projected onto the soldiers' heads. Both are Australian War Memorial studio portraits, public domain (photographs taken before 1955; AWM marks them "no known copyright restrictions").
+
+| File | Source | Licence |
+|---|---|---|
+| `faces/arnold.png` | "Studio portrait of 571 Private (Pte) Walter Russell Arnold, C Company, 31st Battalion, of Glen Waverley, Victoria, aged 18", AWM DA11297, via Wikimedia Commons | Public domain |
+| `faces/law.png` | "Studio portrait of 1723 Private (Pte) Frank Law, 2nd Reinforcements, 21st Battalion, of Glen Waverley, Victoria, circa June 1915", AWM DA09534, via Wikimedia Commons | Public domain |

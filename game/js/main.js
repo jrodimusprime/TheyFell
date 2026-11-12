@@ -9,6 +9,7 @@ import { TerrainView, buildGroundMap, splatGround } from './render/terrainView.j
 import { Props } from './render/props.js';
 import { SoldiersView } from './render/soldiers.js';
 import { Ragdolls } from './render/ragdoll.js';
+import { Blood } from './render/blood.js';
 import { FX, makeSky } from './render/fx.js';
 import { Audio } from './audio.js';
 import { makeGroundTextures } from './render/groundTex.js';
@@ -91,8 +92,10 @@ async function boot() {
   const groundTex = buildGroundMap(T);
   const terrain = new TerrainView(T, scene, groundTex, makeGroundTextures(renderer));
   const props = new Props(scene, T, F, makePropTextures(renderer));
-  const men = new SoldiersView(scene, sim);
+  const men = new SoldiersView(scene, sim, 1500);   // every body stays where it fell
+  const blood = new Blood(scene, T);
   const rag = new Ragdolls(T);
+  rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
   const fx = new FX(scene);
   const audio = new Audio();
   const vm = makeViewModel(camera);
@@ -148,7 +151,7 @@ async function boot() {
         // chalk thrown out in a white ring round the lip, the ground beyond churned
         splatGround(groundTex, e.p[0], e.p[2], e.r * 1.7, 0, 0.9); splatGround(groundTex, e.p[0], e.p[2], e.r * 3, 1, 0.6); if (e.name === 'Lochnagar') message('07:28. The Lochnagar mine has gone up under the Schwabenhöhe', 7); else addFeed('The Y Sap mine has gone up'); }
       else if (e.t === 'zero') { audio.zero = true; for (let i = 0; i < 6; i++) audio.whistle([p.x + (i - 3) * 40, p.y, p.z + (i % 2) * 30], i * 0.3); message('Zero hour. The whistles blow: over the top!', 6); }
-      else if (e.t === 'hit' && e.id === p.id) { hurt = 1; audio.hurt(); }
+      else if (e.t === 'hit') { if (e.id === p.id) { hurt = 1; audio.hurt(); } if (e.kind === 'bullet' && e.point && Math.hypot(e.point[0] - cp.x, e.point[2] - cp.z) < 400) blood.hit(e.point, e.dir); }
       else if (e.t === 'death') {
         const s = sim.soldiers[e.id], c = men.addCorpse(s);
         rag.add(c, e, Math.hypot(s.x - cp.x, s.z - cp.z));
@@ -210,6 +213,7 @@ async function boot() {
     men.hidePlayer = p.alive && !(window.TF && TF.view);
     men.update(dt, camera.position, p.id, 700);
     rag.step(dt);
+    blood.update(dt);
     fx.update(dt, scene.fog);
     renderer.render(scene, camera);
     hud(dt);
@@ -330,7 +334,7 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
-    sim, T, F, scene, camera, renderer, terrain, men, rag, props, HZ,
+    sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, HZ,
     get state() { return sim; },
     step(a = {}, n = 1) {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }
