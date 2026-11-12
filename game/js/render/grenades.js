@@ -70,7 +70,7 @@ class Grenades {
   // the aiming arc from a launch (nadeLaunch), or hide it
   showArc(L, T) {
     if (!L) { this.arc.visible = this.ring.visible = false; return null; }
-    const P = nadePath(L, T, 4), pos = this.arc.geometry.attributes.position, n = Math.min(300, P.pts.length);
+    const P = nadePath(L, T, 5.5), pos = this.arc.geometry.attributes.position, n = Math.min(300, P.pts.length);
     for (let i = 0; i < n; i++) pos.setXYZ(i, ...P.pts[i]);
     pos.needsUpdate = true; this.arc.geometry.setDrawRange(0, n); this.arc.computeLineDistances(); this.arc.geometry.computeBoundingSphere();
     this.arc.visible = true; this.ring.visible = true; this.ring.position.set(P.land[0], P.land[1] + 0.06, P.land[2]);

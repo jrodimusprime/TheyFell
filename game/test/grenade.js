@@ -15,31 +15,31 @@ const r1 = await ev(`(() => { const pw = TF.nade(true, 0.45); TF.step({ yaw: __y
 await shot(`${tag}_1_ready_arc`, 88); await ev('TF.hold = false; true');
 ok('G: the bomb in the hand, the arc, the landing ring and the meter show', r1.arc && r1.ring && r1.meter && r1.fpNade, JSON.stringify(r1));
 // 2. throw at the meter's power: does it land where the ring said?
-const r2 = await ev(`(() => { const p = TF.sim.player; TF.nade(false); TF.step({ yaw: __yaw, pitch: 0.05, grenade: 0.6 }, 1); window.__t = { i: 1 }; window.__pred = null; return { throw: p.throw, left: p.grenades }; })()`);
+const r2 = await ev(`(() => { const p = TF.sim.player; TF.nade(false); TF.step({ yaw: __yaw, pitch: 0.45, grenade: 1 }, 1); window.__t = { i: 1 }; window.__pred = null; return { throw: p.throw, left: p.grenades }; })()`);
 ok('a click throws: the throw starts and a bomb is used', r2.throw > 0 && r2.left === 2, JSON.stringify(r2));
 // (the stages are filmed one at a time below)
 const stages = [];
 for (const at of [12, 38, 46]) {
   const r = await ev(`(async () => { const { nadeLaunch, nadePath } = await import('/js/sim/sim.js'); const S = TF.sim, p = S.player;
-    TF.hold = false; while (window.__t.i < ${at}) { if (p.throw === 51 && !window.__pred) window.__pred = nadePath(nadeLaunch(p.x, S._eye(p), p.z, __yaw, 0.05, 0.6), TF.T).land; TF.step({ yaw: __yaw, pitch: 0.05 }, 1); window.__t.i++; }
+    TF.hold = false; while (window.__t.i < ${at}) { if (p.throw === 51 && !window.__pred) window.__pred = nadePath(nadeLaunch(p.x, S._eye(p), p.z, __yaw, 0.45, 1), TF.T).land; TF.step({ yaw: __yaw, pitch: 0.45 }, 1); window.__t.i++; }
     TF.render(1 / 60); TF.render(1 / 60); TF.hold = true; return { i: window.__t.i, throw: p.throw, nadeVisible: TF.fp.nade.visible }; })()`);
   stages.push(r); await shot(`${tag}_2_throw_${at}`, 88); await ev('TF.hold = false; true');
 }
 log('[stages]', JSON.stringify(stages));
 // follow the bomb: film it in flight from the side, then see where it first lands
 const r3 = await ev(`(async () => { const { nadeLaunch, nadePath } = await import('/js/sim/sim.js'); const S = TF.sim, p = S.player;
-  while (p.throw > 50) { if (p.throw === 51 && !window.__pred) window.__pred = nadePath(nadeLaunch(p.x, S._eye(p), p.z, __yaw, 0.05, 0.6), TF.T).land; TF.step({ yaw: __yaw, pitch: 0.05 }, 1); }
+  while (p.throw > 50) { if (p.throw === 51 && !window.__pred) window.__pred = nadePath(nadeLaunch(p.x, S._eye(p), p.z, __yaw, 0.45, 1), TF.T).land; TF.step({ yaw: __yaw, pitch: 0.45 }, 1); }
   const g = S.grenades[S.grenades.length - 1]; if (!g) return { none: true };
   let land = null, filmed = false;
-  for (let i = 0; i < 300 && !land; i++) { const b = g.bounces || 0; TF.step({ yaw: __yaw, pitch: 0.05 }, 1); if ((g.bounces || 0) > b) land = [g.x, g.y, g.z];
+  for (let i = 0; i < 300 && !land; i++) { const b = g.bounces || 0; TF.step({ yaw: __yaw, pitch: 0.45 }, 1); if ((g.bounces || 0) > b) land = [g.x, g.y, g.z];
     if (i === 30 && !filmed) { filmed = true; const fx = -Math.sin(__yaw), fz = -Math.cos(__yaw); TF.view = { fov: 40, pos: [g.x + fz * 7, g.y + 0.6, g.z - fx * 7], look: [g.x, g.y, g.z] }; TF.render(0.03); TF.settle(); for (let j = 0; j < 3; j++) TF.render(1 / 60); TF.hold = true; window.__mid = { land: null, g: [g.x, g.y, g.z] }; return { flying: true, at: [g.x, g.y, g.z] }; } }
   return { land }; })()`);
 await shot(`${tag}_3_in_flight`, 88); await ev('TF.hold = false; TF.view = null; true');
 const r4 = await ev(`(() => { const S = TF.sim, g = S.grenades[S.grenades.length - 1]; let land = null; if (!g) return null;
-  for (let i = 0; i < 300 && !land; i++) { const b = g.bounces || 0; TF.step({ yaw: __yaw, pitch: 0.05 }, 1); if ((g.bounces || 0) > b) land = [g.x, g.y, g.z]; }
+  for (let i = 0; i < 300 && !land; i++) { const b = g.bounces || 0; TF.step({ yaw: __yaw, pitch: 0.45 }, 1); if ((g.bounces || 0) > b) land = [g.x, g.y, g.z]; }
   const P = window.__pred; return { land, pred: P, miss: land && P ? Math.hypot(land[0] - P[0], land[2] - P[2]) : null, dist: land ? Math.hypot(land[0] - S.player.x, land[2] - S.player.z) : null, left: S.player.grenades }; })()`);
 ok('the bomb lands where the arc\'s ring showed', r4 && r4.miss !== null && r4.miss < 0.05, JSON.stringify(r4));
-ok('a 0.6 throw goes a fair way (15-35 m) and one bomb is gone', r4 && r4.dist > 15 && r4.dist < 35 && r4.left === 2, JSON.stringify(r4));
+ok('a full throw aimed up goes 50-95 m (twice the old reach) and one bomb is gone', r4 && r4.dist > 50 && r4.dist < 95 && r4.left === 2, JSON.stringify(r4));
 // 3. AI bombers, filmed
 await ev('TF.god(true); true');
 const got = await ev(`(() => { const S = TF.sim, p = S.player; let n = 0; for (let i = 0; i < 60 * 240; i++) { TF.step({ yaw: p.yaw }, 1);

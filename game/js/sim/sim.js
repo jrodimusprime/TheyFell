@@ -28,14 +28,17 @@ export function bulletDamage(W, zone, rng) {
 const STRIKE_TICKS = 36, STRIKE_HIT = 15, REACH = 2.0;
 // grenades (three a man: the British the Mills bomb, the Germans the stick grenade). A throw: 0.5 s to get it out and pull
 // the pin, then the overhand throw, the bomb leaving the hand 0.34 s into it (THROW_RELEASE ticks before the end); the
-// fuse burns from the release (the Mills's lever flies off then): 4 s, the stick grenade's 4.5. Speed 6 to 19 m/s with
-// the power of the throw (19 m/s at 45 degrees is ~37 m), launched 0.3 rad above where he looks.
+// fuse burns from the release (the Mills's lever flies off then): 5 s, the stick grenade's 5.5. Speed 6 to 28 m/s with
+// the power of the throw (28 m/s at 45 degrees is ~80 m).
 export const THROW_TICKS = 100, THROW_PREP = 70, THROW_RELEASE = 50;
-export const NADE = { BRI: { kind: 'mills', fuse: 4 }, GER: { kind: 'stick', fuse: 4.5 } };
-const NADE_V0 = 6, NADE_V1 = 13, NADE_LOFT = 0.3;
+export const NADE = { BRI: { kind: 'mills', fuse: 5 }, GER: { kind: 'stick', fuse: 5.5 } };
+// twice the old reach (a full throw ~75 m at 45 degrees), and the harder he throws the flatter it goes (0.3 rad above his
+// view for a lob down to 0.15 for a full throw), so a long throw gets there quicker than a slow high lob would
+const NADE_V0 = 6, NADE_V1 = 22, NADE_LOFT = 0.3, NADE_FLAT = 0.15;
+const nadeLoft = power => NADE_LOFT - NADE_FLAT * Math.max(0, Math.min(1, power));
 // where and how fast a bomb leaves his hand (over his head, a little forward and to the right)
 export function nadeLaunch(x, y, z, yaw, pitch, power) {
-  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), v = NADE_V0 + NADE_V1 * Math.max(0, Math.min(1, power)), a = Math.max(-0.4, Math.min(1.3, pitch + NADE_LOFT)), c = Math.cos(a);
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), v = NADE_V0 + NADE_V1 * Math.max(0, Math.min(1, power)), a = Math.max(-0.4, Math.min(1.3, pitch + nadeLoft(power))), c = Math.cos(a);
   return { x: x + fx * 0.3 - fz * 0.15, y: y + 0.25, z: z + fz * 0.3 + fx * 0.15, vx: fx * c * v, vy: Math.sin(a) * v, vz: fz * c * v };
 }
 // one tick of a bomb in flight or on the ground: it bounces off the slope it lands on (a quarter of its speed into the
@@ -56,7 +59,7 @@ export function nadeStep(g, T) {
 }
 // the path a bomb will take (for the aiming arc): points until it comes to rest or the fuse runs out; first, where it
 // first lands
-export function nadePath(L, T, secs = 4) {
+export function nadePath(L, T, secs = 5.5) {
   const g = { ...L }, pts = [[g.x, g.y, g.z]]; let land = null;
   for (let i = 0; i < secs * HZ; i++) { const was = g.bounces || 0; if (nadeStep(g, T)) break; if (!land && (g.bounces || 0) > was) land = [g.x, g.y, g.z]; if (i % 2 === 0) pts.push([g.x, g.y, g.z]); }
   pts.push([g.x, g.y, g.z]); return { pts, land: land || [g.x, g.y, g.z], end: [g.x, g.y, g.z] };
@@ -449,7 +452,8 @@ export class Sim {
         const q = D * Math.tan(ang) - h; if (q <= 0.2) continue;
         const v = Math.sqrt(G * D * D / (2 * Math.cos(ang) ** 2 * q));
         if (v > NADE_V0 + NADE_V1 || v < NADE_V0) continue;
-        if (!this._startThrow(s, (v - NADE_V0) / NADE_V1, { yaw: Math.atan2(-(tx - s.x), -(tz - s.z)), pitch: ang - NADE_LOFT })) return false;
+        const pw = (v - NADE_V0) / NADE_V1;
+        if (!this._startThrow(s, pw, { yaw: Math.atan2(-(tx - s.x), -(tz - s.z)), pitch: ang - nadeLoft(pw) })) return false;
         s.stance = 0; s.intent = null; s.yaw = s.throwAim.yaw; ai.nadeAt = this.tick + 12 * HZ + s.rng.int(8 * HZ);
         return true;
       }
