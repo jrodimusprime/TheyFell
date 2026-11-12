@@ -53,3 +53,10 @@ await ev(`document.getElementById('spawnRandom').click(); true`);
 await sleep(1200);
 const k2 = await ev(`TF.sim.player.alive`);
 ok('and you can go straight back in (no 3 s wait)', k2 === true, k2);
+
+// 4. the same from the Esc menu's button
+await sleep(800);
+await ev(`(() => { document.getElementById('menu').style.display = 'grid'; const b = document.getElementById('giveup'); b.hidden = false; b.click(); return true; })()`);
+await sleep(400);
+const b1 = await ev(`(() => ({ alive: TF.sim.player.alive, card: getComputedStyle(document.getElementById('dead')).display, menu: document.getElementById('menu').style.display }))()`);
+ok('the Esc menu has a Respawn now button that does the same', !b1.alive && b1.card === 'grid' && b1.menu === 'none', JSON.stringify(b1));

@@ -125,16 +125,17 @@ async function boot() {
   addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('mousemove', e => { if (document.pointerLockElement && sim.player.alive) { const k = (ads ? 0.0011 : 0.0022); yaw -= e.movementX * k; pitch = Math.max(-1.45, Math.min(1.45, pitch - e.movementY * k)); } });
   addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-  document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && sim.player.alive) { $('menu').style.display = 'grid'; $('play').textContent = 'Back to the line'; } });
+  document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && sim.player.alive) { $('menu').style.display = 'grid'; $('play').textContent = 'Back to the line'; $('giveup').hidden = false; } });
   function humanInput() {
     const a = { forward: (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0), side: (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0),
-      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK,
+      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK || giveUp, 
       fire: mouseDown, ads, yaw, pitch };
-    edge = {};
+    edge = {}; giveUp = false;
     return a;
   }
 
   // ---------- the loop ----------
+  let giveUp = false;   // the Esc menu's Respawn now button: drop this man on the next tick
   let running = false, acc = 0, last = performance.now(), frames = 0, fpsT = 0, fps = 0;
   const camPos = new THREE.Vector3();
   let deathCam = 0, hurt = 0, bob = 0, recoil = 0, lastHp = 100, msgT = 0, tallyT = 0;
@@ -447,12 +448,13 @@ async function boot() {
     perf: () => ({ fps, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tiles: terrain.stats.tiles, terrainTris: terrain.stats.tris, corpses: men.corpses.length, ragdolls: rag.stats.active }),
   };
   function startGame() {
-    $('menu').style.display = 'none'; $('hud').hidden = false; running = true; audio.start();
+    $('menu').style.display = 'none'; $('giveup').hidden = true; $('hud').hidden = false; running = true; audio.start();
     renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
     if (!started) { started = true; message('Stand to. The bombardment is in its last minutes.', 4); }
   }
   let started = false;
   $('play').onclick = startGame;
+  $('giveup').onclick = () => { giveUp = true; $('giveup').hidden = true; $('menu').style.display = 'none'; $('hud').hidden = false; running = true; };
   const setRambo = on => { sim.rambo = on; $('rambo').textContent = `Rambo mode: ${on ? 'on (survive 10 bullets)' : 'off'}`; $('rambo').setAttribute('aria-pressed', on); };
   $('rambo').onclick = () => setRambo(!sim.rambo);
   if (Q.has('rambo')) setRambo(true);
