@@ -68,17 +68,24 @@ export class TerrainView {
     m.visible = !!(old && old.visible); this.group.add(m); this.cache.set(k, m); this.stats.built++;
     return m;
   }
-  // a low-detail ring of land beyond the surveyed square, so the horizon is not a cliff (out of bounds, never walkable)
+  // a low-detail ring of land beyond the surveyed square, so the horizon is not a cliff (out of bounds, never walkable).
+  // It is a true ring: its grid is aligned to the map's edges and every cell inside the map is left out, so nothing of it
+  // lies under the battlefield (a sheet under the map would show through the Lochnagar crater and deep hollows).
   _outer() {
-    const T = this.T, R = 9000, n = 90, g = new THREE.PlaneGeometry(R * 2 + 6000, R * 2 + 6000, n, n); g.rotateX(-Math.PI / 2);
-    const p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i) + 3000, z = p.getZ(i) + 3000, cx = Math.min(5999, Math.max(1, x)), cz = Math.min(5999, Math.max(1, z));
-      const out = Math.max(0, Math.hypot(Math.max(0, Math.abs(x - 3000) - 3000), Math.max(0, Math.abs(z - 3000) - 3000)));
-      const inside = x > 0 && x < 6000 && z > 0 && z < 6000;
-      p.setXYZ(i, x, (inside ? T.demAt(cx, cz) - 6 : T.demAt(cx, cz)) + Math.sin(x * 0.0013) * Math.cos(z * 0.0011) * Math.min(25, out * 0.02) - (inside ? 0 : 0.5), z);
+    const T = this.T, C = 250, lo = -9000, hi = 15000, n = (hi - lo) / C;   // 250 m cells; 0 and 6000 fall on grid lines
+    const pos = [], idx = [], id = (i, j) => j * (n + 1) + i;
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+      const x = lo + i * C, z = lo + j * C, cx = Math.min(T.size - 1, Math.max(1, x)), cz = Math.min(T.size - 1, Math.max(1, z));
+      const out = Math.hypot(Math.max(0, Math.abs(x - 3000) - 3000), Math.max(0, Math.abs(z - 3000) - 3000));
+      pos.push(x, T.demAt(cx, cz) - 0.4 + Math.sin(x * 0.0013) * Math.cos(z * 0.0011) * Math.min(25, out * 0.02), z);
     }
-    g.computeVertexNormals();
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x0 = lo + i * C, z0 = lo + j * C;
+      if (x0 >= 0 && x0 + C <= T.size && z0 >= 0 && z0 + C <= T.size) continue;   // inside the map: the terrain tiles draw it
+      const a = id(i, j), b = id(i + 1, j), c = id(i, j + 1), d = id(i + 1, j + 1); idx.push(a, c, b, b, c, d);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    g.setAttribute('aCut', new THREE.BufferAttribute(new Float32Array(pos.length / 3), 1));
     const m = new THREE.Mesh(g, this.material); m.receiveShadow = false; this.scene.add(m); this.outer = m;
   }
   update(cam, budgetMs = 5) {
