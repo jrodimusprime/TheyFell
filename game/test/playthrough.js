@@ -11,7 +11,7 @@ window.__bot = (() => {
   const enemy = () => { const p = P(); let best = null, bd = 260;
     for (const o of S.soldiers) { if (!o.alive || o.side === p.side) continue; const d = Math.hypot(o.x - p.x, o.z - p.z); if (d < bd && S._canSee(p, o, d)) { bd = d; best = o; } } return best; };
   const fight = (o) => { const p = P(), d = Math.hypot(o.x - p.x, o.z - p.z), dy = o.y + 1.2 - (p.y + 1.62);
-    return TF.step({ yaw: yawTo(o.x, o.z), pitch: Math.atan2(dy, d), ads: true, fire: p.cool <= 0 && p.reloading <= 0, reload: p.mag === 0 }, 1); };
+    return TF.step({ yaw: yawTo(o.x, o.z), pitch: Math.atan2(dy, d), ads: true, fire: p.cool <= 0 && p.reloading <= 0 && !(p.jam > 0), reload: p.mag === 0 || p.jam > 0 }, 1); };   // (a jam: R clears it)
   return {
     log,
     wait(ticks) { for (let i = 0; i < ticks; i++) { const p = P(); TF.step({ yaw: p.yaw, pitch: 0, crouch: false }, 1); } },

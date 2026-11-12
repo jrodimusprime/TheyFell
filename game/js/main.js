@@ -132,7 +132,7 @@ async function boot() {
   document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && sim.player.alive) { $('menu').style.display = 'grid'; $('play').textContent = 'Back to the line'; $('giveup').hidden = false; } });
   function humanInput() {
     const a = { forward: (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0), side: (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0),
-      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK || giveUp, pickup: !!edge.KeyE,
+      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK || giveUp, pickup: !!edge.KeyE, melee: !!edge.KeyF,
       fire: mouseDown, ads, yaw, pitch };
     edge = {}; giveUp = false;
     return a;
@@ -175,10 +175,12 @@ async function boot() {
       else if (e.t === 'death') {
         const s = sim.soldiers[e.id], c = men.addCorpse(s); skinned.toCorpse(s, c);
         rag.add(c, e, Math.hypot(s.x - cp.x, s.z - cp.z));
-        if (e.by === p.id) addFeed(`You hit a ${s.side === 'GER' ? 'German' : 'British'} soldier`);
+        if (e.by === p.id) addFeed(e.kind === 'melee' ? `You bayoneted a ${s.side === 'GER' ? 'German' : 'British'} soldier` : `You hit a ${s.side === 'GER' ? 'German' : 'British'} soldier`);
         if (e.id === p.id) { deathCam = 0; $('deadwhy').textContent = deathReason(e); }
       } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
+      else if (e.t === 'jam' && e.id === p.id) message('Your rifle has jammed: R to clear it', 3);
+      else if (e.t === 'clear' && e.id === p.id) audio.reload();
       else if (e.t === 'pickup' && e.id === p.id) { audio.reload(); addFeed(`You take up a ${WEAPONS[p.weapon].name}`); }
       else if (e.t === 'respawn' && e.id === p.id) {
         if (e.into === undefined) p.yaw = p.side === 'BRI' ? -Math.PI / 2 : Math.PI / 2;   // (going in as a man already out there: the sim turns him to the objective)
@@ -188,7 +190,7 @@ async function boot() {
     }
     sim.events.length = 0;
   }
-  function deathReason(e) { return e.kind === 'gaveup' ? 'You chose to go back in as another man' : e.kind === 'bullet' ? (sim.soldiers[e.by]?.role === 'mg' ? 'Cut down by machine-gun fire' : e.zone === 'head' ? 'Shot through the head' : 'Hit by a rifle bullet') : e.kind === 'mine' ? 'Caught in the mine blast' : e.kind === 'shrapnel' ? 'Shrapnel' : e.kind === 'grenade' ? 'A bomb' : e.kind === 'fall' ? 'A bad fall' : 'Killed by shellfire'; }
+  function deathReason(e) { return e.kind === 'melee' ? (e.steel === 'club' ? 'Clubbed down in the trench' : e.steel === 'knife' ? 'Knifed at close quarters' : 'Bayoneted') : e.kind === 'gaveup' ? 'You chose to go back in as another man' : e.kind === 'bullet' ? (sim.soldiers[e.by]?.role === 'mg' ? 'Cut down by machine-gun fire' : e.zone === 'head' ? 'Shot through the head' : 'Hit by a rifle bullet') : e.kind === 'mine' ? 'Caught in the mine blast' : e.kind === 'shrapnel' ? 'Shrapnel' : e.kind === 'grenade' ? 'A bomb' : e.kind === 'fall' ? 'A bad fall' : 'Killed by shellfire'; }
   function addFeed(t) { feed.unshift([t, 6]); feed.length = Math.min(feed.length, 5); }
 
   function frame(now) {
@@ -282,7 +284,7 @@ async function boot() {
     $('clock').textContent = sim.clock();
     const t = sim.time, mine = MINE_AT, zero = ZERO_TIME;   // before zero the clock runs PRE_ZERO_RATE x fast: count down real seconds
     $('phase').textContent = t < mine ? `Mines in ${Math.ceil((mine - t) / PRE_ZERO_RATE)} s · zero hour 07:30` : t < zero ? `Zero hour in ${Math.ceil((zero - t) / PRE_ZERO_RATE)} s` : 'The attack: take the Schwabenhöhe and La Boisselle';
-    $('ammo').textContent = p.reloading > 0 ? 'Reloading…' : `${p.mag} | ${p.reserve}`; $('weapon').textContent = `${W.name} · Mills bombs ${p.grenades ?? 3}`;
+    $('ammo').textContent = p.jam > 0 ? 'Jammed · R' : p.reloading > 0 ? 'Reloading…' : `${p.mag} | ${p.reserve}`; $('weapon').textContent = `${W.name} · Mills bombs ${p.grenades ?? 3}`;
     $('hp').textContent = !p.alive ? 'Fallen' : p.hp > 80 ? 'Unwounded' : p.hp > 45 ? 'Wounded' : 'Badly wounded'; $('hpbar').firstChild.style.width = Math.max(0, p.hp) + '%';
     $('stance').textContent = (p.climb > 0 ? 'Climbing' : ['Standing', 'Crouched', 'Prone'][p.stance]) + (T.inTrench(p.x, p.z) ? ' · in the trench' : '') + (F.wireAt(p.x, p.z) > 0 ? ' · caught on wire' : '') + ` · ${Math.round(p.x)} m E, ${Math.round(6000 - p.z)} m N`;
     const deg = ((-((AGENT ? p.yaw : yaw)) * 180 / Math.PI) % 360 + 360) % 360, dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -463,7 +465,7 @@ async function boot() {
     sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
     get state() { return sim; }, get shooters() { return shooters; },
     step(a = {}, n = 1) {
-      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.respawnNow = input.pickup = false; } stepSim(input); }
+      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.respawnNow = input.pickup = input.melee = false; } stepSim(input); }
       return sim.obs();
     },
     obs: () => sim.obs(), hash: () => sim.hash(), rambo: on => { sim.rambo = !!on; return sim.rambo; }, god: on => { sim.god = !!on; return sim.god; },

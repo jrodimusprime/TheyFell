@@ -266,7 +266,8 @@ export function twoBoneIK(upper, lower, hand, target, pole) {
   aimBone(lower, hand.getWorldPosition(new THREE.Vector3()), S.clone().addScaledVector(dir, d));
 }
 // pose: 'aim' (butt in the shoulder, along the line of fire), 'port' (slanting across the body), 'low' (held low, muzzle forward)
-export function holdRifle(root, gun, pose, pitch = 0, bones = null) {
+// push: metres the rifle is driven along its own line (a bayonet thrust; negative draws it back)
+export function holdRifle(root, gun, pose, pitch = 0, bones = null, push = 0) {
   root.updateMatrixWorld(true);
   const B = n => (bones && bones[n]) || root.getObjectByName(n), sh = B('upperarm_r').getWorldPosition(new THREE.Vector3()), pel = B('pelvis').getWorldPosition(new THREE.Vector3());
   const fwd = new THREE.Vector3(0, 0, 1).transformDirection(root.matrixWorld), left = new THREE.Vector3(1, 0, 0).transformDirection(root.matrixWorld), up = new THREE.Vector3(0, 1, 0);
@@ -286,6 +287,7 @@ export function holdRifle(root, gun, pose, pitch = 0, bones = null) {
     butt = pel.clone().addScaledVector(left, -0.17).addScaledVector(fwd, 0.02).addScaledVector(up, 0.12);
   }
   // the rifle's own up: as near world up as the barrel allows (sights on top)
+  if (push) butt.addScaledVector(dir, push);
   const rUp = up.clone().addScaledVector(dir, -up.dot(dir)).normalize(), rX = new THREE.Vector3().crossVectors(rUp, dir);
   _m.makeBasis(rX, rUp, dir).setPosition(butt);
   const local = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(_m);

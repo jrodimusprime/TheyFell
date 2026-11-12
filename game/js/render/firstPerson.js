@@ -122,6 +122,8 @@ export class FirstPerson {
     pos.add(V(0.02 * k, -0.04 * k, 0.02 * k)); roll += 0.28 * k; pitch += 0.06 * k;
     { const u = ease(this.pull); pos.add(V(-0.02 * u, 0.04 * u, 0.32 * u)); pitch += 0.95 * u; yaw -= 0.1 * u; }   // up against a wall: rifle drawn back, muzzle up
     if (rel >= 0) { pos.add(V(0.03, 0.03, 0).multiplyScalar(k)); roll += 0.25 * k; yaw -= 0.15 * k; }
+    // the bayonet: drawn back, then driven forward and a little down at the man in front
+    if (p.strike > 0) { const u = 1 - p.strike / 36, k2 = u < 0.38 ? -Math.sin(u / 0.38 * Math.PI / 2) * 0.35 : u < 0.5 ? -0.35 + 1.35 * ((u - 0.38) / 0.12) : (1 - Math.min(1, (u - 0.5) / 0.5)) ** 2; pos.add(V(-0.06 * Math.abs(k2), -0.03 * k2, -0.42 * k2)); pitch -= 0.08 * k2; }
     // stooping for another man's rifle: his own goes down out of sight, the other comes up in its place
     if (p.pickup > 0) { const u = 1 - p.pickup / (p.pickupTotal || 66), dn = Math.sin(Math.min(1, u) * Math.PI); pos.add(V(0.06 * dn, -0.6 * dn, 0.12 * dn)); pitch -= 0.7 * dn; roll += 0.5 * dn; }
     // the rifle group: +Z is the muzzle, so turn it to look down -Z, then yaw/pitch/roll

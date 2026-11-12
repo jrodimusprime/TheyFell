@@ -37,6 +37,8 @@ export async function loadSkinnedMen(scene, renderer) {
 
 const _UP = new THREE.Vector3(0, 1, 0), _Q1 = new THREE.Quaternion(), _Q2 = new THREE.Quaternion(), _Q3 = new THREE.Quaternion(), _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3(), _V3 = new THREE.Vector3();
 const clamp01 = v => Math.max(0, Math.min(1, v));
+// a strike's reach over its 36 ticks: drawn back 15 cm, driven 45 cm forward at the 15th (when it lands), then recovered
+export function thrust(left, n = 36) { const u = 1 - left / n; return u < 0.38 ? -0.15 * Math.sin(u / 0.38 * Math.PI / 2) : u < 0.5 ? -0.15 + 0.6 * ((u - 0.38) / 0.12) : 0.45 * (1 - Math.min(1, (u - 0.5) / 0.5)) ** 2; }
 // the running stride: k, the share of the clip's foot reach kept; bob, of its hip rise and fall; lift, of the boot's lift
 // (the clip kicks the heel up behind almost to the seat)
 const STRIDE = { Jog_Fwd_Loop: { k: 0.52, bob: 0.32, lift: 0.55 }, Sprint_Loop: { k: 0.62, bob: 0.5, lift: 0.7 } };
@@ -120,7 +122,8 @@ class SkinnedMen {
         e.o.position.set(s.x, s.y, s.z); e.o.rotation.set(0, s.yaw + Math.PI, 0);
         if (STRIDE[e.clip]) this._stride(e, this.gait[side][e.clip], STRIDE[e.clip]);
         const aiming = /Aim/.test(e.clip);
-        holdRifle(e.o, e.gun, aiming ? 'aim' : sp > 0.35 && s.stance === 0 ? 'port' : 'low', aiming ? s.pitch : 0, e.bones);
+        if (s.strike > 0) holdRifle(e.o, e.gun, 'low', 0.05, e.bones, thrust(s.strike));   // the bayonet: drawn back, driven in, recovered
+        else holdRifle(e.o, e.gun, aiming ? 'aim' : sp > 0.35 && s.stance === 0 ? 'port' : 'low', aiming ? s.pitch : 0, e.bones);
       });
       // the dead
       const dnear = [];

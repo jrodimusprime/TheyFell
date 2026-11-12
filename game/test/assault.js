@@ -34,8 +34,8 @@ const r = await ev(`(() => { ${cfg}
         const q = P(), d = Math.hypot(o.x - q.x, o.z - q.z), aimY = o.y + [1.5, 1.05, 0.3][o.stance];
         const pitch = Math.atan2(aimY - (q.y + [1.62, 1.1, 0.35][q.stance]), d);
         const fire = q.cool <= 0 && q.reloading <= 0 && k > 6;
-        if (fire && q.mag > 0) shots++;
-        step({ yaw: yawTo(o.x, o.z), pitch, ads: true, fire, reload: q.mag === 0 }, 1);
+        if (fire && q.mag > 0 && !(q.jam > 0)) shots++;
+        step({ yaw: yawTo(o.x, o.z), pitch, ads: true, fire: fire && !(q.jam > 0), reload: q.mag === 0 || q.jam > 0 }, 1);   // (a jam: R clears it)
         if (k % 30 === 29 && !S._canSee(P(), o, d)) break;   // he ducked: move on
       }
       if (there || inGerman()) inKills += P().kills - before;
