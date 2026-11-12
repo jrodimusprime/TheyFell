@@ -13,7 +13,7 @@ export const WEAPONS = {
   g98:   { name: 'Gewehr 98', mag: 5, reserve: 60, cycle: 1.0, reload: 0.5, clip: 5, dmg: 100, spread: 0.0035, hip: 0.03, range: 700, auto: false },
   mg08:  { name: 'MG 08', mag: 250, reserve: 2000, cycle: 0.133, reload: 6, clip: 250, dmg: 80, spread: 0.010, hip: 0.010, range: 1100, auto: true },
 };
-const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 1.7 };
+const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1 };   // advance: the AI jogs forward (stopping to fire)
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
 const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO = 7 * 3600 + 30 * 60;
 // before zero hour the clock runs 5x fast: the mines go up ~6 s in and the whistles blow ~30 s in; after zero, real time
