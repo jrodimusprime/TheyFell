@@ -68,6 +68,17 @@ export class Sim {
     this.T.segs.forEach((s, i) => { if (!s.gone && s.side === side && (s.kind === 0 || (side === 'GER' && s.kind === 2)) && Math.hypot(s.bx - s.ax, s.bz - s.az) > 4) { const mx = (s.ax + s.bx) / 2, mz = (s.az + s.bz) / 2, o = s.kind === 0 ? s.hw - 0.33 : 0; out.push([mx, mz, i, mx + s.nx * o, mz + s.nz * o]); } });
     return out;
   }
+  // a spot along a bay (t metres from its middle, kept a metre clear of its ends): [floor x, z, fire-step x, z]
+  _alongBay(p, t) {
+    const s = this.T.segs[p[2]], L = s.len, ux = (s.bx - s.ax) / L, uz = (s.bz - s.az) / L, tt = Math.max(-L / 2 + 1, Math.min(L / 2 - 1, t));
+    return [p[0] + ux * tt, p[1] + uz * tt, p[3] + ux * tt, p[4] + uz * tt];
+  }
+  // a cluster of n men along a bay, at least 1.2 m apart
+  _clusterIn(p, n, r) {
+    const L = this.T.segs[p[2]].len, half = Math.max(0.5, L / 2 - 1), out = [];
+    for (let tries = 0; out.length < n && tries < n * 12; tries++) { const t = (r() * 2 - 1) * half; if (out.every(q => Math.abs(q - t) >= 1.2)) out.push(t); }
+    return out.map(t => this._alongBay(p, t));
+  }
   _snapToTrench(x, z, side, maxD = 60, step = false) {
     let best = null, bd = maxD;
     for (const p of this.trenchPts[side]) { const d = Math.hypot(p[0] - x, p[1] - z); if (d < bd) { bd = d; best = p; } }
@@ -109,7 +120,13 @@ export class Sim {
     const mgAt = this.map.mgs.slice(), front = ger.filter(p => this.T.segs[p[2]].kind === 0);
     for (let k = 0; mgAt.length < this.nMG && front.length && k < 200; k++) { const p = front[Math.floor((k * 0.618034 % 1) * front.length)]; if (mgAt.every(q => Math.hypot(q[0] - p[0], q[1] - p[1]) > 70)) mgAt.push([p[0], p[1]]); }
     for (const m of mgAt.slice(0, this.nMG)) { const p = this._snapToTrench(m[0], m[1], 'GER', 80, true); if (p) { const s = this._spawn('GER', p[0], p[1], 'mg'); s.ai.post = p; } }
-    for (let i = this.soldiers.filter(s => s.side === 'GER').length, k = 0; i < ng; i++, k++) { const p = gerPts[k % gerPts.length]; const s = this._spawn('GER', p[0], p[1]); s.stance = 1; s.ai.mode = 'shelter'; s.ai.post = [p[3], p[4]]; }
+    // the garrison in clusters along the line: a quarter of the bays empty, others with one to five men, spread along the step
+    { const SIZES = [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5];
+      let i = this.soldiers.filter(s => s.side === 'GER').length;
+      for (let k = 0; i < ng && gerPts.length; k++) {
+        const bay = gerPts[k % gerPts.length], n = Math.min(ng - i, k < gerPts.length ? SIZES[r.int(SIZES.length)] : 1 + r.int(3));
+        for (const q of this._clusterIn(bay, n, r)) { const s = this._spawn('GER', q[0], q[1]); s.stance = 1; s.ai.mode = 'shelter'; s.ai.post = [q[2], q[3]]; i++; }
+      } }
     for (const s of this.soldiers) if (s.role === 'mg') s.ai.mode = 'shelter';
   }
 
@@ -657,7 +674,12 @@ export class Sim {
     if (!pick) { // nearest to where the fight is, for the player; spread for AI
       pick = s.isPlayer ? pts.reduce((b, q) => Math.hypot(q.p[0] - s.x, q.p[1] - s.z) < Math.hypot(b.p[0] - s.x, b.p[1] - s.z) ? q : b) : r.pick(pts);
     }
-    let [x, z] = pick.p; const snap = this._snapToTrench(x + r.range(-25, 25), z + r.range(-25, 25), s.side, 60, s.isPlayer || s.side === 'GER'); if (snap) [x, z] = snap;
+    let [x, z] = pick.p;
+    if (!s.isPlayer && s.side === 'GER') {   // into one of the bays near there, anywhere along it (not all onto the one spot)
+      const near = this.trenchPts.GER.filter(q => Math.abs(q[0] - x) < 90 && Math.abs(q[1] - z) < 90);
+      if (near.length) { const q = this._alongBay(near[r.int(near.length)], r.range(-6, 6)); x = q[2]; z = q[3]; }
+      else { const a = r() * Math.PI * 2, d = 4 + r() * 26; x += Math.cos(a) * d; z += Math.sin(a) * d; }   // (no trench there, a village strongpoint: spread through it, not all on its centre)
+    } else { const snap = this._snapToTrench(x + r.range(-25, 25), z + r.range(-25, 25), s.side, 60, s.isPlayer || s.side === 'GER'); if (snap) [x, z] = snap; }
     if (s.isPlayer) s.weapon = s.side === 'BRI' ? 'smle' : 'g98';   // (a fresh man has his own rifle again)
     Object.assign(s, { x, z, y: this.T.height(x, z), vy: 0, hp: 100, alive: true, climb: 0, climbTo: null, stance: 1, stamina: 1, pickup: 0,
       mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, lastHit: null });
