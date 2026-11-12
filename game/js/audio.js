@@ -61,6 +61,7 @@ export class Audio {
     this._play(this.snaps[Math.floor(Math.random() * this.snaps.length)], when, { gain: 0.9 / (1 + miss / 1.5), pan: this._pan(o) * 0.5, verb: 0.08 });
   }
   bolt() { if (!this.ctx || !this.enabled) return; const t = this.ctx.currentTime; this._burst(t + 0.25, 0.05, 3000, 2, 0.12, 0.05, 'bandpass'); this._burst(t + 0.5, 0.05, 2200, 2, 0.15, 0.06, 'bandpass'); }
+  pin() { if (!this.ctx || !this.enabled) return; const t = this.ctx.currentTime; this._burst(t + 0.12, 0.03, 3500, 4, 0.12, 0.03, 'bandpass'); this._burst(t + 0.45, 0.04, 5200, 6, 0.08, 0.05, 'bandpass'); this._burst(t + 0.85, 0.05, 1800, 3, 0.1, 0.06, 'bandpass'); }   // the pin out, the ring, the lever flying
   reload() { if (!this.ctx || !this.enabled) return; const t = this.ctx.currentTime; for (let i = 0; i < 5; i++) this._burst(t + 0.15 + i * 0.09, 0.03, 4000, 3, 0.08, 0.03, 'bandpass'); }
   boom(p, kind) {
     if (!this.ctx || !this.enabled) return;

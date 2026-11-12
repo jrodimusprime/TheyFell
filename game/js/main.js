@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { loadTerrain } from './world/terrain.js';
 import { Features } from './world/features.js';
-import { Sim, HZ, DT, WEAPONS, PRE_ZERO_RATE, ZERO_TIME, MINE_AT, aimSway, aimSpread } from './sim/sim.js';
+import { Sim, HZ, DT, WEAPONS, PRE_ZERO_RATE, ZERO_TIME, MINE_AT, aimSway, aimSpread, nadeLaunch, THROW_RELEASE } from './sim/sim.js';
+import { loadGrenades } from './render/grenades.js';
 import { TerrainView, buildGroundMap, splatGround } from './render/terrainView.js';
 import { Props } from './render/props.js';
 import { SoldiersView } from './render/soldiers.js';
@@ -108,6 +109,7 @@ async function boot() {
   setLoad('Dressing the men (uniforms, faces, rifles)…');
   const skinned = await loadSkinnedMen(scene, renderer);
   const fp = new FirstPerson(skinned, SUN);
+  const nades = await loadGrenades(scene); fp.setNade(nades.protos.mills);
   const fpCam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.01, 10);
   const rag = new Ragdolls(T);
   rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
@@ -120,11 +122,12 @@ async function boot() {
   const keys = new Set(); let mouseDown = false, ads = false, yaw = sim.player.yaw, pitch = 0.02, edge = {};
   addEventListener('keydown', e => { if (e.repeat) return; keys.add(e.code); edge[e.code] = true;
     if (e.code === 'F3') { e.preventDefault(); $('debug').style.display = $('debug').style.display === 'block' ? 'none' : 'block'; }
+    if (e.code === 'KeyG' && sim.player.alive) { if (nadeReady) nadeReady = false; else if (sim.player.grenades > 0 && !(sim.player.throw > 0)) { nadeReady = true; meterT = 0; } }
     if (e.code === 'KeyM') $('map').style.display = $('map').style.display === 'block' ? 'none' : 'block', drawMap();
-    if (e.code === 'KeyN') audio.setEnabled(!audio.enabled);   // (N: sound on/off; K is respawn)
+    if (e.code === 'KeyO') audio.setEnabled(!audio.enabled);   // (O: sound on/off; K is respawn, N another man)
     if (e.code === 'KeyP') { scaleI = (scaleI + 1) % SCALES.length; renderer.setPixelRatio(SCALES[scaleI]); renderer.setSize(innerWidth, innerHeight); } });
   addEventListener('keyup', e => keys.delete(e.code));
-  addEventListener('mousedown', e => { if (document.pointerLockElement) { if (e.button === 0) mouseDown = true; if (e.button === 2) ads = true; } });
+  addEventListener('mousedown', e => { if (document.pointerLockElement) { if (e.button === 0) { if (nadeReady) { throwNow = Math.max(0.02, nadePower()); thrownPow = throwNow; nadeReady = false; } else mouseDown = true; } if (e.button === 2) ads = true; } });
   addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) ads = false; });
   addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('mousemove', e => { if (document.pointerLockElement && sim.player.alive) { const k = (ads ? 0.0011 : 0.0022); yaw -= e.movementX * k; pitch = Math.max(-1.45, Math.min(1.45, pitch - e.movementY * k)); } });
@@ -132,14 +135,18 @@ async function boot() {
   document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && sim.player.alive) { $('menu').style.display = 'grid'; $('play').textContent = 'Back to the line'; $('giveup').hidden = false; } });
   function humanInput() {
     const a = { forward: (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0), side: (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0),
-      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK || giveUp, pickup: !!edge.KeyE, melee: !!edge.KeyF,
+      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: throwNow || false, respawnNow: !!edge.KeyK || giveUp, switchMan: !!edge.KeyN, pickup: !!edge.KeyE, melee: !!edge.KeyF,
       fire: mouseDown, ads, yaw, pitch };
-    edge = {}; giveUp = false;
+    edge = {}; giveUp = false; throwNow = 0;
     return a;
   }
 
   // ---------- the loop ----------
   let giveUp = false;   // the Esc menu's Respawn now button: drop this man on the next tick
+  // a bomb: G gets it out (the arc shows where it would go), the meter swings from a lob to a full throw and back, a click
+  // throws it with the power the meter shows at that instant (aim with the view, through the wind-up too)
+  let nadeReady = false, meterT = 0, throwNow = 0, thrownPow = 0;
+  const nadePower = () => 0.5 - 0.5 * Math.cos(meterT * Math.PI * 2 / 1.3);
   let running = false, acc = 0, last = performance.now(), frames = 0, fpsT = 0, fps = 0;
   const camPos = new THREE.Vector3();
   let deathCam = 0, hurt = 0, bob = 0, recoil = 0, lastHp = 100, msgT = 0, tallyT = 0;
@@ -180,6 +187,8 @@ async function boot() {
         if (e.id === p.id) { deathCam = 0; $('deadwhy').textContent = deathReason(e); }
       } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
+      else if (e.t === 'throw' && e.id === p.id) audio.pin();
+      else if (e.t === 'switch') { yaw = p.yaw; pitch = 0; nadeReady = false; shooters.clear(); addFeed(`You go on as another man in the fight (one of ${e.n} together near the objective)`); }
       else if (e.t === 'jam' && e.id === p.id) message('Your rifle has jammed: R to clear it', 3);
       else if (e.t === 'clear' && e.id === p.id) audio.reload();
       else if (e.t === 'pickup' && e.id === p.id) { audio.reload(); addFeed(`You take up a ${WEAPONS[p.weapon].name}`); }
@@ -246,6 +255,12 @@ async function boot() {
     props.update(camera);
     men.hidePlayer = p.alive && !(window.TF && TF.view);
     skinned.update(dt, sim, men, camera, p.id); men.skip = skinned.liveIds;
+    nades.update(sim, skinned, camera, men.hidePlayer ? p.id : -1);
+    { if (!p.alive || !(p.grenades > 0) && !(p.throw > 0)) nadeReady = false;
+      if (nadeReady) meterT += dt;
+      const aiming = p.alive && (nadeReady || p.throw > THROW_RELEASE), pw = nadeReady ? nadePower() : (p.throwPow ?? thrownPow);
+      nades.showArc(aiming ? nadeLaunch(p.x, sim._eye(p), p.z, AGENT ? p.yaw : yaw, AGENT ? p.pitch : pitch, pw) : null, T);
+      $('meter').hidden = !aiming; if (aiming) { $('meterNeedle').style.left = (pw * 100).toFixed(1) + '%'; $('meterHint').textContent = nadeReady ? 'Click to throw · G to put it away' : 'Throwing…'; } }
     men.update(dt, camera.position, p.id, 700);
     rag.step(dt);
     blood.update(dt);
@@ -253,7 +268,7 @@ async function boot() {
     mist.update(dt, camera, scene.fog); sky.material.uniforms.uTime.value += dt;
     renderer.render(scene, camera);
     if (p.alive && !(window.TF && TF.view)) {   // the player's arms and rifle, in their own pass on top of the world
-      camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving, rifleBlock());
+      camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving, rifleBlock(), nadeReady);
       // its own camera: same view, but a 1 cm near plane, so hands close to the eye are never sliced off
       fpCam.position.copy(camera.position); fpCam.quaternion.copy(camera.quaternion); fpCam.fov = camera.fov; fpCam.aspect = camera.aspect; fpCam.updateProjectionMatrix(); fpCam.updateMatrixWorld();
       renderer.autoClear = false; renderer.clearDepth(); renderer.render(fp.scene, fpCam); renderer.autoClear = true;
@@ -286,7 +301,7 @@ async function boot() {
     $('clock').textContent = sim.clock();
     const t = sim.time, mine = MINE_AT, zero = ZERO_TIME;   // before zero the clock runs PRE_ZERO_RATE x fast: count down real seconds
     $('phase').textContent = t < mine ? `Mines in ${Math.ceil((mine - t) / PRE_ZERO_RATE)} s · zero hour 07:30` : t < zero ? `Zero hour in ${Math.ceil((zero - t) / PRE_ZERO_RATE)} s` : 'The attack: take the Schwabenhöhe and La Boisselle';
-    $('ammo').textContent = p.jam > 0 ? 'Jammed · R' : p.reloading > 0 ? 'Reloading…' : `${p.mag} | ${p.reserve}`; $('weapon').textContent = `${W.name} · Mills bombs ${p.grenades ?? 3}`;
+    $('ammo').textContent = p.jam > 0 ? 'Jammed · R' : p.reloading > 0 ? 'Reloading…' : `${p.mag} | ${p.reserve}`; $('weapon').textContent = `${W.name} · Grenades ${p.grenades ?? 3}`;
     $('hp').textContent = !p.alive ? 'Fallen' : p.hp > 80 ? 'Unwounded' : p.hp > 45 ? 'Wounded' : 'Badly wounded'; $('hpbar').firstChild.style.width = Math.max(0, p.hp) + '%';
     $('stance').textContent = (p.climb > 0 ? 'Climbing' : ['Standing', 'Crouched', 'Prone'][p.stance]) + (T.inTrench(p.x, p.z) ? ' · in the trench' : '') + (F.wireAt(p.x, p.z) > 0 ? ' · caught on wire' : '') + ` · ${Math.round(p.x)} m E, ${Math.round(6000 - p.z)} m N`;
     const deg = ((-((AGENT ? p.yaw : yaw)) * 180 / Math.PI) % 360 + 360) % 360, dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -465,10 +480,11 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
+    nade: (on, t = 0) => { nadeReady = on; meterT = t; return nadePower(); }, nades,
     sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
     get state() { return sim; }, get shooters() { return shooters; },
     step(a = {}, n = 1) {
-      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.respawnNow = input.pickup = input.melee = false; } stepSim(input); }
+      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.switchMan = input.respawnNow = input.pickup = input.melee = false; } stepSim(input); }
       return sim.obs();
     },
     obs: () => sim.obs(), hash: () => sim.hash(), rambo: on => { sim.rambo = !!on; return sim.rambo; }, god: on => { sim.god = !!on; return sim.god; },

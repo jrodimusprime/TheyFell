@@ -26,6 +26,41 @@ export function bulletDamage(W, zone, rng) {
 // close quarters: a strike is wound up for STRIKE_HIT ticks, lands if he is still within reach and in front, then
 // recovers; damage on a bell curve for the weapon (the bayonet usually kills, a club or knife often takes two)
 const STRIKE_TICKS = 36, STRIKE_HIT = 15, REACH = 2.0;
+// grenades (three a man: the British the Mills bomb, the Germans the stick grenade). A throw: 0.5 s to get it out and pull
+// the pin, then the overhand throw, the bomb leaving the hand 0.34 s into it (THROW_RELEASE ticks before the end); the
+// fuse burns from the release (the Mills's lever flies off then): 4 s, the stick grenade's 4.5. Speed 6 to 19 m/s with
+// the power of the throw (19 m/s at 45 degrees is ~37 m), launched 0.3 rad above where he looks.
+export const THROW_TICKS = 100, THROW_PREP = 70, THROW_RELEASE = 50;
+export const NADE = { BRI: { kind: 'mills', fuse: 4 }, GER: { kind: 'stick', fuse: 4.5 } };
+const NADE_V0 = 6, NADE_V1 = 13, NADE_LOFT = 0.3;
+// where and how fast a bomb leaves his hand (over his head, a little forward and to the right)
+export function nadeLaunch(x, y, z, yaw, pitch, power) {
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), v = NADE_V0 + NADE_V1 * Math.max(0, Math.min(1, power)), a = Math.max(-0.4, Math.min(1.3, pitch + NADE_LOFT)), c = Math.cos(a);
+  return { x: x + fx * 0.3 - fz * 0.15, y: y + 0.25, z: z + fz * 0.3 + fx * 0.15, vx: fx * c * v, vy: Math.sin(a) * v, vz: fz * c * v };
+}
+// one tick of a bomb in flight or on the ground: it bounces off the slope it lands on (a quarter of its speed into the
+// ground comes back) and drags along it, then rolls to a stop
+export function nadeStep(g, T) {
+  if (g.rest) return true;
+  g.vy -= G * DT; g.x += g.vx * DT; g.y += g.vy * DT; g.z += g.vz * DT;
+  const gh = T.height(g.x, g.z);
+  if (g.y < gh + 0.04) {
+    const e = 0.4, hx = (T.height(g.x + e, g.z) - T.height(g.x - e, g.z)) / (2 * e), hz = (T.height(g.x, g.z + e) - T.height(g.x, g.z - e)) / (2 * e), nl = Math.hypot(hx, 1, hz);
+    const nx = -hx / nl, ny = 1 / nl, nz = -hz / nl, vn = g.vx * nx + g.vy * ny + g.vz * nz;
+    g.y = gh + 0.04; g.bounces = (g.bounces || 0) + 1;
+    if (vn < 0) { const tx = g.vx - vn * nx, ty = g.vy - vn * ny, tz = g.vz - vn * nz, k = g.bounces > 1 ? 0.75 : 0.45; g.vx = tx * k - 0.25 * vn * nx; g.vy = ty * k - 0.25 * vn * ny; g.vz = tz * k - 0.25 * vn * nz; }
+    else { g.vx *= 0.97; g.vz *= 0.97; }
+    if (Math.hypot(g.vx, g.vy, g.vz) < 0.6) { g.vx = g.vy = g.vz = 0; g.rest = true; }
+  }
+  return false;
+}
+// the path a bomb will take (for the aiming arc): points until it comes to rest or the fuse runs out; first, where it
+// first lands
+export function nadePath(L, T, secs = 4) {
+  const g = { ...L }, pts = [[g.x, g.y, g.z]]; let land = null;
+  for (let i = 0; i < secs * HZ; i++) { const was = g.bounces || 0; if (nadeStep(g, T)) break; if (!land && (g.bounces || 0) > was) land = [g.x, g.y, g.z]; if (i % 2 === 0) pts.push([g.x, g.y, g.z]); }
+  pts.push([g.x, g.y, g.z]); return { pts, land: land || [g.x, g.y, g.z], end: [g.x, g.y, g.z] };
+}
 const STEEL = { bayonet: [85, 25], club: [60, 18], knife: [65, 20] };
 const steelDamage = (kind, rng) => { const [m, sd] = STEEL[kind] || STEEL.bayonet; return Math.max(15, m + sd * rng.gauss()); };
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
@@ -106,7 +141,7 @@ export class Sim {
     s.yaw = side === 'BRI' ? -Math.PI / 2 * 1 : Math.PI / 2;   // face the enemy: BRI east, GER west
     // his steel for close quarters: the bayonet, or (some of the Germans) a spiked trench club or a knife
     { const r = s.rng(); s.steel = side === 'BRI' || isPlayer ? 'bayonet' : r < 0.2 ? 'club' : r < 0.3 ? 'knife' : 'bayonet'; }
-    s.strike = 0; s.jam = 0;
+    s.strike = 0; s.jam = 0; s.grenades = 3; s.throw = 0;
     this.soldiers.push(s);
     return s;
   }
@@ -167,6 +202,7 @@ export class Sim {
   // ---------- player input -> intent ----------
   _player(p, a) {
     // K: give up this man and go straight back to the respawn choice (counts as a death; no 3 s wait)
+    if (a.switchMan && p.alive) this._switchMan(p);
     if (a.respawnNow && p.alive) {
       p.alive = false; p.hp = 0; p.deadAt = this.tick; p.deaths++; this.score[p.side].deaths++; p.gaveUp = true; p.intent = null;
       this.events.push({ t: 'death', id: p.id, by: -1, kind: 'gaveup', dir: [0, -1, 0], zone: 'chest', point: [p.x, p.y + 1, p.z] }); this._drop(p); p.pickup = 0; return;
@@ -185,8 +221,8 @@ export class Sim {
     p.intent = { f: a.forward || 0, s: a.side || 0, run: !!a.run && p.stance === 0, jump: !!a.jump, vault: !!a.vault };
     if (a.reload) { if (p.jam > 0) { p.jam = 0; p.reloading = 1.2; p.reloadMore = false; this.events.push({ t: 'clear', id: p.id }); } else this._startReload(p); }
     if (a.melee) this._startStrike(p);
-    if (a.fire && !(p.strike > 0)) this._fire(p, p.yaw, p.pitch);
-    if (a.grenade) this._throwGrenade(p);
+    if (a.fire && !(p.strike > 0) && !(p.throw > 0)) this._fire(p, p.yaw, p.pitch);
+    if (a.grenade) this._startThrow(p, typeof a.grenade === 'number' ? a.grenade : 0.75);
     this._weaponTick(p);
   }
 
@@ -194,6 +230,7 @@ export class Sim {
   _think(s) {
     this._weaponTick(s);
     const ai = s.ai, t = this.time;
+    if (s.throw > 0) { s.intent = null; return; }   // mid-throw
     if (--ai.think > 0) { this._aimAndFire(s); return; }
     ai.think = (Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350 ? 45 : 20) + s.rng.int(20);   // far from the player: thinks half as often
     // before the barrage lifts, the Germans shelter in their deep dugouts (they come up when it lifts: the race for the parapet)
@@ -237,6 +274,7 @@ export class Sim {
       const o = this.soldiers[ai.closeIn - 1], dx = o.x - s.x, dz = o.z - s.z;
       s.stance = 0; s.intent = Math.hypot(dx, dz) > REACH * 0.8 ? { f: 1, s: 0, run: true, jump: true, yaw: Math.atan2(-dx, -dz) } : null; return;
     }
+    if (ai.mode !== 'shelter' && this._considerThrow(s, cand, best)) return;
     if (best >= 0) { ai.seen = this.tick; if (s.side === 'BRI' && ai.mode === 'advance' && bd > 40 && s.rng() < 0.45) { ai.fireUntil = this.tick + 60 + s.rng.int(120); } }
     if (s.mag === 0 && !s.reloading) this._startReload(s);
     // movement intent
@@ -272,7 +310,7 @@ export class Sim {
   }
   _aimAndFire(s) {
     const ai = s.ai; if (ai.mode === 'shelter') return;
-    if (s.strike > 0) return;   // mid-strike
+    if (s.strike > 0 || s.throw > 0) return;   // mid-strike or mid-throw
     // within reach of an enemy and choosing the steel: strike (any enemy, not only his target: a man jumping in on him)
     const startled = this.tick < (ai.reactUntil || 0);
     if (ai.closeIn && !startled && this.tick % 3 === s.id % 3) { const o = this._nearestFoe(s, REACH * 0.95); if (o) { const want = Math.atan2(-(o.x - s.x), -(o.z - s.z)); if (Math.abs(wrapAngle(want - s.yaw)) < 0.6) { s.yaw = want; this._startStrike(s); return; } } }
@@ -333,6 +371,7 @@ export class Sim {
     if (s.cool > 0) s.cool -= DT;
     if (s.jam > 0 && !s.isPlayer) { s.jam -= DT; if (s.jam <= 0) { s.jam = 0; this.events.push({ t: 'unjam', id: s.id }); } }
     if (s.strike > 0) this._strikeTick(s);
+    if (s.throw > 0) this._throwTick(s);
     if (s.reloading > 0) {
       s.reloading -= DT;
       if (s.reloading <= 0) {
@@ -376,13 +415,54 @@ export class Sim {
     if (victim) this._damage(victim, bulletDamage(W, zone, s.rng), s, { dir: [dx, dy, dz], zone, point: [hx, hy, hz], kind: 'bullet' });
     return true;
   }
-  _throwGrenade(s) {
-    if (s.grenades === undefined) s.grenades = 3;
-    if (s.grenades <= 0 || s.cool > 0) return;
-    s.grenades--; s.cool = 1.2;
-    const cp = Math.cos(s.pitch + 0.35), v = 16;
-    this.grenades.push({ x: s.x, y: this._eye(s), z: s.z, vx: -Math.sin(s.yaw) * cp * v, vy: Math.sin(s.pitch + 0.35) * v, vz: -Math.cos(s.yaw) * cp * v, fuse: 4 * HZ, owner: s.id });
-    this.events.push({ t: 'throw', id: s.id });
+  // a throw: the bomb out and the pin pulled, the overhand throw, released at THROW_RELEASE; the player throws where he
+  // is looking at release (he can still aim through the wind-up), the AI where he chose when he started
+  _startThrow(s, power, aim = null) {
+    if (!(s.grenades > 0) || s.throw > 0 || s.climb > 0 || s.strike > 0 || s.pickup > 0 || s.reloading > 0) return false;
+    s.grenades--; s.throw = THROW_TICKS; s.throwPow = power; s.throwAim = aim;
+    this.events.push({ t: 'throw', id: s.id, kind: NADE[s.side].kind });
+    return true;
+  }
+  _throwTick(s) {
+    s.throw--;
+    if (s.throw !== THROW_RELEASE) return;
+    const A = s.throwAim, L = nadeLaunch(s.x, this._eye(s), s.z, A ? A.yaw : s.yaw, A ? A.pitch : s.pitch, s.throwPow);
+    const N = NADE[s.side]; this.grenades.push({ ...L, id: this.nadeId = (this.nadeId || 0) + 1, kind: N.kind, fuse: Math.round(N.fuse * HZ), owner: s.id, side: s.side, age: 0 });
+    this.events.push({ t: 'release', id: s.id });
+  }
+  // AI: a bomb at an enemy 10-32 m off (12-20 s between one man's throws); most of all at one in a trench or out of sight behind cover (what a rifle can't
+  // reach), never with a man of his own side near where it would land
+  _considerThrow(s, cand, best) {
+    const ai = s.ai;
+    if (!(s.grenades > 0) || s.throw > 0 || s.climb > 0 || s.reloading > 0 || this.tick < (ai.nadeAt || 0)) return false;
+    if (s.rng() > 0.3) return false;   // (cheap first: most thinks never get further)
+    for (let i = 0; i < Math.min(6, cand.length); i++) {
+      const o = cand[i][1]; if (!o.alive || cand[i][0] < 10) continue; if (cand[i][0] > 45) return false;
+      const d = Math.hypot(o.x - s.x, o.z - s.z); if (d < 10 || d > 32) continue;   // (closer than 10 m: the steel)
+      const hidden = this.T.inTrench(o.x, o.z) || o.id !== best;
+      if (s.rng() > (hidden ? 1 : s.side === 'GER' ? 0.5 : 0.27)) return false;   // (x 0.3 above: 0.3, 0.15, 0.08)
+      const err = 1 + d * 0.06, tx = o.x + s.rng.gauss() * err, tz = o.z + s.rng.gauss() * err;
+      if (this._friendNear(s, tx, tz, 7)) return false;
+      // the speed for a 45-degree lob (35 if that's beyond him) to land there
+      const L0 = nadeLaunch(s.x, this._eye(s), s.z, 0, 0, 0), D = Math.hypot(tx - s.x, tz - s.z) - 0.3, h = this.T.height(tx, tz) - L0.y;
+      for (const ang of [0.78, 0.6, 1.0]) {
+        const q = D * Math.tan(ang) - h; if (q <= 0.2) continue;
+        const v = Math.sqrt(G * D * D / (2 * Math.cos(ang) ** 2 * q));
+        if (v > NADE_V0 + NADE_V1 || v < NADE_V0) continue;
+        if (!this._startThrow(s, (v - NADE_V0) / NADE_V1, { yaw: Math.atan2(-(tx - s.x), -(tz - s.z)), pitch: ang - NADE_LOFT })) return false;
+        s.stance = 0; s.intent = null; s.yaw = s.throwAim.yaw; ai.nadeAt = this.tick + 12 * HZ + s.rng.int(8 * HZ);
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+  _friendNear(s, x, z, r) {
+    const gx = Math.floor(x / 100), gz = Math.floor(z / 100);
+    for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) { const l = this.grid.get((cx << 8) | cz); if (!l) continue;
+      for (const o of l) if (o.side === s.side && o.alive && o !== s && Math.abs(o.x - x) < r && Math.abs(o.z - z) < r && Math.hypot(o.x - x, o.z - z) < r) return true; }
+    if (this.player.alive && this.player.side === s.side && Math.hypot(this.player.x - x, this.player.z - z) < r) return true;
+    return false;
   }
   _damage(v, dmg, src, info) {
     if (!v.alive) return;
@@ -394,6 +474,9 @@ export class Sim {
     this.events.push({ t: 'hit', id: v.id, dmg, ...info });
     if (v.hp > 0) return;
     v.alive = false; v.hp = 0; v.deadAt = this.tick; v.deaths++; this.score[v.side].deaths++;
+    // shot with the pin out: the bomb drops at his feet, live
+    if (v.throw > THROW_RELEASE && v.throw <= THROW_PREP) { const N = NADE[v.side]; this.grenades.push({ x: v.x, y: v.y + 1, z: v.z, vx: 0, vy: 0, vz: 0, id: this.nadeId = (this.nadeId || 0) + 1, kind: N.kind, fuse: Math.round(N.fuse * HZ), owner: v.id, side: v.side, age: 0 }); }
+    v.throw = 0;
     if (src && src.side !== v.side) { src.kills++; this.score[src.side].kills++; }
     this.events.push({ t: 'death', id: v.id, by: src ? src.id : -1, ...info });
     this._drop(v);
@@ -423,8 +506,10 @@ export class Sim {
       if (!o.alive) continue;
       const d = Math.hypot(o.x - x, o.y + 0.9 - y, o.z - z); if (d > r) continue;
       // a man in a trench is sheltered from a burst outside it
-      const sheltered = this.T.inTrench(o.x, o.z) && !(Math.hypot(o.x - x, o.z - z) < 3);
-      const dmg = d < kill ? 250 : 120 * (1 - d / r) * (sheltered ? 0.25 : 1);
+      // (but a bomb in the trench itself is in there with him; and its walls hold most of it in from a man up on top)
+      const blastIn = kind === 'grenade' && this.T.inTrench(x, z), inT = this.T.inTrench(o.x, o.z);
+      const sheltered = inT && !blastIn && !(Math.hypot(o.x - x, o.z - z) < 3), contained = blastIn && !inT;
+      const dmg = d < kill ? 250 : 120 * (1 - d / r) * (sheltered ? 0.25 : contained ? 0.4 : 1);
       if (dmg < 5) continue;
       const L = Math.max(0.5, Math.hypot(o.x - x, o.z - z));
       this._damage(o, dmg, src, { dir: [(o.x - x) / L, 0.8, (o.z - z) / L], zone: 'body', point: [o.x, o.y + 1, o.z], kind, blast: Math.min(1, (r - d) / r + 0.3) });
@@ -511,17 +596,22 @@ export class Sim {
       for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) {
         const l = this.bump && this.bump.get((cx << 12) | cz); if (!l) continue;
         for (const o of l) {
-          if (o === s || !o.alive || o.climb > 0 || Math.abs(o.y - s.y) > 1.6) continue;
+          if (o === s || !o.alive || (o.climb > 0 && !s.isPlayer) || Math.abs(o.y - s.y) > 1.6) continue;   // (a man climbing out is solid to the player, who backs off: he isn't pulled off the wall)
           const MIN = s.isPlayer || o.isPlayer ? 0.8 : 0.6, dx = s.x - o.x, dz = s.z - o.z, d = Math.hypot(dx, dz);
           if (d >= MIN) continue;
           let ux = dx, uz = dz; if (d < 1e-4) { ux = x0 - s.x; uz = z0 - s.z; if (Math.hypot(ux, uz) < 1e-6) { ux = Math.cos(o.id); uz = Math.sin(o.id); } }
           const L = Math.hypot(ux, uz); ux /= L; uz /= L;
-          if (s.isPlayer && !o.isPlayer) {   // the AI man steps aside (or, if he can't, the player stops)
+          if (s.isPlayer && !o.isPlayer && !(o.climb > 0)) {   // the AI man steps aside (or, if he can't, the player stops)
             const ox = s.x - ux * MIN, oz = s.z - uz * MIN;
             if (okAt(o, ox, oz)) { o.x = ox; o.z = oz; o.y = Math.max(o.y, T.height(ox, oz)); continue; }
           }
           const nx2 = o.x + ux * MIN, nz2 = o.z + uz * MIN;
           if (okAt(s, nx2, nz2)) { s.x = nx2; s.z = nz2; } else if (Math.hypot(x0 - o.x, z0 - o.z) > d) { s.x = x0; s.z = z0; }
+          // still pressed together against a wall (the player dropping in beside him): the AI man steps off whichever way is clear
+          if ((s.isPlayer || o.isPlayer) && Math.hypot(s.x - o.x, s.z - o.z) < MIN) {
+            const pl = s.isPlayer ? s : o, ai = s.isPlayer ? o : s;
+            if (!(ai.climb > 0)) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + ai.id, ax = pl.x + Math.cos(a) * MIN, az = pl.z + Math.sin(a) * MIN; if (okAt(ai, ax, az)) { ai.x = ax; ai.z = az; ai.y = Math.max(ai.y, T.height(ax, az)); break; } }
+          }
         }
       }
     }
@@ -623,9 +713,7 @@ export class Sim {
     // grenades
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i];
-      g.vy -= G * DT; g.x += g.vx * DT; g.y += g.vy * DT; g.z += g.vz * DT;
-      const gh = this.T.height(g.x, g.z);
-      if (g.y < gh + 0.05) { g.y = gh + 0.05; g.vy = -g.vy * 0.3; g.vx *= 0.5; g.vz *= 0.5; }
+      nadeStep(g, this.T); g.age++;
       if (--g.fuse <= 0) { this.grenades.splice(i, 1); this._explode(g.x, g.y + 0.2, g.z, 9, 2.5, this.soldiers[g.owner], 'grenade'); }
     }
   }
@@ -681,9 +769,40 @@ export class Sim {
     if (!o) return this._respawn(p);
     const g = this.target(p.side, o.x, o.z), yaw = g ? Math.atan2(-(g.c[0] - o.x), -(g.c[1] - o.z)) : o.yaw;   // facing the objective
     Object.assign(p, { x: o.x, z: o.z, y: o.y, yaw, pitch: 0, vy: 0, hp: o.hp, alive: true, climb: 0, climbTo: null, stance: o.stance, stamina: 1, onGround: true,
-      weapon: o.weapon, mag: o.mag, reserve: o.reserve, reloading: 0, cool: 0, grenades: o.grenades ?? 3, lastHit: null, pickup: 0 });
+      weapon: o.weapon, mag: o.mag, reserve: o.reserve, reloading: 0, cool: 0, grenades: o.grenades ?? 3, throw: 0, lastHit: null, pickup: 0 });
     o.alive = false; o.hp = 0; o.deadAt = this.tick; o.intent = null;
     p.gaveUp = false; this.events.push({ t: 'respawn', id: p.id, p: [p.x, p.y, p.z], into: o.id });
+    return true;
+  }
+  // N: the player goes on as another man in the fight, and an AI takes over the man he was (they swap: no one leaves the
+  // line). Each time a fresh cluster: men of his side round the objective he is attacking (within 150 m of it, wider if
+  // there are too few), one of them at random as its seed and his 9 nearest comrades; one of those 10 at random, never one
+  // of the last six he has been (so it can't flick back and forth between two men), never one about to be overrun.
+  switchCandidates(p) {
+    const g = this.target(p.side, p.x, p.z), gx = g ? g.c[0] : p.x, gz = g ? g.c[1] : p.z, recent = p.switchHist || [];
+    const mine = this.soldiers.filter(o => o.alive && !o.isPlayer && o.side === p.side && !(o.climb > 0) && !(o.throw > 0) && !(o.strike > 0) && !recent.includes(o.id));
+    let pool = [];
+    for (const R of [150, 300, 600, Infinity]) { pool = mine.filter(o => Math.hypot(o.x - gx, o.z - gz) < R); if (pool.length >= 10) break; }
+    if (!pool.length) return [];
+    const seed = pool[p.rng.int(pool.length)];
+    return pool.map(o => [Math.hypot(o.x - seed.x, o.z - seed.z), o]).sort((a, b) => a[0] - b[0] || a[1].id - b[1].id).slice(0, 10).map(q => q[1])
+      .filter(o => !this._nearestFoe(o, 6));
+  }
+  _switchMan(p) {
+    if (p.climb > 0 || p.throw > 0 || p.pickup > 0 || p.strike > 0) return false;
+    const c = this.switchCandidates(p); if (!c.length) return false;
+    const o = c[p.rng.int(c.length)];
+    const K = ['x', 'z', 'y', 'yaw', 'pitch', 'vy', 'hp', 'stance', 'stamina', 'onGround', 'weapon', 'mag', 'reserve', 'grenades', 'jam', 'steel', 'wire'];
+    const mineNow = Object.fromEntries(K.map(k => [k, p[k]]));
+    for (const k of K) p[k] = o[k];
+    for (const k of K) o[k] = mineNow[k];
+    Object.assign(p, { reloading: 0, cool: 0, ads: false, intent: null, lastHit: null }); Object.assign(o, { reloading: 0, cool: 0, intent: null, climb: 0, climbTo: null });
+    const g = this.target(p.side, p.x, p.z); if (g) p.yaw = Math.atan2(-(g.c[0] - p.x), -(g.c[1] - p.z));
+    // the man he was carries on as one of the line (going forward, if the attack is on)
+    const ai = o.ai; ai.target = -1; ai.think = 0; ai.closeIn = 0; ai.fleeUntil = 0; ai.post = [o.x, o.z];
+    if (o.side === 'BRI' && this.time >= ZERO) { ai.mode = 'advance'; ai.goal = this._goalFor(o); }
+    p.switchHist = [...(p.switchHist || []), o.id].slice(-6);
+    this.events.push({ t: 'switch', id: p.id, from: o.id, n: c.length });
     return true;
   }
   _respawn(s, at) {
@@ -702,7 +821,7 @@ export class Sim {
     } else { const snap = this._snapToTrench(x + r.range(-25, 25), z + r.range(-25, 25), s.side, 60, s.isPlayer || s.side === 'GER'); if (snap) [x, z] = snap; }
     if (s.isPlayer) s.weapon = s.side === 'BRI' ? 'smle' : 'g98';   // (a fresh man has his own rifle again)
     Object.assign(s, { x, z, y: this.T.height(x, z), vy: 0, hp: 100, alive: true, climb: 0, climbTo: null, stance: 1, stamina: 1, pickup: 0,
-      mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, lastHit: null });
+      mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, throw: 0, lastHit: null });
     if (s.ai) Object.assign(s.ai, { mode: s.side === 'BRI' ? 'advance' : s.role === 'mg' ? 'mg' : 'hold', target: -1, goal: null, post: [x, z], think: 30 + r.int(60) });
     if (s.ai && s.side === 'BRI') { s.ai.goal = this._goalFor(s); if (this.time < ZERO) s.ai.mode = 'hold'; }
     s.gaveUp = false; this.events.push({ t: 'respawn', id: s.id, p: [x, s.y, z] });

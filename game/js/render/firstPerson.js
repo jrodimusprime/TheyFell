@@ -99,7 +99,20 @@ export class FirstPerson {
     this.gun = this.K.gun; this.bolt = this.K.bolt; this.handle = this.K.handle;
   }
   // block: how far ahead (m) the nearest wall, bank or man is along the rifle's line (Infinity if clear)
-  update(dt, camera, p, W, recoil, bob, moving, block = Infinity) {
+  // the bomb for the player's right hand (a clone of the Mills bomb model, in this pass's own scene)
+  setNade(proto) { if (this.nade) return; this.nade = proto.clone(); this.nade.traverse(o => { if (o.isMesh) o.castShadow = false; }); this.nade.visible = false; this.scene.add(this.nade); }
+  // where the right hand holds the bomb, in camera space: ready, low in front; the pin pulled; drawn back past the ear;
+  // brought over and forward, let go (at THROW_RELEASE); following through down out of sight. null: on the rifle.
+  _nadeHand(ready, left) {
+    const R0 = V(0.17, -0.17, -0.36), R1 = V(0.33, 0.12, 0.06), R2 = V(0.1, 0.06, -0.55), R3 = V(0.03, -0.5, -0.45);
+    if (left <= 0) return ready ? { c: R0, held: true } : null;
+    if (left > 70) { const u = (100 - left) / 30, k = Math.sin(u * Math.PI); return { c: R0.clone().add(V(-0.05 * k, 0.03 * k, 0.02 * k)), held: true, pin: k }; }
+    if (left > 57) return { c: lerpV(R0, R1, (70 - left) / 13), held: true };
+    if (left > 50) return { c: R1.clone().lerp(R2, (57 - left) / 7), held: true };
+    if (left > 25) return { c: lerpV(R2, R3, (50 - left) / 25), held: false };
+    return null;
+  }
+  update(dt, camera, p, W, recoil, bob, moving, block = Infinity, nadeReady = false) {
     this.setKind(p.weapon === 'g98' ? 'g98' : 'smle');   // (swapped while it is down out of sight, stooping for another)
     const { rear: SIGHT_REAR, tip: SIGHT_TIP, eye: EYE_RELIEF, knob: KNOB, knobUp: KNOB_UP, travel: BOLT_TRAVEL, charger: CHARGER, gripR: GRIP_R, gripL: GRIP_L } = this.K;
     this.rig.matrix.copy(camera.matrixWorld); this.rig.updateMatrixWorld(true);
@@ -126,6 +139,11 @@ export class FirstPerson {
     if (p.strike > 0) { const u = 1 - p.strike / 36, k2 = u < 0.38 ? -Math.sin(u / 0.38 * Math.PI / 2) * 0.35 : u < 0.5 ? -0.35 + 1.35 * ((u - 0.38) / 0.12) : (1 - Math.min(1, (u - 0.5) / 0.5)) ** 2; pos.add(V(-0.06 * Math.abs(k2), -0.03 * k2, -0.42 * k2)); pitch -= 0.08 * k2; }
     // stooping for another man's rifle: his own goes down out of sight, the other comes up in its place
     if (p.pickup > 0) { const u = 1 - p.pickup / (p.pickupTotal || 66), dn = Math.sin(Math.min(1, u) * Math.PI); pos.add(V(0.06 * dn, -0.6 * dn, 0.12 * dn)); pitch -= 0.7 * dn; roll += 0.5 * dn; }
+    // a bomb in the right hand: the rifle goes down in the left, out of the way
+    const NH = this._nadeHand(nadeReady, p.throw || 0);
+    this.nadeLow = lerp(this.nadeLow || 0, NH ? 1 : 0, Math.min(1, dt * 10)); this.nadeArm = lerp(this.nadeArm || 0, NH ? 1 : 0, Math.min(1, dt * 14));
+    { const dn = ease(this.nadeLow); pos.add(V(-0.08 * dn, -0.85 * dn, 0.15 * dn)); pitch += 0.6 * dn; roll -= 0.3 * dn; this.pull *= 1 - dn; }
+    if (NH) this.lastNH = NH;
     // the rifle group: +Z is the muzzle, so turn it to look down -Z, then yaw/pitch/roll
     // the hip / working pose, then blended onto the exact sight picture: the rifle turned so the line from the centre of
     // the rear aperture to the tip of the foresight blade points straight down the view (where the bullet goes), and slid
@@ -192,6 +210,14 @@ export class FirstPerson {
         return h.wristLocal.clone().applyMatrix4(h.object.matrixWorld);
       };
       wR = place(this.xr.right, w(hand), Fr, Nr, away > 0.5 ? 0.012 : 0.034);
+      // the bomb hand: palm up and in round it, fingers forward
+      if (this.nadeArm > 0.02 && this.lastNH) {
+        const R = this.rig.matrixWorld, c = this.lastNH.c.clone().applyMatrix4(R), F = V(-0.25, 0.35, -0.9).transformDirection(R), N = V(-0.55, 0.65, -0.1).transformDirection(R);
+        const wN = place(this.xr.right, c, F, N, 0.036);
+        if (this.nadeArm < 0.98) { const wr0 = wR.clone(); place(this.xr.right, w(hand), Fr, Nr, away > 0.5 ? 0.012 : 0.034); wR = wr0.lerp(wN, this.nadeArm); if (this.nadeArm > 0.5) place(this.xr.right, c, F, N, 0.036); }
+        else wR = wN;
+        if (this.nade) { this.nade.visible = !!(this.lastNH.held && this.nadeArm > 0.5 && (!p.throw || p.throw > 50)); this.nade.position.copy(c); this.nade.quaternion.setFromRotationMatrix(R).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, 0, -0.3))); }
+      } else if (this.nade) this.nade.visible = false;
       wL = place(this.xr.left, w(GRIP_L), Fl, Nl, 0.034);
     }
     twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, up.clone().multiplyScalar(-1).addScaledVector(right, 0.9 - 0.7 * under));   // elbow tucked down when aiming
@@ -211,9 +237,10 @@ export class FirstPerson {
     }   // the sleeve's own gloves hidden (after the clip, which resets scale)
     if (this.xr) {
       const mix = (a, b, t) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] + (b[k] - a[k]) * t]));
-      this.xr.right.setPose(mix(mix(POSES.trigger, { thumb: 0.75, index: 0.45, middle: 0.95, ring: 0.98, pinky: 1 }, under), pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
+      if (this.nadeArm > 0.5 && this.lastNH) this.xr.right.setPose(this.lastNH.held ? { thumb: 0.7, index: 0.85, middle: 0.88, ring: 0.9, pinky: 0.92 } : { thumb: 0.2, index: 0.15, middle: 0.15, ring: 0.2, pinky: 0.25 });
+      else this.xr.right.setPose(mix(mix(POSES.trigger, { thumb: 0.75, index: 0.45, middle: 0.95, ring: 0.98, pinky: 1 }, under), pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
       this.xr.left.setPose({ thumb: 0.5, index: 0.7, middle: 0.72, ring: 0.74, pinky: 0.76 });   // cradling: fingertips on the far side, not over the top
-      const hideRight = a > 0.55 && away < 0.3;   // aiming: the trigger hand is out of sight under the stock
+      const hideRight = a > 0.55 && away < 0.3 && this.nadeArm < 0.1;   // aiming: the trigger hand is out of sight under the stock
       this.xr.left.object.visible = true; this.xr.right.object.visible = !hideRight; this.xr.right.cuff.visible = !hideRight;
       this.hideRight.value = hideRight ? 1 : 0;
     } else { this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl); this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend); }

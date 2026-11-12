@@ -53,7 +53,7 @@ or you have moved away
 
 ✓ inside trenches it seems like theres 1 enemy per section maybe sometimes have none, sometimes have 5 in there — done 12 Nov 2026: clusters of 0-5 along the bays
 
-the grenade doesn’t have an animation or much thinking in it and i cant see where it is thrown. also not seeing many others being thrown and soldiers throwing them
+✓ the grenade doesn’t have an animation or much thinking in it and i cant see where it is thrown. also not seeing many others being thrown and soldiers throwing them — done 13 Nov 2026: three grenades a man (Mills / stick grenade), the overhand throw animated in first and third person, bombs drawn in flight, G + aiming arc + swinging power meter, AI on both sides bomb men 10–32 m off (most at men in trenches)
 
 
 ✓ it is really important the animation for getting out of trenches is done well, take your time looking at trenches of different height to see the characters get out, it is super important — done 12 Nov 2026: height-adaptive climb, checked at seven places

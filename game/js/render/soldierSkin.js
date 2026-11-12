@@ -267,7 +267,7 @@ export function twoBoneIK(upper, lower, hand, target, pole) {
 }
 // pose: 'aim' (butt in the shoulder, along the line of fire), 'port' (slanting across the body), 'low' (held low, muzzle forward)
 // push: metres the rifle is driven along its own line (a bayonet thrust; negative draws it back)
-export function holdRifle(root, gun, pose, pitch = 0, bones = null, push = 0) {
+export function holdRifle(root, gun, pose, pitch = 0, bones = null, push = 0, hands = 'both') {
   root.updateMatrixWorld(true);
   const B = n => (bones && bones[n]) || root.getObjectByName(n), sh = B('upperarm_r').getWorldPosition(new THREE.Vector3()), pel = B('pelvis').getWorldPosition(new THREE.Vector3());
   const fwd = new THREE.Vector3(0, 0, 1).transformDirection(root.matrixWorld), left = new THREE.Vector3(1, 0, 0).transformDirection(root.matrixWorld), up = new THREE.Vector3(0, 1, 0);
@@ -278,6 +278,10 @@ export function holdRifle(root, gun, pose, pitch = 0, bones = null, push = 0) {
     dir = fwd.clone().multiplyScalar(Math.cos(pitch)).addScaledVector(up, Math.sin(pitch)).normalize();
     const pocket = sh.clone().lerp(headP, 0.3);
     butt = pocket.addScaledVector(left, 0.05).addScaledVector(fwd, 0.02); butt.y = headP.y - 0.1;
+  } else if (pose === 'trail') {
+    // in the left hand alone, at the trail: hanging by his left side, muzzle up and forward (his right hand is busy)
+    dir = up.clone().multiplyScalar(0.5).addScaledVector(fwd, 0.85).addScaledVector(left, 0.05).normalize();
+    butt = pel.clone().addScaledVector(left, 0.24).addScaledVector(fwd, -0.22).addScaledVector(up, -0.3);
   } else if (pose === 'port') {
     // at the port: slanting across the body, muzzle up past the left shoulder, butt by the right hip
     dir = up.clone().multiplyScalar(0.62).addScaledVector(left, 0.7).addScaledVector(fwd, 0.3).normalize();
@@ -294,7 +298,7 @@ export function holdRifle(root, gun, pose, pitch = 0, bones = null, push = 0) {
   local.decompose(gun.position, gun.quaternion, gun.scale); gun.updateMatrixWorld(true);
   const gr = gun.userData.grips, at = (z) => new THREE.Vector3(0, -gr.drop, z).applyMatrix4(gun.matrixWorld);
   // elbows: the right one down and out to the side, the left one down and under the rifle
-  twoBoneIK(B('upperarm_r'), B('lowerarm_r'), B('hand_r'), at(gr.right), up.clone().multiplyScalar(-1).addScaledVector(left, -0.8));
+  if (hands === 'both') twoBoneIK(B('upperarm_r'), B('lowerarm_r'), B('hand_r'), at(gr.right), up.clone().multiplyScalar(-1).addScaledVector(left, -0.8));
   twoBoneIK(B('upperarm_l'), B('lowerarm_l'), B('hand_l'), at(gr.left), up.clone().multiplyScalar(-1).addScaledVector(left, 0.35));
   // aiming: the head comes down onto the stock, eye along the sights
   // (from where the head really looks in the clip, by the smallest turn, at most ~23 degrees: never a roll or a spin)
@@ -305,7 +309,7 @@ export function holdRifle(root, gun, pose, pitch = 0, bones = null, push = 0) {
     if (ang > 1e-3) { const t = Math.min(1, 0.4 / ang); aimBone(hb, hp.clone().add(look), hp.clone().add(look.clone().lerp(want, t).normalize())); }
   }
   // hands along the rifle: fingers wrapping the stock and the fore-end
-  for (const [h, f] of [['hand_r', 'middle_01_r'], ['hand_l', 'middle_01_l']]) {
+  for (const [h, f] of hands === 'both' ? [['hand_r', 'middle_01_r'], ['hand_l', 'middle_01_l']] : [['hand_l', 'middle_01_l']]) {
     const hb = B(h), fb = B(f); if (!hb || !fb) continue;
     aimBone(hb, fb.getWorldPosition(new THREE.Vector3()), hb.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.1).addScaledVector(rUp, -0.05));
   }

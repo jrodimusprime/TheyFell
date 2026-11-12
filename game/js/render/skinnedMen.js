@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
 import { bakeSoldier, addBrodie, loadFaces, makeRifleRig, holdRifle, twoBoneIK, aimBone } from './soldierSkin.js';
 import { climbPose, climbT } from './climb.js';
+import { THROW_PREP } from '../sim/sim.js';
 import { RIG, PART } from './soldiers.js';
 import { loadHands } from './xrHands.js';
 
@@ -111,6 +112,7 @@ class SkinnedMen {
         this.liveIds.add(s.id); this.byId.set(s.id, e);
         const ct = climbT(s);
         if (ct >= 0) { this._climb(e, s, ct, dt); return; }
+        if (s.throw > 0) { this._throw(e, s); return; }
         const st = men.state[s.id], sp = st.speed || 0, aim = s.ai ? s.ai.target >= 0 && sp < 0.4 : s.ads;
         let clip, scale = 1;
         if (s.stance >= 1) { clip = sp > 0.35 ? 'Crouch_Fwd_Loop' : aim ? 'Rifle_Kneel_Aim' : 'Crouch_Idle_Loop'; scale = sp > 0.35 ? Math.min(1.6, Math.max(0.7, sp / 1.1)) : 1; }
@@ -136,6 +138,14 @@ class SkinnedMen {
         c.skinned = true; this._poseCorpse(e, c);
       });
     }
+  }
+  // throwing a bomb: the overhand throw, timed by the sim (still for the half second the pin is pulled, then the clip: the
+  // bomb leaves the hand 0.34 s in, at THROW_RELEASE); the rifle in his left hand at the trail meanwhile
+  _throw(e, s) {
+    if (e.clip !== 'OverhandThrow') { e.mixer.stopAllAction(); e.action = e.mixer.clipAction(e.clips.OverhandThrow); e.action.setLoop(THREE.LoopOnce, 1); e.action.clampWhenFinished = true; e.action.reset().play(); e.clip = 'OverhandThrow'; e.want = 'OverhandThrow'; }
+    e.action.paused = false; e.action.time = Math.min(e.action.getClip().duration - 0.01, Math.max(0, (THROW_PREP - s.throw) / 60)); e.mixer.update(0);
+    e.o.position.set(s.x, s.y, s.z); e.o.rotation.set(0, s.yaw + Math.PI, 0);
+    holdRifle(e.o, e.gun, 'trail', 0, e.bones, 0, 'left');
   }
   // climbing out: the clip for the head and spine, then the body placed on the climb path, leant, and its hands and feet
   // pinned with IK to the lip, the fire-step and the top

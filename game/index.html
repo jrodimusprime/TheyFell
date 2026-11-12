@@ -32,6 +32,10 @@
   #prompt { font-size: 15px; margin-bottom: 6px; min-height: 1.2em; opacity: .95; }
   #feed { font-size: 13px; line-height: 1.5; opacity: .9; }
   #cross { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(233,226,207,.8); box-shadow: 0 0 2px #000; }
+  #meter { position: fixed; left: 50%; top: calc(50% + 70px); width: 240px; margin-left: -120px; pointer-events: none; font-size: 11px; color: #e9e2cf; text-shadow: 0 1px 2px #000; }
+  #meterBar { position: relative; height: 10px; border: 1px solid rgba(233,226,207,.7); background: linear-gradient(90deg, rgba(120,160,90,.45), rgba(220,190,90,.45), rgba(200,90,60,.55)); border-radius: 2px; }
+  #meterNeedle { position: absolute; top: -4px; width: 3px; height: 18px; margin-left: -1.5px; background: #fff3d2; box-shadow: 0 0 3px #000; }
+  #meterLbl { display: flex; justify-content: space-between; margin-top: 3px; opacity: .85; }
   #gauge { position: fixed; left: 50%; top: 50%; border: 1px solid rgba(233,226,207,.45); border-radius: 50%; pointer-events: none; box-shadow: 0 0 2px rgba(0,0,0,.5); transition: width .12s, height .12s, margin .12s; }
   #oob { position: fixed; left: 0; right: 0; top: 30%; text-align: center; display: none; }
   #oob h2 { font-family: 'Caslon Display', 'Caslon', Georgia, serif; margin: 0; color: #f2d7a6; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; text-shadow: 0 2px 8px #000; }
@@ -70,12 +74,13 @@
   <div class="tl"><div id="clock">07:26:30</div><div id="phase"></div></div>
   <div class="tc"><div id="compass">N</div><div id="objectives"></div></div>
   <div class="tr"><div id="tally"></div><div id="feed"></div></div>
-  <div class="bl"><div id="hp">Unwounded</div><div id="hpbar"><div></div></div><div id="stance" style="font-size:12px;opacity:.8;margin-top:4px"></div><div style="font-size:11px;opacity:.65;margin-top:2px">K respawn · M map · Esc menu</div></div>
+  <div class="bl"><div id="hp">Unwounded</div><div id="hpbar"><div></div></div><div id="stance" style="font-size:12px;opacity:.8;margin-top:4px"></div><div style="font-size:11px;opacity:.65;margin-top:2px">K respawn · N another man · M map · Esc menu</div></div>
   <div class="br"><div id="ammo">10 | 60</div><div id="weapon">SMLE Mk III*</div></div>
   <div class="bc"><div id="prompt"></div><div id="msg"></div></div>
   <canvas id="mini" width="400" height="400"></canvas><div id="miniGoal"></div>
 </div>
 <div id="cross" hidden></div><div id="gauge" hidden></div>
+<div id="meter" hidden><div id="meterBar"><div id="meterNeedle"></div></div><div id="meterLbl"><span>lob</span><span id="meterHint"></span><span>full throw</span></div></div>
 <div id="vignette"></div><div id="hurt"></div>
 <div id="oob"><h2>Out of bounds</h2><p>Return to the battlefield</p></div>
 <div id="dead"><div class="card"><h2>You fell</h2><p id="deadwhy"></p>
@@ -95,7 +100,7 @@
     <button id="god" aria-pressed="false" title="Nothing hurts you: bullets, shells, bombs, the mine or a fall">God mode: off</button>
   </div>
   <div id="load"></div>
-  <small>WASD move · Shift run · Space jump, climb out · E climb out, jump a trench · C crouch · Z prone · Mouse fire · Right mouse aim · R reload (clears a jam) · F bayonet · E take a rifle · G Mills bomb · K respawn · M map · N sound on/off · P pixel size · Esc pause · F3 debug<br>
+  <small>WASD move · Shift run · Space jump, climb out · E climb out, jump a trench · C crouch · Z prone · Mouse fire · Right mouse aim · R reload (clears a jam) · F bayonet · E take a rifle · G grenade (click on the swing to throw) · K respawn · N another man in the fight · M map · O sound on/off · P pixel size · Esc pause · F3 debug<br>
   The ground is the real terrain, at true scale (IGN lidar, 6 km × 6 km); the trenches are traced from the 1916 sector map.</small>
 </div></div>
 <script type="module" src="js/main.js"></script>

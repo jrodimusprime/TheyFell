@@ -82,7 +82,9 @@ export class Features {
   // how badly wire holds you here: 0 = clear, 1 = in the thick of a belt
   wireAt(x, z) {
     const l = this.wire.near(x, z); if (!l) return 0; let w = 0;
-    for (const i of l) { const s = this.wire.items[i]; if (s.gone) continue; const d = segDist(x, z, s); if (d < s.r) w = Math.max(w, 1 - d / s.r * 0.5); }
+    // (only where the belt is drawn: its rows of pickets, 2 for the British, 3 for the Germans, spread over 0.35 or 0.7 of
+    // its half-depth either side of the line, plus the strands' sag and the pickets' jitter; not in clear grass beside it)
+    for (const i of l) { const s = this.wire.items[i]; if (s.gone) continue; const hw = s.r * (s.side === 'GER' ? 0.7 : 0.35) + 0.45, d = segDist(x, z, s); if (d < hw) w = Math.max(w, 1 - d / hw * 0.5); }
     return w;
   }
   // a mine went up here: the wire in the blast is gone
