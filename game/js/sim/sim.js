@@ -351,6 +351,15 @@ export class Sim {
       if (this._tryClimb(s, dx, dz, 2.8, 1.6)) return;          // up and out: anything up to head height (a trench wall and its sandbags), reaching over the fire-step
       if (I.vault && this._tryLeap(s, dx, dz)) return;           // E on the lip of a trench: jump across it
     }
+    // a man going forward who comes to the lip of a narrow trench may jump it (about two in three do) rather than climb
+    // down into it and out again; the choice holds while he is at that lip
+    if (!s.isPlayer && I && I.jump && I.f > 0 && s.onGround && s.ai && this.tick > (s.ai.leapNo || 0)) {
+      const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+      if (T.height(s.x + fx * 0.8, s.z + fz * 0.8) < s.y - 0.8) {
+        s.ai.leapNo = this.tick + 90;
+        if (s.rng() < 0.65 && this._tryLeap(s, fx, fz)) return;
+      }
+    }
     let sp = 0, mx = 0, mz = 0;
     if (I && (I.f || I.s)) {
       const run = I.run && s.stamina > 0.05;
