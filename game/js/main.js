@@ -121,7 +121,7 @@ async function boot() {
   addEventListener('keydown', e => { if (e.repeat) return; keys.add(e.code); edge[e.code] = true;
     if (e.code === 'F3') { e.preventDefault(); $('debug').style.display = $('debug').style.display === 'block' ? 'none' : 'block'; }
     if (e.code === 'KeyM') $('map').style.display = $('map').style.display === 'block' ? 'none' : 'block', drawMap();
-    if (e.code === 'KeyK') audio.setEnabled(!audio.enabled);
+    if (e.code === 'KeyN') audio.setEnabled(!audio.enabled);   // (N: sound on/off; K is respawn)
     if (e.code === 'KeyP') { scaleI = (scaleI + 1) % SCALES.length; renderer.setPixelRatio(SCALES[scaleI]); renderer.setSize(innerWidth, innerHeight); } });
   addEventListener('keyup', e => keys.delete(e.code));
   addEventListener('mousedown', e => { if (document.pointerLockElement) { if (e.button === 0) mouseDown = true; if (e.button === 2) ads = true; } });
@@ -162,6 +162,7 @@ async function boot() {
         if (e.id === p.id) { recoil = 1; if (e.w !== 'mg08') audio.bolt(); }
         else if (e.victim !== p.id) { // a near miss cracks past
           const t = nearestOnSeg(cp, e.o, e.h); if (t < 3 && s.side !== p.side) hurt = Math.max(hurt, 0.12);
+          if (t < 12 && d > 25) audio.snap(e.o, t);
         }
       } else if (e.t === 'explosion') { fx.explosion(e.p, e.kind, cp); audio.boom(e.p, e.kind); }
       else if (e.t === 'incoming') audio.incoming(e.p, e.kind);
@@ -240,7 +241,7 @@ async function boot() {
     // shadows follow the player
     { const sx = Math.round(camera.position.x / 0.5) * 0.5, sz = Math.round(camera.position.z / 0.5) * 0.5, sy = Math.round(camera.position.y); sun.target.position.set(sx, sy, sz); sun.position.set(sx, sy, sz).addScaledVector(SUN, 300); sun.target.updateMatrixWorld(); }   // snapped: no shimmering
     sky.position.copy(camera.position);
-    audio.listener = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+    audio.listener = { x: camera.position.x, y: camera.position.y, z: camera.position.z, yaw: camera.rotation.order === "YXZ" ? camera.rotation.y : yaw };
     terrain.update(camera, terrain.stats.built < 200 ? 30 : 6);
     props.update(camera);
     men.hidePlayer = p.alive && !(window.TF && TF.view);
