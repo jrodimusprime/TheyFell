@@ -37,6 +37,25 @@ export async function loadSkinnedMen(scene, renderer) {
 
 const _UP = new THREE.Vector3(0, 1, 0), _Q1 = new THREE.Quaternion(), _Q2 = new THREE.Quaternion(), _Q3 = new THREE.Quaternion(), _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3(), _V3 = new THREE.Vector3();
 const clamp01 = v => Math.max(0, Math.min(1, v));
+// the running stride: k, the share of the clip's foot reach kept; bob, of its hip rise and fall; lift, of the boot's lift
+// (the clip kicks the heel up behind almost to the seat)
+const STRIDE = { Jog_Fwd_Loop: { k: 0.52, bob: 0.32, lift: 0.55 }, Sprint_Loop: { k: 0.62, bob: 0.5, lift: 0.7 } };
+// a clip's natural ground speed (how fast a planted foot travels back) and its mean hip height (pelvis local z)
+function gaitStats(gltf) {
+  const out = {};
+  for (const name of Object.keys(STRIDE)) {
+    const clip = gltf.animations.find(a => a.name === name); if (!clip) continue;
+    const o = SU.clone(gltf.scene), mx = new THREE.AnimationMixer(o); mx.clipAction(clip).play();
+    const foot = o.getObjectByName('foot_l'), pel = o.getObjectByName('pelvis'), N = 90, dt = clip.duration / N, sm = [];
+    let mean = 0;
+    for (let i = 0; i <= N; i++) { mx.setTime(i * dt); o.updateMatrixWorld(true); const f = foot.getWorldPosition(new THREE.Vector3()); sm.push([f.z, f.y]); if (i < N) mean += pel.position.z / N; }
+    const low = Math.min(...sm.map(q => q[1])) + 0.03, v = [];
+    for (let i = 1; i <= N; i++) if (sm[i][1] < low) v.push(Math.abs(sm[i][0] - sm[i - 1][0]) / dt);
+    v.sort((a, b) => a - b);
+    out[name] = { v: v[v.length >> 1] || 5, mean };
+  }
+  return out;
+}
 class SkinnedMen {
   constructor(scene, T) {
     this.scene = scene; this.T = T; this.pools = {}; this.offsets = {};
@@ -50,6 +69,9 @@ class SkinnedMen {
       this.pools[side] = { live: [...Array(this.LIVE)].map(() => this._make(side, true)), dead: [...Array(this.DEAD)].map(() => this._make(side, false)) };
     }
     this.liveIds = new Set(); this.byId = new Map();
+    // the running clips are a bounding stride (the jog's feet travel at 5.6 m/s, its hips rise and fall 25 cm): measured
+    // here once (natural ground speed, mean hip height) so the stride can be cut to a real jog's at the speed men move
+    this.gait = {}; for (const side of ['BRI', 'GER']) this.gait[side] = gaitStats(T[side].gltf);
     this.hipH = {}; for (const side of ['BRI', 'GER']) { const t = T[side].gltf.scene; t.updateMatrixWorld(true); this.hipH[side] = t.getObjectByName('pelvis').getWorldPosition(new THREE.Vector3()).y; }
   }
   _bones(root) { const b = {}; root.traverse(o => { if (o.isBone) b[o.name] = o; }); return b; }
@@ -90,12 +112,13 @@ class SkinnedMen {
         const st = men.state[s.id], sp = st.speed || 0, aim = s.ai ? s.ai.target >= 0 && sp < 0.4 : s.ads;
         let clip, scale = 1;
         if (s.stance >= 1) { clip = sp > 0.35 ? 'Crouch_Fwd_Loop' : aim ? 'Rifle_Kneel_Aim' : 'Crouch_Idle_Loop'; scale = sp > 0.35 ? Math.min(1.6, Math.max(0.7, sp / 1.1)) : 1; }
-        else if (sp > 3.8) { clip = 'Sprint_Loop'; scale = Math.min(1.5, sp / 5.2); }
-        else if (sp > 2.0) { clip = 'Jog_Fwd_Loop'; scale = Math.min(1.5, Math.max(0.7, sp / 3.1)); }
+        else if (sp > 3.8) { clip = 'Sprint_Loop'; const G = this.gait[side][clip]; scale = Math.min(1.4, Math.max(0.7, sp / (G.v * STRIDE[clip].k))); }
+        else if (sp > 2.0) { clip = 'Jog_Fwd_Loop'; const G = this.gait[side][clip]; scale = Math.min(1.4, Math.max(0.7, sp / (G.v * STRIDE[clip].k))); }
         else if (sp > 0.35) { clip = 'Walk_Loop'; scale = Math.min(1.6, Math.max(0.6, sp / 1.4)); }
         else clip = aim ? 'Rifle_Aim' : 'Idle_Loop';
         this._play(e, clip, scale, dt); e.mixer.update(dt);
         e.o.position.set(s.x, s.y, s.z); e.o.rotation.set(0, s.yaw + Math.PI, 0);
+        if (STRIDE[e.clip]) this._stride(e, this.gait[side][e.clip], STRIDE[e.clip]);
         const aiming = /Aim/.test(e.clip);
         holdRifle(e.o, e.gun, aiming ? 'aim' : sp > 0.35 && s.stance === 0 ? 'port' : 'low', aiming ? s.pitch : 0, e.bones);
       });
@@ -174,6 +197,19 @@ class SkinnedMen {
     // the rifle: slung across his back while both hands are busy, back in his hands at the top
     if (cp.rifle === 'slung') this._sling(e);
     else holdRifle(e.o, e.gun, 'port', 0, e.bones);
+  }
+  // a real stride out of the bounding running clips: the hips' rise and fall damped, each foot's reach ahead of and
+  // behind the hips cut to k of the clip's (and the clip paced so the feet keep to the ground speed), the legs re-solved
+  _stride(e, G, W) {
+    const B = e.bones, pel = B.pelvis;
+    pel.position.z = G.mean + 0.03 + (pel.position.z - G.mean) * W.bob;   // (the root is turned: the pelvis's local z is up; a little taller, the knees less sunk)
+    e.o.updateMatrixWorld(true);
+    const pl = e.o.worldToLocal(pel.getWorldPosition(_V1)), fw = _V3.set(0, 0, 1).transformDirection(e.o.matrixWorld);
+    for (const k of ['l', 'r']) {
+      const f = e.o.worldToLocal(B['foot_' + k].getWorldPosition(_V2));
+      f.z = pl.z + (f.z - pl.z) * W.k; f.y = 0.09 + Math.max(0, f.y - 0.09) * W.lift; e.o.localToWorld(f);
+      twoBoneIK(B['thigh_' + k], B['calf_' + k], B['foot_' + k], f, fw.clone().addScaledVector(_UP, 0.2));
+    }
   }
   // the rifle slung across the back: butt behind the right hip, muzzle up past the left shoulder, sights outward
   _sling(e) {
