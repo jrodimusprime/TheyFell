@@ -24,6 +24,7 @@ const SKIN = C(0xc9a593), SKIN_DARK = C(0x9c7a6a), HAIR = C(0x3e2e22);   // a pa
 export const FACES = [
   { url: 'models/faces/arnold.png', eyeR: [45, 53], eyeL: [85, 57], mouth: [60, 99] },
   { url: 'models/faces/law.png', eyeR: [33, 58], eyeL: [66, 56], mouth: [54, 91] },
+  { url: 'models/faces/mark.png', eyeR: [73, 80], eyeL: [175, 78], mouth: [130, 220], side: 'BRI' },
 ];
 export async function loadFaces() {
   // each photo's studio lighting is taken out (a high-pass: the features stay, the light-to-shadow gradient goes),
@@ -77,7 +78,7 @@ export function bakeSoldier(gltf, side, seed = 1, faces = null) {
       // below the jaw: the tunic's stand collar, closed up to the chin
       if (hp.y < -0.03 || (hp.y < 0.0 && hp.z < 0.06)) return shade(U.tunic, 0.88 * weave);
       if (n.z < -0.2 || hp.y > 0.14) c = mix(SKIN, HAIR, 0.85);
-      const face = faces && (faces.find(f => f.url.includes('law')) || faces[0]);   // Arnold's portrait is too side-lit to project cleanly; more portraits to come
+      const face = faces && (faces.find(f => f.side === side) || faces.find(f => f.url.includes('law')) || faces[0]);   // per side where we have one
       if (face && n.z > 0.05) {
         // project the photograph: eyes at 8 cm above the head joint, 6.4 cm apart; mouth at 1.4 cm
         const EYE = 0.1, MOUTH = 0.034;   // the model's eye line and mouth, metres above the head joint

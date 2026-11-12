@@ -183,3 +183,4 @@ Photographs projected onto the soldiers' heads. Both are Australian War Memorial
 |---|---|---|
 | `faces/arnold.png` | "Studio portrait of 571 Private (Pte) Walter Russell Arnold, C Company, 31st Battalion, of Glen Waverley, Victoria, aged 18", AWM DA11297, via Wikimedia Commons | Public domain |
 | `faces/law.png` | "Studio portrait of 1723 Private (Pte) Frank Law, 2nd Reinforcements, 21st Battalion, of Glen Waverley, Victoria, circa June 1915", AWM DA09534, via Wikimedia Commons | Public domain |
+| `faces/mark.png` | "Soldier T. E. Mark, 1917", State Library of Queensland (negative 199507), via Wikimedia Commons; newspaper halftone smoothed | Public domain |
