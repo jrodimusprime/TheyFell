@@ -28,6 +28,7 @@ export function bulletDamage(W, zone, rng) {
 const STRIKE_TICKS = 36, STRIKE_HIT = 15, REACH = 2.0;
 const STEEL = { bayonet: [85, 25], club: [60, 18], knife: [65, 20] };
 const steelDamage = (kind, rng) => { const [m, sd] = STEEL[kind] || STEEL.bayonet; return Math.max(15, m + sd * rng.gauss()); };
+const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 const PICKUP_TICKS = 66;   // 1.1 s to stoop, swap rifles and come up again
 const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1 };   // advance: the AI jogs forward (stopping to fire)
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
@@ -204,6 +205,9 @@ export class Sim {
       const o = cand[i][1], d = Math.hypot(o.x - s.x, o.z - s.z); if (d > range) continue;
       if (this._canSee(s, o, d)) { best = o.id; bd = d; break; }
     }
+    // a new enemy close by catches most men by surprise: one in ten is ready; the rest take half a second or more to
+    // turn and face him (no shot, no strike till then)
+    if (best >= 0 && best !== ai.target && bd < 20) ai.reactUntil = this.tick + (s.rng() < 0.1 ? 0 : 30 + s.rng.int(25));
     ai.target = best;
     // close quarters: an enemy within 4 m (or out of rounds with one within 25 m): most men go at him with the steel; a
     // defender with an enemy jumping into his trench beside him may run for it
@@ -259,12 +263,16 @@ export class Sim {
     const ai = s.ai; if (ai.mode === 'shelter') return;
     if (s.strike > 0) return;   // mid-strike
     // within reach of an enemy and choosing the steel: strike (any enemy, not only his target: a man jumping in on him)
-    if (ai.closeIn && this.tick % 3 === s.id % 3) { const o = this._nearestFoe(s, REACH * 0.95); if (o) { s.yaw = Math.atan2(-(o.x - s.x), -(o.z - s.z)); this._startStrike(s); return; } }
+    const startled = this.tick < (ai.reactUntil || 0);
+    if (ai.closeIn && !startled && this.tick % 3 === s.id % 3) { const o = this._nearestFoe(s, REACH * 0.95); if (o) { const want = Math.atan2(-(o.x - s.x), -(o.z - s.z)); if (Math.abs(wrapAngle(want - s.yaw)) < 0.6) { s.yaw = want; this._startStrike(s); return; } } }
     if (ai.target < 0) return;
     if (s.side === 'BRI' && ai.mode === 'advance' && this.tick >= ai.fireUntil && s.rng() > 0.004) return;   // walking forward, rifle at the port
     const o = this.soldiers[ai.target]; if (!o.alive) { ai.target = -1; return; }
     const dx = o.x - s.x, dz = o.z - s.z, d = Math.hypot(dx, dz), ty = o.y + HEIGHT[o.stance] * 0.7, dy = ty - this._eye(s);
-    s.yaw = Math.atan2(-dx, -dz); s.pitch = Math.atan2(dy, d);
+    // he turns to the man at a man's pace (startled, slower), and fires only once he is facing him
+    const want = Math.atan2(-dx, -dz), dyaw = wrapAngle(want - s.yaw), rate = startled ? 0.045 : 0.14;
+    s.yaw += Math.max(-rate, Math.min(rate, dyaw)); s.pitch = Math.atan2(dy, d);
+    if (startled || Math.abs(dyaw) > 0.12) return;
     if (s.cool > 0 || s.reloading) return;
     const W = WEAPONS[s.weapon];
     if (!W.auto && s.rng() > 0.05) return;   // riflemen take their time over a shot
