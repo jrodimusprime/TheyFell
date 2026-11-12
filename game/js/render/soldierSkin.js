@@ -239,6 +239,7 @@ export function addBrodie(gltf) {
 // ---------- holding the rifle: place the rifle for the stance, then put both hands on it with two-bone IK ----------
 // The rifle group's frame: origin at the butt plate, +Z to the muzzle, +Y up. Grips: the wrist of the stock (right hand)
 // and under the fore-end (left hand), in metres along the rifle.
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const _v = [0, 1, 2, 3, 4, 5, 6, 7].map(() => new THREE.Vector3()), _q = [0, 1, 2, 3].map(() => new THREE.Quaternion()), _m = new THREE.Matrix4();
 export function makeRifleRig(gunScene, kind) {
   const g = new THREE.Group(), r = gunScene.clone();
@@ -294,8 +295,13 @@ export function holdRifle(root, gun, pose, pitch = 0, bones = null) {
   twoBoneIK(B('upperarm_r'), B('lowerarm_r'), B('hand_r'), at(gr.right), up.clone().multiplyScalar(-1).addScaledVector(left, -0.8));
   twoBoneIK(B('upperarm_l'), B('lowerarm_l'), B('hand_l'), at(gr.left), up.clone().multiplyScalar(-1).addScaledVector(left, 0.35));
   // aiming: the head comes down onto the stock, eye along the sights
-  if (pose === 'aim') { const hb = B('Head'), hp = hb.getWorldPosition(new THREE.Vector3()); const sight = butt.clone().addScaledVector(dir, 0.75).addScaledVector(rUp, 0.06);
-    aimBone(hb, hp.clone().add(fwd), hp.clone().add(sight.sub(hp).normalize().multiplyScalar(1)).addScaledVector(up, -0.05).addScaledVector(left, 0.08)); }
+  // (from where the head really looks in the clip, by the smallest turn, at most ~23 degrees: never a roll or a spin)
+  if (pose === 'aim') {
+    const hb = B('Head'), hp = hb.getWorldPosition(new THREE.Vector3()), sight = butt.clone().addScaledVector(dir, 0.75).addScaledVector(rUp, 0.06);
+    const look = (hb.userData.lookLocal || V3(0, 0, 1)).clone().applyQuaternion(hb.getWorldQuaternion(new THREE.Quaternion())).normalize();
+    const want = sight.sub(hp).normalize(), ang = look.angleTo(want);
+    if (ang > 1e-3) { const t = Math.min(1, 0.4 / ang); aimBone(hb, hp.clone().add(look), hp.clone().add(look.clone().lerp(want, t).normalize())); }
+  }
   // hands along the rifle: fingers wrapping the stock and the fore-end
   for (const [h, f] of [['hand_r', 'middle_01_r'], ['hand_l', 'middle_01_l']]) {
     const hb = B(h), fb = B(f); if (!hb || !fb) continue;

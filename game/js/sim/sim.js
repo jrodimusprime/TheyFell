@@ -404,7 +404,8 @@ export class Sim {
       // the top: ground beyond that is roughly level with this point
       const fx = x + mx * 0.7, fz = z + mz * 0.7, fh = T.height(fx, fz);
       if (Math.abs(fh - h) < 0.9 && !T.isTrench(fx, fz) && !this.F.wallAt(fx, fz, fh)) {
-        s.climb = 0.45 + (h - s.y) * 0.3; s.climbTo = [fx, fz]; s.vy = 0;
+        // a laden man scrambling out takes his time: ~1.3 s for a 1 m lip, ~2.3 s for a 2 m trench wall
+        s.climb = 0.55 + (h - s.y) * 0.85; s.climbDur = s.climb; s.climbFrom = [s.x, s.y, s.z]; s.climbKind = 'climb'; s.climbTo = [fx, fz]; s.vy = 0;
         this.events.push({ t: 'climb', id: s.id, h: h - s.y }); return true;
       }
     }
@@ -419,7 +420,7 @@ export class Sim {
       if (gap < 0) { if (h < s.y - 0.8) gap = d; else if (d > 1.0) return false; continue; }
       if (Math.abs(h - s.y) < 0.7 && !T.isTrench(x, z)) {
         const fx = x + mx * 0.35, fz = z + mz * 0.35, fh = T.height(fx, fz);
-        if (Math.abs(fh - s.y) < 0.8 && !this.F.wallAt(fx, fz, fh)) { s.climb = 0.35 + d * 0.08; s.climbTo = [fx, fz]; s.vy = 0; this.events.push({ t: 'leap', id: s.id, d }); return true; }
+        if (Math.abs(fh - s.y) < 0.8 && !this.F.wallAt(fx, fz, fh)) { s.climb = 0.35 + d * 0.08; s.climbDur = s.climb; s.climbFrom = [s.x, s.y, s.z]; s.climbKind = 'leap'; s.climbTo = [fx, fz]; s.vy = 0; this.events.push({ t: 'leap', id: s.id, d }); return true; }
       }
     }
     return false;

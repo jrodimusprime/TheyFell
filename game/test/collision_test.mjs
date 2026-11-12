@@ -45,7 +45,7 @@ function climbTrial(key) {
     Object.assign(p, { x, z, y: T.height(x, z), vy: 0, onGround: true, climb: 0, climbTo: null, alive: true, hp: 1e9, stance: 0, yaw });
     settle(5); if (!T.isTrench(p.x, p.z)) continue; n++;
     const y0 = p.y;
-    S._player(p, { yaw, [key]: true }); S._move(p); settle(90);
+    S._player(p, { yaw, [key]: true }); S._move(p); settle(180);   // (a laden man takes ~2 s to get out of a 2 m trench)
     if (!T.isTrench(p.x, p.z) && p.y > y0 + 1.2) okN++;
   }
   return [okN, n];

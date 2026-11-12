@@ -12,6 +12,7 @@ import { Ragdolls } from './render/ragdoll.js';
 import { Blood } from './render/blood.js';
 import { loadSkinnedMen } from './render/skinnedMen.js';
 import { FirstPerson } from './render/firstPerson.js';
+import { climbPose, climbT } from './render/climb.js';
 import { FX, makeSky, MistBanks } from './render/fx.js';
 import { Audio } from './audio.js';
 import { makeGroundTextures } from './render/groundTex.js';
@@ -199,6 +200,7 @@ async function boot() {
       bob += moving ? dt * (p.intent.run ? 11 : 7.5) : 0;
       const climb = p.climb > 0 ? Math.sin(p.climb * 6) * 0.08 : 0;
       camera.position.set(p.x, p.y + eye + Math.sin(bob) * (moving ? 0.035 : 0) + climb, p.z);
+      { const ct = climbT(p); if (ct >= 0) { const cp = climbPose(p, T, ct, 0.95); camera.position.set(cp.hip.x, cp.hip.y + 0.62 - cp.lean * 0.18, cp.hip.z).addScaledVector(p._climbPlan.f, Math.sin(cp.lean) * 0.25); } }   // the eye follows the scramble up the wall
       camera.rotation.set(0, 0, 0); camera.rotation.order = 'YXZ'; camera.rotation.y = AGENT ? p.yaw : yaw; camera.rotation.x = (AGENT ? p.pitch : pitch) + recoil * 0.02;
       if (!AGENT) { p.yaw = yaw; }
       deathCam = 0; vm.visible = true;
@@ -213,7 +215,7 @@ async function boot() {
     if (window.TF && TF.view) { const v = TF.view; camera.position.set(...v.pos); camera.lookAt(...v.look); vm.visible = false; men.hidePlayer = false; }
     // screen shake from big bursts
     if (fx.shake > 0) { camera.rotation.x += (Math.random() - 0.5) * 0.02 * fx.shake; camera.rotation.y += (Math.random() - 0.5) * 0.02 * fx.shake; }
-    camera.fov = THREE.MathUtils.lerp(camera.fov, p.ads ? 50 : 72, Math.min(1, dt * 12)); camera.updateProjectionMatrix();
+    camera.fov = window.TF && TF.view && TF.view.fov ? TF.view.fov : THREE.MathUtils.lerp(camera.fov, p.ads ? 50 : 72, Math.min(1, dt * 12)); camera.updateProjectionMatrix();   // (a debug view may set its own)
     recoil = Math.max(0, recoil - dt * 6);
     vm.visible = false;   // the old box rifle: replaced by the first-person arms
     const fpMoving = !!(p.intent && (p.intent.f || p.intent.s));

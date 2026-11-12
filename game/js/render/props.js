@@ -157,7 +157,11 @@ export class Props {
             if (!keep[i]) { i++; continue; }
             let j = i; while (j + 1 < keep.length && keep[j + 1]) j++;
             // one run of wall from sample i to j (the piece's square-ended extent makes corners meet)
-            const t0 = T0 + i * STEP - 0.13, t1 = Math.min(T1 + 0.05, T0 + j * STEP + 0.13), n = Math.max(1, Math.ceil((t1 - t0) / 2));
+            const t0 = T0 + i * STEP - 0.13, t1 = Math.min(T1 + 0.05, T0 + j * STEP + 0.13);
+            // pieces of at most 2 m, shorter where the ground along the top rises or falls (each piece is sized to the lowest
+            // ground over it, so on a slope nothing of the revetment stands up out of the earth)
+            let lo = 1e9, hi = -1e9; for (let t = t0; t <= t1 + 1e-6; t += 0.25) { const [qx, qz] = at(Math.min(t, t1)), v = this._surf(qx + nx * (sg.hw + 0.25), qz + nz * (sg.hw + 0.25)); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+            const n = Math.min(Math.max(1, Math.ceil((t1 - t0) / 0.35)), Math.max(Math.ceil((t1 - t0) / 2), Math.ceil((hi - lo) / 0.12)));
             // what the wall is made of: British fire bays mostly boards (some sandbag walls), communication trenches corrugated iron
             // or boards, German trenches boards or woven hurdles
             const pick = hash2(idx, side + 3, 11), mat = sg.side === 'GER' ? (pick < 0.45 ? 'wattle' : 'boards') : sg.kind === 1 ? (pick < 0.55 ? 'iron' : 'boards') : (pick < 0.25 ? 'bags' : 'boards');
@@ -166,15 +170,19 @@ export class Props {
               put(this.posts, px + nx * (sg.hw - 0.02), (top + bot) / 2 + 0.03, pz + nz * (sg.hw - 0.02), yaw, 0.12, top - bot + 0.06, 0.14); }
             for (let k = 0; k < n; k++) {
               const a0 = t0 + (t1 - t0) * k / n, a1 = t0 + (t1 - t0) * (k + 1) / n, len = a1 - a0, [x, z] = at((a0 + a1) / 2);
-              let top = -1e9; for (let u = 0; u <= 2; u++) { const [qx, qz] = at(a0 + len * u / 2); top = Math.max(top, this._surf(qx + nx * (sg.hw + 0.25), qz + nz * (sg.hw + 0.25))); }
+              let top = 1e9, back = 1e9;
+              for (let u = 0; u <= 2; u++) { const [qx, qz] = at(a0 + len * u / 2); top = Math.min(top, this._surf(qx + nx * (sg.hw + 0.25), qz + nz * (sg.hw + 0.25)));
+                for (const dd of [0.1, 0.5, 0.88]) back = Math.min(back, this._surf(qx + nx * (sg.hw + dd), qz + nz * (sg.hw + dd))); }
               const bot = floorAt(x, z) - 0.15, h = top - bot; if (h < 0.3) continue;
-              const wx = x + nx * sg.hw, wz = z + nz * sg.hw;
-              put(this.core, wx + nx * 0.45, bot + (h - 0.18) / 2, wz + nz * 0.45, yaw, len + 0.02, h - 0.18, 0.9);                // the earth behind the revetment, its top just under the ground so the parapet and sandbags sit on it
+              const wx = x + nx * sg.hw, wz = z + nz * sg.hw, hc = Math.min(h, back - bot) - 0.18;
+              if (hc > 0.1) put(this.core, wx + nx * 0.45, bot + hc / 2, wz + nz * 0.45, yaw, len + 0.02, hc, 0.9);                // the earth behind the revetment, its top just under the ground so the parapet and sandbags sit on it
               if (mat === 'bags') {
                 // a sandbag wall, laid header and stretcher, batter leaning back into the earth
                 for (let yy = bot + 0.18, r = 0; yy < top - 0.05; yy += 0.15, r++) for (let tt = a0 + (r % 2) * 0.3; tt < a1 - 0.05; tt += 0.6) {
-                  const [bx, bz] = at(tt + 0.3), jj = hash2(bx * 9 | 0, yy * 9 | 0, 4), back = (yy - bot) * 0.08;
-                  put(this.bags, bx + nx * (sg.hw - 0.12 + back), yy, bz + nz * (sg.hw - 0.12 + back), yaw + (jj - 0.5) * 0.12, 0.62, 0.36, 0.42, (jj - 0.5) * 0.1);
+                  // (a bag is 0.26 m deep: the face stands 15 cm proud of the dug wall at its foot and 7 cm at the top, in front
+                  // of the earth core; a man pressed against it, or climbing it, is against the bags, not inside them)
+                  const [bx, bz] = at(tt + 0.3), jj = hash2(bx * 9 | 0, yy * 9 | 0, 4), back = Math.min(0.08, (yy - bot) * 0.04);
+                  put(this.bags, bx + nx * (sg.hw - 0.02 + back), yy, bz + nz * (sg.hw - 0.02 + back), yaw + (jj - 0.5) * 0.12, 0.62, 0.36, 0.42, (jj - 0.5) * 0.1);
                 }
                 continue;
               }

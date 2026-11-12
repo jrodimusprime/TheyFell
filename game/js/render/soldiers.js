@@ -3,6 +3,7 @@
 // Facing: a soldier looks down -Z in his own frame; yaw rotates about +Y (yaw 0 = north = -Z).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { climbPose, climbT } from './climb.js';
 
 // ---------- the rig: joints in the parent's frame (metres, standing), and the part's box/centre in the joint frame ----------
 export const RIG = [
@@ -201,11 +202,14 @@ export class SoldiersView {
       if (this.skip && this.skip.has(s.id)) continue;   // drawn with the skinned model
       if (Math.abs(s.x - camPos.x) > cull || Math.abs(s.z - camPos.z) > cull) continue;
       if (Math.abs(s.x - camPos.x) + Math.abs(s.z - camPos.z) > FAR * 1.3 && Math.hypot(s.x - camPos.x, s.z - camPos.z) > FAR) {
-        const im = this.far[s.side][s.stance]; q.setFromAxisAngle(up, s.yaw); im.setMatrixAt(im.count++, fm.compose(v.set(s.x, s.y, s.z), q, one)); continue;
+        const ct = climbT(s), cp = ct >= 0 ? climbPose(s, this.sim.T, ct, 0.95) : null;
+        const im = this.far[s.side][s.stance]; q.setFromAxisAngle(up, s.yaw); im.setMatrixAt(im.count++, fm.compose(cp ? v.set(cp.hip.x, cp.hip.y - 0.95, cp.hip.z) : v.set(s.x, s.y, s.z), q, one)); continue;
       }
       const aim = s.ai ? s.ai.target >= 0 && !st.moving : s.ads;
       pose(this.rot, { stance: s.stance, moving: st.moving, run: st.run, pitch: s.pitch, climbing: s.climb > 0 }, st.phase, aim, 0);
-      fk(this.mats, { x: s.x, y: s.y, z: s.z }, s.yaw, this.rot, this.rot.root);
+      const ct = climbT(s); let at = { x: s.x, y: s.y, z: s.z };
+      if (ct >= 0) { const cp = climbPose(s, this.sim.T, ct, 0.95); at = { x: cp.hip.x, y: cp.hip.y - 0.95, z: cp.hip.z }; this.rot.root.pitch = -cp.lean; }   // up the wall smoothly
+      fk(this.mats, at, s.yaw, this.rot, this.rot.root);
       this._write(s.side, this.mats, this.rifleMatrix(this.mats, aim, s.pitch, rm));
     }
     for (const c of this.corpses) if (!c.skinned) this._write(c.side, c.mats, c.rifle, c.stain || 1);
