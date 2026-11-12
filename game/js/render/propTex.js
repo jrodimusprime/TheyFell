@@ -11,19 +11,21 @@ const N = 512;
 export const TILE = { hessian: 0, wood: 1, iron: 2, wattle: 3, earth: 4, brick: 5 };
 const COUNT = 6;
 const canvas = () => { const c = document.createElement('canvas'); c.width = c.height = N; return c; };
+// coarser: averaged down to n px and blown back up with hard pixels (the game's own pixelated look, no fine streaks)
+function coarse(c, n) { const s = document.createElement('canvas'); s.width = s.height = n; const sg = s.getContext('2d'); sg.imageSmoothingEnabled = true; sg.drawImage(c, 0, 0, n, n);
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.clearRect(0, 0, N, N); g.drawImage(s, 0, 0, N, N); return c; }
 
 function hessian(r) {
   const c = canvas(), g = c.getContext('2d');
   g.fillStyle = '#9c8a64'; g.fillRect(0, 0, N, N);
   // the weave: warp and weft threads, every 4 px, each thread its own shade, slubs here and there
-  for (let y = 0; y < N; y += 4) { const v = 120 + r() * 50; g.fillStyle = `rgba(${v + 20},${v + 4},${v - 30},0.55)`; g.fillRect(0, y, N, 2); }
-  for (let x = 0; x < N; x += 4) { const v = 110 + r() * 50; g.fillStyle = `rgba(${v + 18},${v},${v - 34},0.5)`; g.fillRect(x, 0, 2, N); }
+  for (let y = 0; y < N; y += 4) { const v = 120 + r() * 40; g.fillStyle = `rgba(${v + 20},${v + 4},${v - 30},0.22)`; g.fillRect(0, y, N, 2); }
+  for (let x = 0; x < N; x += 4) { const v = 110 + r() * 40; g.fillStyle = `rgba(${v + 18},${v},${v - 34},0.2)`; g.fillRect(x, 0, 2, N); }
   for (let i = 0; i < 2600; i++) { const x = r() * N, y = r() * N; g.fillStyle = r() < 0.5 ? 'rgba(60,48,30,0.35)' : 'rgba(200,180,140,0.3)'; g.fillRect(x, y, 2 + r() * 6, 1.5); }
-  // mud soaked into the sacking, chalk dust, a stitched seam
+  // mud soaked into the sacking, chalk dust (no seam: a bag shows no stitched band across it)
   noiseLayer(g, r, 70, 0.4, ['70,58,42', '96,82,62', '58,48,36']);
   noiseLayer(g, r, 45, 0.25, ['210,204,186']);
-  g.strokeStyle = 'rgba(60,48,32,0.6)'; g.lineWidth = 2; g.setLineDash([6, 5]); g.beginPath(); g.moveTo(0, N * 0.92); g.lineTo(N, N * 0.92); g.stroke(); g.setLineDash([]);
-  return c;
+  return coarse(c, 128);
 }
 function wood(r) {
   // 9-inch boards running along the length (u), dark gaps between, grain, knots, nail heads, weathering
@@ -32,15 +34,15 @@ function wood(r) {
   for (let y = 0; y < N; y += B) {
     const base = 128 + r() * 44, tint = r();
     g.fillStyle = `rgb(${base + 26},${base + 8 - tint * 10},${base - 16})`; g.fillRect(0, y + 3, N, B - 6);
-    for (let i = 0; i < 70; i++) { const yy = y + 4 + r() * (B - 8), a = 0.12 + r() * 0.2, dark = r() < 0.6;
-      g.strokeStyle = dark ? `rgba(40,28,18,${a})` : `rgba(190,160,120,${a})`; g.lineWidth = 0.6 + r() * 1.4; g.beginPath(); g.moveTo(0, yy);
+    for (let i = 0; i < 12; i++) { const yy = y + 4 + r() * (B - 8), a = 0.06 + r() * 0.1, dark = r() < 0.6;   // a little grain, not streaks
+      g.strokeStyle = dark ? `rgba(40,28,18,${a})` : `rgba(190,160,120,${a})`; g.lineWidth = 2 + r() * 3; g.beginPath(); g.moveTo(0, yy);
       for (let x = 0; x <= N; x += 32) g.lineTo(x, yy + Math.sin(x * 0.02 + i) * 2 + (r() - 0.5) * 1.2); g.stroke(); }
     for (let k = 0; k < 1 + r() * 2; k++) { const x = r() * N, yy = y + 15 + r() * (B - 30); wrap((ox, oy) => { g.fillStyle = 'rgba(45,30,18,0.7)'; g.beginPath(); g.ellipse(x + ox, yy + oy, 6 + r() * 6, 4, 0, 0, 7); g.fill(); }); }
     for (const x of [N * 0.12, N * 0.62]) { g.fillStyle = 'rgba(30,26,24,0.9)'; g.fillRect(x, y + 14, 4, 4); g.fillRect(x, y + B - 18, 4, 4); }
     g.fillStyle = 'rgba(20,14,10,0.9)'; g.fillRect(0, y, N, 3); g.fillRect(0, y + B - 3, N, 3);
   }
-  noiseLayer(g, r, 150, 0.1, ['170,160,140', '80,66,50']);   // grey weathering and mud, broad and faint
-  return c;
+  noiseLayer(g, r, 150, 0.14, ['170,160,140', '80,66,50']);   // grey weathering and mud, broad and faint
+  return coarse(c, 128);
 }
 function iron(r) {
   const c = canvas(), g = c.getContext('2d');
@@ -88,9 +90,14 @@ export function makePropTextures(renderer) {
 }
 
 // a material showing one tile of the atlas, projected at `metres` per tile, with relief; tint multiplies the colour
-export function propMaterial(tex, tile, metres, { tint = 0xffffff, roughness = 0.95, metalness = 0, relief = 1, bright = 1 } = {}) {
+// blend: the three projections mixed by the surface's direction (for rounded things, e.g. sandbags: no hard band where
+// the projection would switch axis)
+export function propMaterial(tex, tile, metres, { tint = 0xffffff, roughness = 0.95, metalness = 0, relief = 1, bright = 1, blend = false } = {}) {
   const m = new THREE.MeshStandardMaterial({ color: tint, roughness, metalness });
   m.color.multiplyScalar(bright);   // trench faces stand in shadow under a low sun: lift them
+  // (three.js caches shader programs by onBeforeCompile's source text, which is the same for every prop: without its own
+  // key each material drew with whichever compiled first, and the sandbags came out in the planks' boards and nails)
+  m.customProgramCacheKey = () => `prop:${tile}:${metres}:${relief}:${blend}`;
   m.onBeforeCompile = sh => {
     sh.uniforms.uPTex = { value: tex.color }; sh.uniforms.uPNrm = { value: tex.normal };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vPObj; varying vec3 vPN;')
@@ -106,11 +113,15 @@ export function propMaterial(tex, tile, metres, { tint = 0xffffff, roughness = 0
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
       uniform sampler2D uPTex; uniform sampler2D uPNrm; varying vec3 vPObj; varying vec3 vPN;
       vec2 pUV() { vec3 a = abs(vPN); vec2 p = a.x > a.y && a.x > a.z ? vPObj.zy : a.y > a.z ? vPObj.xz : vPObj.xy; return p / ${metres.toFixed(3)}; }
-      vec4 pTile(sampler2D t, vec2 p) { return textureGrad(t, vec2(fract(p.x), (${tile.toFixed(1)} + clamp(fract(p.y), .002, .998)) / ${COUNT.toFixed(1)}), dFdx(p), dFdy(p) * vec2(1., 1. / ${COUNT.toFixed(1)})); }
+      // (kept 8 px inside its own tile: the atlas stacks the tiles, and filtering across the edge drew the next tile's
+      // dark board gap as a dashed line over every sandbag)
+      vec4 pTile(sampler2D t, vec2 p) { return textureGrad(t, vec2(fract(p.x), (${tile.toFixed(1)} + clamp(fract(p.y), .015, .985)) / ${COUNT.toFixed(1)}), dFdx(p), dFdy(p) * vec2(1., 1. / ${COUNT.toFixed(1)})); }
       mat3 pTBN(vec3 N, vec3 p, vec2 uv) { vec3 dp1 = dFdx(p), dp2 = dFdy(p); vec2 du1 = dFdx(uv), du2 = dFdy(uv);
         vec3 d2 = cross(dp2, N), d1 = cross(N, dp1), T = d2 * du1.x + d1 * du2.x, B = d2 * du1.y + d1 * du2.y;
         float k = inversesqrt(max(max(dot(T, T), dot(B, B)), 1e-12)); return mat3(T * k, B * k, N); }`)
-      .replace('#include <color_fragment>', `#include <color_fragment>
+      .replace('#include <color_fragment>', blend ? `#include <color_fragment>
+      { vec3 w = pow(abs(normalize(vPN)), vec3(4.)); w /= w.x + w.y + w.z; float k = ${metres.toFixed(3)};
+        diffuseColor.rgb *= pTile(uPTex, vPObj.zy / k).rgb * w.x + pTile(uPTex, vPObj.xz / k).rgb * w.y + pTile(uPTex, vPObj.xy / k).rgb * w.z; }` : `#include <color_fragment>
       diffuseColor.rgb *= pTile(uPTex, pUV()).rgb;`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
       { vec2 uv = pUV(); vec3 mn = pTile(uPNrm, uv).xyz * 2. - 1.; mn.xy *= ${relief.toFixed(2)};

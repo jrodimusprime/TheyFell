@@ -65,7 +65,7 @@ export class Props {
     const dummy = new THREE.Object3D();
     // ---------- streamed trench dressing ----------
     this.plankMat = propMaterial(tex, TILE.wood, 1.25, { tint: 0xc4b49c, bright: 1.1 });
-    this.bagMat = propMaterial(tex, TILE.hessian, 0.7, { roughness: 1, bright: 1.15 });
+    this.bagMat = propMaterial(tex, TILE.hessian, 0.7, { tint: 0xe6dccb, roughness: 1, bright: 1.0, blend: true, relief: 0.5 });
     const board = new THREE.BoxGeometry(1, 1, 1);
     this.duck = this._im(board, propMaterial(tex, TILE.wood, 1.25, { tint: 0x8a7a68, bright: 1.4 }), 24000);
     this.floor = this._im(board, propMaterial(tex, TILE.earth, 2.2, { tint: 0x7a7066, roughness: 1, bright: 1.2 }), 9000);       // trench floor: trodden chalky mud
@@ -78,7 +78,7 @@ export class Props {
     this.iron = this._im(board, propMaterial(tex, TILE.iron, 1.3, { roughness: 0.6, metalness: 0.25, bright: 1.3 }), 6000);
     this.wattle = this._im(board, propMaterial(tex, TILE.wattle, 1.1, { roughness: 1, bright: 1.5 }), 6000);
     const bag = new THREE.SphereGeometry(0.5, 8, 5); bag.scale(1, 0.42, 0.62);
-    this.bags = this._im(bag, this.bagMat, 40000);
+    this.bags = this._im(bag, this.bagMat, 40000); this.bags.castShadow = false;   // (a 36 cm round bag against 7 cm shadow texels shadowed itself in a dotted band round its middle)
     // ---------- wire ----------
     const picket = new THREE.CylinderGeometry(0.03, 0.04, 1, 5); picket.translate(0, 0.5, 0);
     this.pickets = this._im(picket, propMaterial(tex, TILE.wood, 1.25, { tint: 0x8a7a6a }), 6000);
