@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>They Fell: La Boisselle, 1 July 1916</title>
+<style>
+  :root { --paper: #e9e2cf; --ink: #1d1a14; --red: #b3261e; --hud: rgba(233, 226, 207, .92); }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; color: var(--paper); }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; user-select: none; }
+  .tl, .tr, .bl, .br, .tc, .bc { position: absolute; text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.6); }
+  .tl { left: 16px; top: 14px; } .tr { right: 16px; top: 14px; text-align: right; } .bl { left: 16px; bottom: 14px; } .br { right: 16px; bottom: 14px; text-align: right; }
+  .tc { left: 50%; top: 14px; transform: translateX(-50%); text-align: center; } .bc { left: 50%; bottom: 60px; transform: translateX(-50%); text-align: center; }
+  #clock { font-size: 26px; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+  #phase { font-size: 13px; opacity: .85; font-style: italic; }
+  #ammo { font-size: 30px; font-variant-numeric: tabular-nums; } #weapon { font-size: 13px; opacity: .85; }
+  #hp { font-size: 15px; } #hpbar { width: 180px; height: 5px; background: rgba(0,0,0,.5); margin-top: 4px; } #hpbar > div { height: 100%; background: var(--paper); width: 100%; }
+  #objectives { display: flex; gap: 6px; margin-top: 6px; justify-content: center; }
+  .obj { width: 28px; height: 28px; border: 1.5px solid var(--paper); display: grid; place-items: center; font-size: 14px; font-weight: bold; position: relative; overflow: hidden; }
+  .obj i { position: absolute; left: 0; bottom: 0; width: 100%; background: rgba(179, 38, 30, .75); }
+  .obj.BRI { background: rgba(160, 130, 70, .55); } .obj.GER { background: rgba(80, 90, 90, .55); }
+  .obj span { position: relative; }
+  #compass { font-size: 13px; letter-spacing: 3px; margin-top: 4px; opacity: .9; }
+  #msg { font-size: 22px; font-style: italic; min-height: 1.4em; transition: opacity .6s; }
+  #feed { font-size: 13px; line-height: 1.5; opacity: .9; }
+  #cross { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(233,226,207,.8); box-shadow: 0 0 2px #000; }
+  #oob { position: fixed; left: 0; right: 0; top: 30%; text-align: center; display: none; }
+  #oob h2 { margin: 0; color: #f2d7a6; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; text-shadow: 0 2px 8px #000; }
+  #oob p { margin: 6px 0 0; font-size: 16px; font-style: italic; text-shadow: 0 1px 4px #000; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.45) 100%); }
+  #hurt { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, rgba(120,0,0,.55) 100%); opacity: 0; }
+  #dead { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,.35); pointer-events: auto; }
+  #dead .card { text-align: center; background: rgba(20,18,14,.82); padding: 22px 34px; border: 1px solid rgba(233,226,207,.3); }
+  #dead h2 { margin: 0 0 4px; font-weight: normal; letter-spacing: 2px; } #dead p { margin: 4px 0 14px; font-style: italic; opacity: .85; }
+  #spawns { display: flex; flex-direction: column; gap: 6px; }
+  button { font: inherit; color: var(--ink); background: var(--paper); border: 0; padding: 8px 16px; cursor: pointer; min-height: 40px; }
+  button:hover, button:focus-visible { background: #fff; outline: 2px solid #f2d7a6; }
+  button:disabled { opacity: .5; cursor: default; }
+  #menu { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(20,18,14,.55), rgba(10,9,7,.92)); }
+  #menu .card { max-width: 620px; padding: 24px 32px; text-align: center; }
+  #menu h1 { font-size: 46px; margin: 0; letter-spacing: 4px; font-weight: normal; } #menu h3 { margin: 4px 0 18px; font-weight: normal; font-style: italic; opacity: .85; }
+  #menu p { line-height: 1.5; opacity: .9; } #menu small { display: block; margin-top: 14px; opacity: .7; line-height: 1.6; }
+  #load { margin-top: 12px; font-style: italic; opacity: .8; }
+  #debug { position: fixed; left: 16px; top: 64px; font: 12px/1.45 ui-monospace, Menlo, monospace; white-space: pre; display: none; text-shadow: 0 1px 1px #000; }
+  #map { position: fixed; inset: 6% 10%; display: none; background: #d8cfb5; border: 1px solid #000; }
+  #map canvas { width: 100%; height: 100%; }
+  @media (max-width: 640px) { #menu h1 { font-size: 32px; } .tl, .tr, .bl, .br { font-size: 12px; } }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/", "cannon-es": "./vendor/cannon/cannon-es.js" } }</script>
+</head>
+<body>
+<div id="hud" hidden>
+  <div class="tl"><div id="clock">07:26:30</div><div id="phase"></div></div>
+  <div class="tc"><div id="compass">N</div><div id="objectives"></div></div>
+  <div class="tr"><div id="feed"></div></div>
+  <div class="bl"><div id="hp">Unwounded</div><div id="hpbar"><div></div></div><div id="stance" style="font-size:12px;opacity:.8;margin-top:4px"></div></div>
+  <div class="br"><div id="ammo">10 | 60</div><div id="weapon">SMLE Mk III*</div></div>
+  <div class="bc"><div id="msg"></div></div>
+</div>
+<div id="cross" hidden></div>
+<div id="vignette"></div><div id="hurt"></div>
+<div id="oob"><h2>Out of bounds</h2><p>Return to the battlefield</p></div>
+<div id="dead"><div class="card"><h2>You fell</h2><p id="deadwhy"></p><div id="spawns"></div></div></div>
+<div id="map"><canvas width="1200" height="1200"></canvas></div>
+<div id="debug"></div>
+<div id="menu"><div class="card">
+  <h1>THEY FELL</h1><h3>La Boisselle &amp; Lochnagar · 1 July 1916</h3>
+  <p>34th Division, III Corps. The week-long bombardment is in its last minutes. At 07:28 the mines go up under the Schwabenhöhe and Y Sap; at 07:30 the whistles blow and the Tyneside battalions go over the top.</p>
+  <button id="play" disabled>Loading the ground…</button>
+  <div id="load"></div>
+  <small>WASD move · Shift run · Space jump / climb out · C crouch · Z prone · Mouse fire · Right mouse aim · R reload · G Mills bomb · M map · Esc pause · F3 debug<br>
+  The ground is the real terrain, at true scale (IGN lidar, 6 km × 6 km); the trenches are traced from the 1916 sector map.</small>
+</div></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

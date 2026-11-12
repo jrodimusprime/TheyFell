@@ -5,6 +5,8 @@
 A visual field guide to the most thoroughly mapped, photographed and recorded trench battlefields of the Western Front. It covers trench maps, 3D cutaways of the trench systems, how each battle unfolded, the weapons and vehicles used, the uniforms worn on both sides, and a catalogue of battlefield **assets** (wire, obstacles, structures, equipment) and **actions and hazards** (barrages, mines, gas, mud, raids). It finishes with a **complete asset checklist for building a WWI trench-warfare game**, based on what existing WWI games contain.
 
 > **Building a game from this?** See **[TODO.md](TODO.md)** for the full production backlog: assets, maps, game systems, animation and AI. Tanks, aircraft and player-operated heavy guns are out of scope.
+>
+> **Play the demo:** [`game/`](game/README.md) is a playable browser demo of La Boisselle & Lochnagar on 1 July 1916: the real ground at true scale (6 km × 6 km), the traced 1916 trench lines, the 07:28 mines and the 07:30 attack. Run `node game/test/serve.mjs` and open http://localhost:8642/.
 
 > **About the images:** The two 3D diagrams in `images/` are original illustrations made for this guide. Every other picture loads from **Wikimedia Commons**, so you need an internet connection to see them. Each caption links to the image's Commons page, which gives its full description, date, photographer and licence. Most wartime photographs are public domain (for example, Imperial War Museum Crown-copyright photos, Library and Archives Canada and the Australian War Memorial). Some modern museum photos are CC BY-SA and need attribution if you republish them.
 

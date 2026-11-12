@@ -1,0 +1,8 @@
+#!/bin/sh
+# Regression: the headless sim test, then the golden playthrough in headless Chrome (TF_GPU=1 for the real GPU).
+cd "$(dirname "$0")/.." || exit 1
+node test/sim_test.mjs || exit 1
+node test/serve.mjs 8642 >/dev/null 2>&1 & srv=$!
+sleep 1
+node test/cdp.mjs "http://localhost:8642/index.html?agent" test/playthrough.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|EXCEPTION|harness error|\[end\]|\[advance\]"
+kill $srv
