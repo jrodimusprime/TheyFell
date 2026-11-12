@@ -9,5 +9,6 @@ node test/cdp.mjs "http://localhost:8642/index.html?agent" test/playthrough.js "
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/flicker.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|EXCEPTION|harness error"
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/bump.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|EXCEPTION|harness error"
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/rifle_block.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|EXCEPTION|harness error"
+node test/cdp.mjs "http://localhost:8642/index.html?agent" test/sights.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|EXCEPTION|harness error"
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/assault.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|EXCEPTION|harness error|\[end\]|\[assault\]"
 kill $srv

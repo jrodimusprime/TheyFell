@@ -13,6 +13,8 @@ const lerpV = (a, b, t) => a.clone().lerp(b, ease(Math.min(1, Math.max(0, t))));
 
 // in the rifle's frame (origin at the butt plate, +Z to the muzzle, +Y up, -X the right side)
 const GRIP_R = V(0, -0.045, 0.27), GRIP_L = V(0, -0.045, 0.54);
+// sights of the Lee-Enfield model, measured from its mesh (rifle frame): centre of the rear aperture, tip of the foresight blade
+const SIGHT_REAR = V(-0.0015, 0.022, 0.342), SIGHT_TIP = V(-0.0002, 0.0179, 1.075), EYE_RELIEF = 0.21;
 const KNOB = V(-0.055, -0.01, 0.392), KNOB_UP = V(-0.032, 0.033, 0.392), BOLT_TRAVEL = 0.09, CHARGER = V(0, 0.055, 0.37);
 
 export class FirstPerson {
@@ -35,11 +37,13 @@ export class FirstPerson {
     this.body.traverse(o => {
       if (!o.isSkinnedMesh) return;
       const g = o.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, bones = o.skeleton.bones, arm = new Float32Array(si.count);
-      for (let i = 0; i < si.count; i++) { let k = 0; for (let j = 1; j < 4; j++) if (sw.getComponent(i, j) > sw.getComponent(i, k)) k = j; arm[i] = /upperarm|lowerarm|hand_|index_|middle_|ring_|pinky_|thumb_/.test(bones[si.getComponent(i, k)].name) ? 1 : 0; }
+      for (let i = 0; i < si.count; i++) { let k = 0; for (let j = 1; j < 4; j++) if (sw.getComponent(i, j) > sw.getComponent(i, k)) k = j; const bn = bones[si.getComponent(i, k)].name; arm[i] = /lowerarm_r|hand_r|_r$/.test(bn) && !/upperarm/.test(bn) ? 2 : /upperarm|lowerarm|hand_|index_|middle_|ring_|pinky_|thumb_/.test(bn) ? 1 : 0; }
       g.setAttribute('aArm', new THREE.BufferAttribute(arm, 1));
+      const hideRight = this.hideRight || (this.hideRight = { value: 0 });
       o.material.onBeforeCompile = sh => {
+        sh.uniforms.uHideRight = hideRight;
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aArm; varying float vArm;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvArm = aArm;');
-        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vArm;').replace('void main() {', 'void main() {\n  if (vArm < 0.5) discard;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vArm; uniform float uHideRight;').replace('void main() {', 'void main() {\n  if (vArm < 0.5 || (uHideRight > 0.5 && vArm > 1.5)) discard;');
       };
       o.material.needsUpdate = true;
     });
@@ -102,8 +106,19 @@ export class FirstPerson {
     { const u = ease(this.pull); pos.add(V(-0.02 * u, 0.04 * u, 0.32 * u)); pitch += 0.95 * u; yaw -= 0.1 * u; }   // up against a wall: rifle drawn back, muzzle up
     if (rel >= 0) { pos.add(V(0.03, 0.03, 0).multiplyScalar(k)); roll += 0.25 * k; yaw -= 0.15 * k; }
     // the rifle group: +Z is the muzzle, so turn it to look down -Z, then yaw/pitch/roll
-    this.gun.position.copy(pos);
-    this.gun.quaternion.setFromEuler(new THREE.Euler(-pitch, Math.PI + yaw, roll, 'YXZ'));
+    // the hip / working pose, then blended onto the exact sight picture: the rifle turned so the line from the centre of
+    // the rear aperture to the tip of the foresight blade points straight down the view (where the bullet goes), and slid
+    // so the eye is on that line, EYE_RELIEF behind the aperture. Offsets (recoil, bolt cant, wall) carry over on top.
+        const sightDir = SIGHT_TIP.clone().sub(SIGHT_REAR).normalize();
+    // held normally (turned 180 deg about the vertical, upright), then a tiny correction so the sight line is exactly the view axis
+    const qAim = new THREE.Quaternion().setFromAxisAngle(V(0, 1, 0), Math.PI);
+    qAim.premultiply(new THREE.Quaternion().setFromUnitVectors(sightDir.clone().applyQuaternion(qAim), V(0, 0, -1)));
+    const extra = new THREE.Quaternion().setFromEuler(new THREE.Euler(-(pitch - lerp(hip.pitch, aim.pitch, a)), yaw - lerp(hip.yaw, aim.yaw, a), roll, 'YXZ'));
+    const aimPos = V(0, 0, -EYE_RELIEF).sub(SIGHT_REAR.clone().applyQuaternion(qAim));
+    const off = pos.clone().sub(hip.pos.clone().lerp(aim.pos, a));   // sway, bob, recoil, bolt and wall offsets
+    const qHipBase = new THREE.Quaternion().setFromEuler(new THREE.Euler(-hip.pitch, Math.PI + hip.yaw, 0, 'YXZ'));
+    this.gun.quaternion.copy(qHipBase).slerp(qAim, a).premultiply(extra);
+    this.gun.position.copy(hip.pos).lerp(aimPos, a).add(off);
     this.gun.updateMatrixWorld(true);
     // bolt: lift (turn) and slide
     let lift = 0, back = 0, hand = GRIP_R.clone();
@@ -135,8 +150,11 @@ export class FirstPerson {
     const up = V(0, 1, 0).transformDirection(this.rig.matrixWorld), right = V(1, 0, 0).transformDirection(this.rig.matrixWorld);
     // right hand: on the stock (fingers round under the wrist of the stock, palm on its right side) or at the bolt / charger
     const away = Math.min(1, hand.distanceTo(GRIP_R) / 0.05), pressing = rel >= 0.18 && rel < 0.82 && hand.y > KNOB_UP.y + 0.01;
-    const Fr = d(V(0.15, -0.8, 0.55)).lerp(pressing ? d(V(-0.1, -0.35, 0.9)) : d(V(0.25, -0.2, 0.95)), away).normalize();
-    const Nr = d(V(1, 0, 0)).lerp(pressing ? d(V(0, -1, 0)) : d(V(0.7, -0.3, 0.2)), away).normalize();
+    // aiming: an underarm grip, the hand cupping the wrist of the stock from below (palm up, fingers wrapping up the far
+    // side, elbow tucked down), hidden under the stock from the eye; at the hip, round the wrist from the side
+    const under = 0;   // normal grip; the right hand is simply hidden when aiming (it is out of sight)
+    const Fr = d(V(0.15, -0.8, 0.55)).lerp(d(V(0.92, 0.05, 0.38)), under).lerp(pressing ? d(V(-0.1, -0.35, 0.9)) : d(V(0.25, -0.2, 0.95)), away).normalize();
+    const Nr = d(V(1, 0, 0)).lerp(d(V(0.05, 1, 0)), under).lerp(pressing ? d(V(0, -1, 0)) : d(V(0.7, -0.3, 0.2)), away).normalize();
     const gripR = blendGrip(GRIPS.stock, pressing ? GRIPS.press : GRIPS.pinch, away);
     // left hand: palm up under the fore-end, fingers across to the far side
     const Fl = d(V(-0.97, -0.05, 0.22)).normalize(), Nl = d(V(0, 1, 0));   // fingers straight across under the fore-end, wrapping its far side
@@ -155,7 +173,7 @@ export class FirstPerson {
       wR = place(this.xr.right, w(hand), Fr, Nr, away > 0.5 ? 0.012 : 0.034);
       wL = place(this.xr.left, w(GRIP_L), Fl, Nl, 0.034);
     }
-    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, up.clone().multiplyScalar(-1).addScaledVector(right, 0.9));
+    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, up.clone().multiplyScalar(-1).addScaledVector(right, 0.9 - 0.7 * under));   // elbow tucked down when aiming
     twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wL, up.clone().multiplyScalar(-1).addScaledVector(right, -0.35));
     if (this.xr) for (const n of ['hand_l', 'hand_r']) { B[n].scale.setScalar(0.001); B[n].updateMatrixWorld(true); }
     if (this.xr) for (const [s, h] of [['l', this.xr.left], ['r', this.xr.right]]) {
@@ -172,9 +190,11 @@ export class FirstPerson {
     }   // the sleeve's own gloves hidden (after the clip, which resets scale)
     if (this.xr) {
       const mix = (a, b, t) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] + (b[k] - a[k]) * t]));
-      this.xr.right.setPose(mix(POSES.trigger, pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
+      this.xr.right.setPose(mix(mix(POSES.trigger, { thumb: 0.75, index: 0.45, middle: 0.95, ring: 0.98, pinky: 1 }, under), pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
       this.xr.left.setPose({ thumb: 0.5, index: 0.7, middle: 0.72, ring: 0.74, pinky: 0.76 });   // cradling: fingertips on the far side, not over the top
-      for (const h of [this.xr.left, this.xr.right]) h.object.visible = true;
+      const hideRight = a > 0.55 && away < 0.3;   // aiming: the trigger hand is out of sight under the stock
+      this.xr.left.object.visible = true; this.xr.right.object.visible = !hideRight; this.xr.right.cuff.visible = !hideRight;
+      this.hideRight.value = hideRight ? 1 : 0;
     } else { this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl); this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend); }
   }
 }
