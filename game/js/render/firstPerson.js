@@ -72,7 +72,10 @@ export class FirstPerson {
     for (const n of ['Head', 'thigh_l', 'thigh_r']) this.bones[n].scale.setScalar(0.0001);   // no head (the camera is in it), no legs
     // he faces +Z; the camera looks down -Z. Eyes at the camera.
     this.body.rotation.y = Math.PI; this.body.position.set(0, -1.66, 0.03);   // shoulders just behind and below the eyes
-    this.gun = makeRifleRig(T.gun, 'smle'); this.rig.add(this.gun);
+    // both rifles a man may carry (his own, or one picked up from the fallen): each with its own sight line, eye relief,
+    // bolt and grips. Gewehr 98 (measured off the model): V-notch bottom 0.595 m from the butt, front post tip 1.085 m
+    const smle = makeRifleRig(T.gun, 'smle'), g98 = makeRifleRig(skinned.T.GER.gun, 'g98'); this.rig.add(smle, g98); g98.visible = false;
+    this.gun = smle;
     // a working bolt on the right of the receiver: body, handle and knob, slides and turns
     const steel = new THREE.MeshStandardMaterial({ color: 0x2f3134, roughness: 0.35, metalness: 0.8 });
     this.bolt = new THREE.Group(); this.gun.add(this.bolt);
@@ -80,11 +83,25 @@ export class FirstPerson {
     this.handle = new THREE.Group(); this.handle.position.set(-0.012, 0.004, 0.392); this.bolt.add(this.handle);
     const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.05, 8), steel); arm.rotation.z = Math.PI / 2; arm.position.set(-0.026, -0.008, 0); this.handle.add(arm);
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.0075, 10, 8), steel); knob.position.set(-0.045, -0.014, 0); this.handle.add(knob);
+    this.kinds = {
+      smle: { gun: smle, bolt: this.bolt, handle: this.handle, rear: SIGHT_REAR, tip: SIGHT_TIP, eye: EYE_RELIEF, knob: KNOB, knobUp: KNOB_UP, travel: BOLT_TRAVEL, charger: CHARGER, gripR: GRIP_R, gripL: GRIP_L },
+      g98: { gun: g98, bolt: new THREE.Group(), handle: new THREE.Group(), rear: V(0, 0.0205, 0.595), tip: V(0.0001, 0.0253, 1.085), eye: 0.44,
+        knob: V(-0.06, -0.025, 0.40), knobUp: V(-0.036, 0.03, 0.40), travel: 0.1, charger: V(0, 0.05, 0.42), gripR: V(0, -0.045, 0.28), gripL: V(0, -0.045, 0.6) },
+    };
+    this.setKind('smle');
     this.mixer = new THREE.AnimationMixer(this.body); const idle = T.gltf.animations.find(a => a.name === 'Idle_Loop'); if (idle) this.mixer.clipAction(idle).play();
     this.ads = 0; this.relTotal = 0; this.relLast = 0; this.bob = 0;
   }
+  setKind(k) {
+    if (this.kindName === k || !this.kinds[k]) return;
+    this.kindName = k; this.K = this.kinds[k];
+    for (const [n, q] of Object.entries(this.kinds)) q.gun.visible = n === k;
+    this.gun = this.K.gun; this.bolt = this.K.bolt; this.handle = this.K.handle;
+  }
   // block: how far ahead (m) the nearest wall, bank or man is along the rifle's line (Infinity if clear)
   update(dt, camera, p, W, recoil, bob, moving, block = Infinity) {
+    this.setKind(p.weapon === 'g98' ? 'g98' : 'smle');   // (swapped while it is down out of sight, stooping for another)
+    const { rear: SIGHT_REAR, tip: SIGHT_TIP, eye: EYE_RELIEF, knob: KNOB, knobUp: KNOB_UP, travel: BOLT_TRAVEL, charger: CHARGER, gripR: GRIP_R, gripL: GRIP_L } = this.K;
     this.rig.matrix.copy(camera.matrixWorld); this.rig.updateMatrixWorld(true);
     // the rifle can't go through things: when something is closer than the muzzle would reach, pull the rifle back and up
     const reach = lerp(1.0, 0.85, this.ads), want = Math.min(1, Math.max(0, (reach - block) / 0.55));
@@ -105,6 +122,8 @@ export class FirstPerson {
     pos.add(V(0.02 * k, -0.04 * k, 0.02 * k)); roll += 0.28 * k; pitch += 0.06 * k;
     { const u = ease(this.pull); pos.add(V(-0.02 * u, 0.04 * u, 0.32 * u)); pitch += 0.95 * u; yaw -= 0.1 * u; }   // up against a wall: rifle drawn back, muzzle up
     if (rel >= 0) { pos.add(V(0.03, 0.03, 0).multiplyScalar(k)); roll += 0.25 * k; yaw -= 0.15 * k; }
+    // stooping for another man's rifle: his own goes down out of sight, the other comes up in its place
+    if (p.pickup > 0) { const u = 1 - p.pickup / (p.pickupTotal || 66), dn = Math.sin(Math.min(1, u) * Math.PI); pos.add(V(0.06 * dn, -0.6 * dn, 0.12 * dn)); pitch -= 0.7 * dn; roll += 0.5 * dn; }
     // the rifle group: +Z is the muzzle, so turn it to look down -Z, then yaw/pitch/roll
     // the hip / working pose, then blended onto the exact sight picture: the rifle turned so the line from the centre of
     // the rear aperture to the tip of the foresight blade points straight down the view (where the bullet goes), and slid

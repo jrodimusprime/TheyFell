@@ -29,6 +29,7 @@
   .obj span { position: relative; }
   #compass { font-size: 13px; letter-spacing: 3px; margin-top: 4px; opacity: .9; }
   #msg { font-size: 22px; font-style: italic; min-height: 1.4em; transition: opacity .6s; }
+  #prompt { font-size: 15px; margin-bottom: 6px; min-height: 1.2em; opacity: .95; }
   #feed { font-size: 13px; line-height: 1.5; opacity: .9; }
   #cross { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(233,226,207,.8); box-shadow: 0 0 2px #000; }
   #oob { position: fixed; left: 0; right: 0; top: 30%; text-align: center; display: none; }
@@ -70,7 +71,7 @@
   <div class="tr"><div id="tally"></div><div id="feed"></div></div>
   <div class="bl"><div id="hp">Unwounded</div><div id="hpbar"><div></div></div><div id="stance" style="font-size:12px;opacity:.8;margin-top:4px"></div><div style="font-size:11px;opacity:.65;margin-top:2px">K respawn · M map · Esc menu</div></div>
   <div class="br"><div id="ammo">10 | 60</div><div id="weapon">SMLE Mk III*</div></div>
-  <div class="bc"><div id="msg"></div></div>
+  <div class="bc"><div id="prompt"></div><div id="msg"></div></div>
   <canvas id="mini" width="400" height="400"></canvas><div id="miniGoal"></div>
 </div>
 <div id="cross" hidden></div>

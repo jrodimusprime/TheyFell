@@ -23,6 +23,7 @@ export function bulletDamage(W, zone, rng) {
   const [m, sd] = HIT[zone] || HIT.body;
   return Math.max(8, Math.min(140, (m + sd * rng.gauss()) * W.dmg / 100));
 }
+const PICKUP_TICKS = 66;   // 1.1 s to stoop, swap rifles and come up again
 const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1 };   // advance: the AI jogs forward (stopping to fire)
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
 const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO = 7 * 3600 + 30 * 60;
@@ -39,6 +40,7 @@ export class Sim {
     this.objectives = this.map.objectives.map(o => ({ ...o, owner: 'GER', progress: 0 }));
     this.score = { BRI: { kills: 0, deaths: 0 }, GER: { kills: 0, deaths: 0 } };
     this.waveT = { BRI: 0, GER: 0 };
+    this.drops = [];   // rifles lying where men fell
     this.trenchPts = { BRI: this._trenchPoints('BRI'), GER: this._trenchPoints('GER') };
     // the player first, then the AI, in a fixed order (Cimmerian §11: stable entity order)
     const ps = this.map.playerStart.pos, p0 = this._snapToTrench(ps[0], ps[1], playerSide, 30, true) || ps;   // on the fire-step, looking over the parapet
@@ -130,12 +132,19 @@ export class Sim {
     // K: give up this man and go straight back to the respawn choice (counts as a death; no 3 s wait)
     if (a.respawnNow && p.alive) {
       p.alive = false; p.hp = 0; p.deadAt = this.tick; p.deaths++; this.score[p.side].deaths++; p.gaveUp = true; p.intent = null;
-      this.events.push({ t: 'death', id: p.id, by: -1, kind: 'gaveup', dir: [0, -1, 0], zone: 'chest', point: [p.x, p.y + 1, p.z] }); return;
+      this.events.push({ t: 'death', id: p.id, by: -1, kind: 'gaveup', dir: [0, -1, 0], zone: 'chest', point: [p.x, p.y + 1, p.z] }); this._drop(p); p.pickup = 0; return;
     }
     if (!p.alive) { p.intent = null; if (a.respawn && this.tick - p.deadAt > HZ * (p.gaveUp ? 0.5 : 3)) { if (a.respawnInto !== undefined) this._takeOver(p, a.respawnInto); else this._respawn(p, a.respawnAt); } return; }
     if (a.yaw !== undefined) p.yaw = a.yaw; if (a.pitch !== undefined) p.pitch = Math.max(-1.45, Math.min(1.45, a.pitch));
     if (a.crouch) p.stance = p.stance === 1 ? 0 : 1; if (a.prone) p.stance = p.stance === 2 ? 0 : 2;
     p.ads = !!a.ads;
+    // E by a fallen man's rifle: stoop, put yours down, take his (with what he had left in it and in his pouches)
+    if (p.pickup > 0) {
+      p.pickup--; p.intent = null; p.ads = false;
+      if (p.pickup === PICKUP_TICKS >> 1) this._swapRifle(p, this.drops[p.pickupAt]);
+      this._weaponTick(p); return;
+    }
+    if (a.pickup && !(p.climb > 0) && !(p.reloading > 0)) { const i = this.nearDrop(p); if (i >= 0) { p.pickup = PICKUP_TICKS; p.pickupTotal = PICKUP_TICKS; p.pickupAt = i; p.intent = null; this.events.push({ t: 'stoop', id: p.id, weapon: this.drops[i].weapon }); return; } }
     p.intent = { f: a.forward || 0, s: a.side || 0, run: !!a.run && p.stance === 0, jump: !!a.jump, vault: !!a.vault };
     if (a.reload) this._startReload(p);
     if (a.fire) this._fire(p, p.yaw, p.pitch);
@@ -291,6 +300,26 @@ export class Sim {
     v.alive = false; v.hp = 0; v.deadAt = this.tick; v.deaths++; this.score[v.side].deaths++;
     if (src && src.side !== v.side) { src.kills++; this.score[src.side].kills++; }
     this.events.push({ t: 'death', id: v.id, by: src ? src.id : -1, ...info });
+    this._drop(v);
+  }
+  // a fallen man's rifle stays where he fell, with his ammunition (the newest few hundred are kept)
+  _drop(v) {
+    if (v.weapon === 'mg08') return;   // (a machine gun stays on its mount)
+    this.drops.push({ x: v.x, z: v.z, y: v.y, weapon: v.weapon, mag: v.mag, reserve: v.reserve, side: v.side, of: v.id, tick: this.tick });
+    if (this.drops.length > 600) this.drops.shift();
+  }
+  // the nearest rifle lying within reach (1.8 m), or -1
+  nearDrop(p) {
+    let best = -1, bd = 1.8;
+    for (let i = this.drops.length - 1; i >= 0; i--) { const d = this.drops[i]; if (Math.abs(d.x - p.x) > bd || Math.abs(d.z - p.z) > bd || Math.abs(d.y - p.y) > 1.2) continue; const r = Math.hypot(d.x - p.x, d.z - p.z); if (r < bd) { bd = r; best = i; } }
+    return best;
+  }
+  _swapRifle(p, d) {
+    if (!d) return;
+    const mine = { weapon: p.weapon, mag: p.mag, reserve: p.reserve };
+    Object.assign(p, { weapon: d.weapon, mag: d.mag, reserve: d.reserve, reloading: 0, cool: 0 });
+    Object.assign(d, mine, { of: p.id });   // yours left lying in its place
+    this.events.push({ t: 'pickup', id: p.id, weapon: p.weapon });
   }
   _explode(x, y, z, r, kill, src, kind = 'shell') {
     this.events.push({ t: 'explosion', p: [x, y, z], r, kind });
@@ -547,7 +576,7 @@ export class Sim {
     if (!o) return this._respawn(p);
     const g = this.target(p.side, o.x, o.z), yaw = g ? Math.atan2(-(g.c[0] - o.x), -(g.c[1] - o.z)) : o.yaw;   // facing the objective
     Object.assign(p, { x: o.x, z: o.z, y: o.y, yaw, pitch: 0, vy: 0, hp: o.hp, alive: true, climb: 0, climbTo: null, stance: o.stance, stamina: 1, onGround: true,
-      mag: o.mag, reserve: o.reserve, reloading: 0, cool: 0, grenades: o.grenades ?? 3, lastHit: null });
+      weapon: o.weapon, mag: o.mag, reserve: o.reserve, reloading: 0, cool: 0, grenades: o.grenades ?? 3, lastHit: null, pickup: 0 });
     o.alive = false; o.hp = 0; o.deadAt = this.tick; o.intent = null;
     p.gaveUp = false; this.events.push({ t: 'respawn', id: p.id, p: [p.x, p.y, p.z], into: o.id });
     return true;
@@ -561,7 +590,8 @@ export class Sim {
       pick = s.isPlayer ? pts.reduce((b, q) => Math.hypot(q.p[0] - s.x, q.p[1] - s.z) < Math.hypot(b.p[0] - s.x, b.p[1] - s.z) ? q : b) : r.pick(pts);
     }
     let [x, z] = pick.p; const snap = this._snapToTrench(x + r.range(-25, 25), z + r.range(-25, 25), s.side, 60, s.isPlayer || s.side === 'GER'); if (snap) [x, z] = snap;
-    Object.assign(s, { x, z, y: this.T.height(x, z), vy: 0, hp: 100, alive: true, climb: 0, climbTo: null, stance: 1, stamina: 1,
+    if (s.isPlayer) s.weapon = s.side === 'BRI' ? 'smle' : 'g98';   // (a fresh man has his own rifle again)
+    Object.assign(s, { x, z, y: this.T.height(x, z), vy: 0, hp: 100, alive: true, climb: 0, climbTo: null, stance: 1, stamina: 1, pickup: 0,
       mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, lastHit: null });
     if (s.ai) Object.assign(s.ai, { mode: s.side === 'BRI' ? 'advance' : s.role === 'mg' ? 'mg' : 'hold', target: -1, goal: null, post: [x, z], think: 30 + r.int(60) });
     if (s.ai && s.side === 'BRI') { s.ai.goal = this._goalFor(s); if (this.time < ZERO) s.ai.mode = 'hold'; }

@@ -128,7 +128,7 @@ async function boot() {
   document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && sim.player.alive) { $('menu').style.display = 'grid'; $('play').textContent = 'Back to the line'; $('giveup').hidden = false; } });
   function humanInput() {
     const a = { forward: (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0), side: (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0),
-      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK || giveUp, 
+      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), vault: keys.has('KeyE'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG, respawnNow: !!edge.KeyK || giveUp, pickup: !!edge.KeyE,
       fire: mouseDown, ads, yaw, pitch };
     edge = {}; giveUp = false;
     return a;
@@ -175,6 +175,7 @@ async function boot() {
         if (e.id === p.id) { deathCam = 0; $('deadwhy').textContent = deathReason(e); }
       } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
+      else if (e.t === 'pickup' && e.id === p.id) { audio.reload(); addFeed(`You take up a ${WEAPONS[p.weapon].name}`); }
       else if (e.t === 'respawn' && e.id === p.id) {
         if (e.into === undefined) p.yaw = p.side === 'BRI' ? -Math.PI / 2 : Math.PI / 2;   // (going in as a man already out there: the sim turns him to the objective)
         yaw = p.yaw; pitch = 0; $('dead').style.display = 'none'; choose = null; pendingRespawn = null; shooters.clear(); if (!AGENT) renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
@@ -210,6 +211,7 @@ async function boot() {
       camera.position.set(p.x, p.y + eye + Math.sin(bob) * (moving ? 0.035 : 0) + climb, p.z);
       { const ct = climbT(p); if (ct >= 0) { const cp = climbPose(p, T, ct, 0.95); camera.position.set(cp.hip.x, cp.hip.y + 0.62 - cp.lean * 0.18, cp.hip.z).addScaledVector(p._climbPlan.f, Math.sin(cp.lean) * 0.25); } }   // the eye follows the scramble up the wall
       camera.rotation.set(0, 0, 0); camera.rotation.order = 'YXZ'; camera.rotation.y = AGENT ? p.yaw : yaw; camera.rotation.x = (AGENT ? p.pitch : pitch) + recoil * 0.02;
+      if (p.pickup > 0) { const u = 1 - p.pickup / (p.pickupTotal || 66), dn = Math.sin(Math.min(1, u) * Math.PI); camera.position.y -= 0.85 * dn; camera.rotation.x -= 0.9 * dn; }   // stooping to the fallen man's rifle
       if (!AGENT) { p.yaw = yaw; }
       deathCam = 0; vm.visible = true;
     } else {
@@ -284,6 +286,7 @@ async function boot() {
     sim.objectives.forEach((ob, i) => { const el = objEl.children[i]; el.className = 'obj ' + ob.owner; el.firstChild.style.height = (Math.max(0, ob.progress) * 100) + '%'; });
     tallyT -= dt; if (tallyT < 0) { tallyT = 0.25; const row = (side, name) => { const t = sim.tally(side); return `<div><b>${name}</b> <span class="gone">${t.fallen.toLocaleString('en-GB')} fallen</span> · ${t.left.toLocaleString('en-GB')} left</div>`; };
       $('tally').innerHTML = row('BRI', 'British') + row('GER', 'German'); }
+    { let t = ''; if (p.alive && !(p.pickup > 0) && !(p.climb > 0)) { const i = sim.nearDrop(p); if (i >= 0) { const d = sim.drops[i]; t = d.weapon === p.weapon ? `E: take his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)` : `E: swap your rifle for his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)`; } } else if (p.pickup > 0) t = 'Taking his rifle…'; $('prompt').textContent = t; }
     $('feed').innerHTML = feed.map(f => `<div>${f[0]}</div>`).join(''); for (const f of feed) f[1] -= dt; while (feed.length && feed[feed.length - 1][1] < 0) feed.pop();
     msgT -= dt; if (msgT < 0) $('msg').style.opacity = 0;
     hurt = Math.max(0, hurt - dt * 1.2); $('hurt').style.opacity = hurt * 0.8 + (p.alive && p.hp < 50 ? (50 - p.hp) / 80 : 0);
@@ -456,7 +459,7 @@ async function boot() {
     sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
     get state() { return sim; }, get shooters() { return shooters; },
     step(a = {}, n = 1) {
-      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.respawnNow = false; } stepSim(input); }
+      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = input.respawnNow = input.pickup = false; } stepSim(input); }
       return sim.obs();
     },
     obs: () => sim.obs(), hash: () => sim.hash(), rambo: on => { sim.rambo = !!on; return sim.rambo; }, god: on => { sim.god = !!on; return sim.god; },
