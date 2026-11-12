@@ -1,0 +1,310 @@
+// They Fell: La Boisselle demo. Boot, the fixed-tick loop, input, camera, HUD and the agent API (window.TF).
+// URL flags: ?agent (no menu, the sim only advances through TF.step: for headless tests)  ?seed=N  ?cheat (god mode)
+//            ?at=x,z (start position, metres)  ?time=HH:MM:SS (skip ahead)  ?lowres  ?nofx
+import * as THREE from 'three';
+import { loadTerrain } from './world/terrain.js';
+import { Features } from './world/features.js';
+import { Sim, HZ, DT, WEAPONS } from './sim/sim.js';
+import { TerrainView, buildGroundMap } from './render/terrainView.js';
+import { Props } from './render/props.js';
+import { SoldiersView } from './render/soldiers.js';
+import { Ragdolls } from './render/ragdoll.js';
+import { FX, makeSky } from './render/fx.js';
+import { Audio } from './audio.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const Q = new URLSearchParams(location.search);
+const AGENT = Q.has('agent'), CHEAT = Q.has('cheat');
+const $ = id => document.getElementById(id);
+const setLoad = t => { $('load').textContent = t; };
+
+// ---------- the sun at 07:30 on 1 July 1916 (French summer time, GMT+1): azimuth ~85°, ~24° up, low in the east ----------
+const SUN = new THREE.Vector3(0.91, 0.41, -0.08).normalize();
+const HAZE = new THREE.Color(0xc4c7c0);
+
+async function boot() {
+  setLoad('Reading the ground (IGN lidar, 6 × 6 km)…');
+  const T = await loadTerrain('data/');
+  setLoad('Placing the wire, the ruins and the woods…');
+  const F = new Features(T);
+  const seed = +(Q.get('seed') || 1);
+  const sim = new Sim(T, F, { seed });
+  if (Q.get('at')) { const [x, z] = Q.get('at').split(',').map(Number); Object.assign(sim.player, { x, z, y: T.height(x, z) }); }
+
+  // ---------- renderer ----------
+  const renderer = new THREE.WebGLRenderer({ antialias: !Q.has('lowres'), powerPreference: 'high-performance', preserveDrawingBuffer: AGENT });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, Q.has('lowres') ? 0.75 : 1.5));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  document.body.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(HAZE, 0.00062);      // ~55% visible at 1 km, ~10% at 2.5 km: the morning haze and the smoke of the barrage
+  scene.background = HAZE;
+  const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 7000);
+  scene.add(camera);
+  const sky = makeSky(scene, SUN);
+  const hemi = new THREE.HemisphereLight(0xc7d6e8, 0x7a6e58, 1.25); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xfff0d8, 2.6); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = sc.bottom = -70; sc.right = sc.top = 70; sc.near = 1; sc.far = 600;
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04; scene.add(sun); scene.add(sun.target);
+
+  setLoad('Mapping the shell holes and the chalk…');
+  const groundTex = buildGroundMap(T);
+  const terrain = new TerrainView(T, scene, groundTex);
+  const props = new Props(scene, T, F);
+  const men = new SoldiersView(scene, sim);
+  const rag = new Ragdolls(T);
+  const fx = new FX(scene);
+  const audio = new Audio();
+  const vm = makeViewModel(camera);
+
+  // ---------- input ----------
+  const keys = new Set(); let mouseDown = false, ads = false, yaw = sim.player.yaw, pitch = 0.02, edge = {};
+  addEventListener('keydown', e => { if (e.repeat) return; keys.add(e.code); edge[e.code] = true;
+    if (e.code === 'F3') { e.preventDefault(); $('debug').style.display = $('debug').style.display === 'block' ? 'none' : 'block'; }
+    if (e.code === 'KeyM') $('map').style.display = $('map').style.display === 'block' ? 'none' : 'block', drawMap();
+    if (e.code === 'KeyK') audio.setEnabled(!audio.enabled); });
+  addEventListener('keyup', e => keys.delete(e.code));
+  addEventListener('mousedown', e => { if (document.pointerLockElement) { if (e.button === 0) mouseDown = true; if (e.button === 2) ads = true; } });
+  addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) ads = false; });
+  addEventListener('contextmenu', e => e.preventDefault());
+  addEventListener('mousemove', e => { if (document.pointerLockElement && sim.player.alive) { const k = (ads ? 0.0011 : 0.0022); yaw -= e.movementX * k; pitch = Math.max(-1.45, Math.min(1.45, pitch - e.movementY * k)); } });
+  addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+  document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && running && sim.player.alive) { $('menu').style.display = 'grid'; $('play').textContent = 'Back to the line'; } });
+  function humanInput() {
+    const a = { forward: (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0), side: (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0),
+      run: keys.has('ShiftLeft') || keys.has('ShiftRight'), jump: keys.has('Space'), crouch: !!edge.KeyC, prone: !!edge.KeyZ, reload: !!edge.KeyR, grenade: !!edge.KeyG,
+      fire: mouseDown, ads, yaw, pitch };
+    edge = {};
+    return a;
+  }
+
+  // ---------- the loop ----------
+  let running = false, acc = 0, last = performance.now(), frames = 0, fpsT = 0, fps = 0;
+  const camPos = new THREE.Vector3();
+  let deathCam = 0, hurt = 0, bob = 0, recoil = 0, lastHp = 100, msgT = 0;
+  const feed = [];
+  function message(t, secs = 4) { $('msg').textContent = t; $('msg').style.opacity = 1; msgT = secs; }
+  function stepSim(input) {
+    if (CHEAT && sim.player.hp < 100) sim.player.hp = 100;
+    sim.step(input);
+  }
+  function consumeEvents() {
+    const p = sim.player, cp = camera.position;
+    for (const e of sim.events) {
+      if (e.t === 'shot') {
+        const s = sim.soldiers[e.id], d = Math.hypot(e.o[0] - cp.x, e.o[2] - cp.z);
+        if (d < 1500) fx.muzzle(e.o, e.h, d < 200);
+        if (Math.hypot(e.h[0] - cp.x, e.h[2] - cp.z) < 400) fx.impact(e.h, e.victim >= 0);
+        audio.shot(e.o, e.w, e.id === p.id);
+        if (e.id === p.id) { recoil = 1; if (e.w !== 'mg08') audio.bolt(); }
+        else if (e.victim !== p.id) { // a near miss cracks past
+          const t = nearestOnSeg(cp, e.o, e.h); if (t < 3 && s.side !== p.side) hurt = Math.max(hurt, 0.12);
+        }
+      } else if (e.t === 'explosion') { fx.explosion(e.p, e.kind, cp); audio.boom(e.p, e.kind); }
+      else if (e.t === 'incoming') audio.incoming(e.p, e.kind);
+      else if (e.t === 'crater') terrain.invalidate(e.p[0], e.p[2], e.r * 1.7);
+      else if (e.t === 'mine') { terrain.invalidate(e.p[0], e.p[2], e.r * 2 + 30); props.last = null; if (e.name === 'Lochnagar') message('07:28. The Lochnagar mine has gone up under the Schwabenhöhe', 7); else addFeed('The Y Sap mine has gone up'); }
+      else if (e.t === 'zero') { audio.zero = true; for (let i = 0; i < 6; i++) audio.whistle([p.x + (i - 3) * 40, p.y, p.z + (i % 2) * 30], i * 0.3); message('Zero hour. The whistles blow: over the top!', 6); }
+      else if (e.t === 'hit' && e.id === p.id) { hurt = 1; audio.hurt(); }
+      else if (e.t === 'death') {
+        const s = sim.soldiers[e.id], c = men.addCorpse(s);
+        rag.add(c, e, Math.hypot(s.x - cp.x, s.z - cp.z));
+        if (e.by === p.id) addFeed(`You hit a ${s.side === 'GER' ? 'German' : 'British'} soldier`);
+        if (e.id === p.id) { deathCam = 0; $('deadwhy').textContent = deathReason(e); }
+      } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
+      else if (e.t === 'reload' && e.id === p.id) audio.reload();
+      else if (e.t === 'respawn' && e.id === p.id) { yaw = p.yaw = p.side === 'BRI' ? -Math.PI / 2 : Math.PI / 2; pitch = 0; $('dead').style.display = 'none'; if (!AGENT) renderer.domElement.requestPointerLock?.(); }
+    }
+    sim.events.length = 0;
+  }
+  function deathReason(e) { return e.kind === 'bullet' ? (sim.soldiers[e.by]?.role === 'mg' ? 'Cut down by machine-gun fire' : e.zone === 'head' ? 'Shot through the head' : 'Hit by a rifle bullet') : e.kind === 'mine' ? 'Caught in the mine blast' : e.kind === 'shrapnel' ? 'Shrapnel' : e.kind === 'grenade' ? 'A bomb' : e.kind === 'fall' ? 'A bad fall' : 'Killed by shellfire'; }
+  function addFeed(t) { feed.unshift([t, 6]); feed.length = Math.min(feed.length, 5); }
+
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    frames++; fpsT += dt; if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0; }
+    if (running && !AGENT) {
+      acc += dt; let n = 0;
+      while (acc >= DT && n < 6) { const a = humanInput(); stepSim(a); acc -= DT; n++; }
+      if (n === 6) acc = 0;
+    }
+    consumeEvents();
+    render(dt);
+    requestAnimationFrame(frame);
+  }
+  function render(dt) {
+    const p = sim.player, W = WEAPONS[p.weapon];
+    // camera: the player's eyes, or a slow orbit over his body when he falls
+    if (p.alive) {
+      const eye = [1.64, 1.1, 0.35][p.stance];
+      const moving = sim.player.intent && (sim.player.intent.f || sim.player.intent.s);
+      bob += moving ? dt * (p.intent.run ? 11 : 7.5) : 0;
+      const climb = p.climb > 0 ? Math.sin(p.climb * 6) * 0.08 : 0;
+      camera.position.set(p.x, p.y + eye + Math.sin(bob) * (moving ? 0.035 : 0) + climb, p.z);
+      camera.rotation.set(0, 0, 0); camera.rotation.order = 'YXZ'; camera.rotation.y = AGENT ? p.yaw : yaw; camera.rotation.x = (AGENT ? p.pitch : pitch) + recoil * 0.02;
+      if (!AGENT) { p.yaw = yaw; }
+      deathCam = 0; vm.visible = true;
+    } else {
+      deathCam += dt;
+      const c = men.corpses.filter(c => c.id === p.id).pop(), cx = c ? c.mats[0].elements[12] : p.x, cy = c ? c.mats[0].elements[13] : p.y, cz = c ? c.mats[0].elements[14] : p.z;
+      const a = deathCam * 0.25 + p.yaw, r = 3 + Math.min(deathCam, 4);
+      camera.position.set(cx + Math.sin(a) * r, Math.max(T.height(cx + Math.sin(a) * r, cz + Math.cos(a) * r) + 1.2, cy + 1.5 + deathCam * 0.6), cz + Math.cos(a) * r);
+      camera.lookAt(cx, cy + 0.3, cz); vm.visible = false;
+      if (deathCam > 3 && !AGENT) showRespawn();
+    }
+    if (window.TF && TF.view) { const v = TF.view; camera.position.set(...v.pos); camera.lookAt(...v.look); vm.visible = false; men.hidePlayer = false; }
+    // screen shake from big bursts
+    if (fx.shake > 0) { camera.rotation.x += (Math.random() - 0.5) * 0.02 * fx.shake; camera.rotation.y += (Math.random() - 0.5) * 0.02 * fx.shake; }
+    camera.fov = THREE.MathUtils.lerp(camera.fov, p.ads ? 50 : 72, Math.min(1, dt * 12)); camera.updateProjectionMatrix();
+    recoil = Math.max(0, recoil - dt * 6);
+    updateViewModel(vm, p, W, dt, recoil, bob);
+    // shadows follow the player
+    sun.position.copy(camera.position).addScaledVector(SUN, 300); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld();
+    sky.position.copy(camera.position);
+    audio.listener = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+    terrain.update(camera, terrain.stats.built < 200 ? 30 : 6);
+    props.update(camera);
+    men.hidePlayer = p.alive && !(window.TF && TF.view);
+    men.update(dt, camera.position, p.id);
+    rag.step(dt);
+    fx.update(dt, scene.fog);
+    renderer.render(scene, camera);
+    hud(dt);
+  }
+
+  // ---------- HUD ----------
+  const objEl = $('objectives');
+  objEl.innerHTML = sim.objectives.map(o => `<div class="obj" title="${o.name}"><i></i><span>${o.id}</span></div>`).join('');
+  function hud(dt) {
+    const p = sim.player, o = sim.obs ? null : null, W = WEAPONS[p.weapon];
+    $('clock').textContent = sim.clock();
+    const t = sim.time, mine = 7 * 3600 + 28 * 60, zero = 7 * 3600 + 30 * 60;
+    $('phase').textContent = t < mine ? `Mines in ${Math.ceil(mine - t)} s · zero hour 07:30` : t < zero ? `Zero hour in ${Math.ceil(zero - t)} s` : 'The attack: take the Schwabenhöhe and La Boisselle';
+    $('ammo').textContent = p.reloading > 0 ? 'Reloading…' : `${p.mag} | ${p.reserve}`; $('weapon').textContent = `${W.name} · Mills bombs ${p.grenades ?? 3}`;
+    $('hp').textContent = !p.alive ? 'Fallen' : p.hp > 80 ? 'Unwounded' : p.hp > 45 ? 'Wounded' : 'Badly wounded'; $('hpbar').firstChild.style.width = Math.max(0, p.hp) + '%';
+    $('stance').textContent = (p.climb > 0 ? 'Climbing out' : ['Standing', 'Crouched', 'Prone'][p.stance]) + (T.inTrench(p.x, p.z) ? ' · in the trench' : '') + (F.wireAt(p.x, p.z) > 0 ? ' · caught on wire' : '') + ` · ${Math.round(p.x)} m E, ${Math.round(6000 - p.z)} m N`;
+    const deg = ((-((AGENT ? p.yaw : yaw)) * 180 / Math.PI) % 360 + 360) % 360, dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    $('compass').textContent = `${dirs[Math.round(deg / 45) % 8]} ${Math.round(deg)}°`;
+    sim.objectives.forEach((ob, i) => { const el = objEl.children[i]; el.className = 'obj ' + ob.owner; el.firstChild.style.height = (Math.max(0, ob.progress) * 100) + '%'; });
+    $('feed').innerHTML = feed.map(f => `<div>${f[0]}</div>`).join(''); for (const f of feed) f[1] -= dt; while (feed.length && feed[feed.length - 1][1] < 0) feed.pop();
+    msgT -= dt; if (msgT < 0) $('msg').style.opacity = 0;
+    hurt = Math.max(0, hurt - dt * 1.2); $('hurt').style.opacity = hurt * 0.8 + (p.alive && p.hp < 50 ? (50 - p.hp) / 80 : 0);
+    // out of bounds: just tell the player
+    $('oob').style.display = p.alive && sim.outOfBounds() ? 'block' : 'none';
+    $('cross').hidden = !p.alive || p.ads;
+    if ($('debug').style.display === 'block') {
+      const info = renderer.info;
+      $('debug').textContent = `fps ${fps.toFixed(0)}  draw calls ${info.render.calls}  tris ${(info.render.triangles / 1000).toFixed(0)}k\n` +
+        `terrain tiles ${terrain.stats.tiles} (${(terrain.stats.tris / 1000).toFixed(0)}k tris, ${terrain.cache.size} cached)\n` +
+        `soldiers ${sim.soldiers.filter(s => s.alive).length}/${sim.soldiers.length}  corpses ${men.corpses.length}  ragdolls ${rag.stats.active}\n` +
+        `tick ${sim.tick}  hash ${sim.hash()}  pos ${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}`;
+    }
+  }
+  function showRespawn() {
+    if ($('dead').style.display === 'grid') return;
+    if (document.pointerLockElement) document.exitPointerLock();
+    $('dead').style.display = 'grid';
+    const sp = $('spawns'); sp.innerHTML = '';
+    for (const s of sim.spawnPoints(sim.player.side)) {
+      const b = document.createElement('button'); b.textContent = s.name === 'Trench' ? `Front-line trench (${Math.round(s.p[0])} E, ${Math.round(6000 - s.p[1])} N)` : `${s.name} (taken)`;
+      b.onclick = () => { pendingRespawn = s.name; }; sp.appendChild(b);
+    }
+  }
+  let pendingRespawn = null;   // the respawn choice goes in with the next tick's input, so recorded runs replay it
+
+  // ---------- trench-map overlay (M): the whole map at true scale ----------
+  function drawMap() {
+    const cv = $('map').firstChild, g = cv.getContext('2d'), S = cv.width / T.size;
+    g.fillStyle = '#d8cfb5'; g.fillRect(0, 0, cv.width, cv.height);
+    g.lineWidth = 1;
+    for (const t of T.map.trenches) { g.strokeStyle = t.side === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = t.kind === 'fire' ? 2 : 1; g.beginPath(); t.pts.forEach((q, i) => i ? g.lineTo(q[0] * S, q[1] * S) : g.moveTo(q[0] * S, q[1] * S)); g.stroke(); }
+    g.strokeStyle = '#8a7a5a'; g.lineWidth = 3; for (const r of T.map.roads) { g.beginPath(); r.pts.forEach((q, i) => i ? g.lineTo(q[0] * S, q[1] * S) : g.moveTo(q[0] * S, q[1] * S)); g.stroke(); }
+    g.fillStyle = '#222'; g.font = '13px Georgia'; for (const v of T.map.villages) g.fillText(v.name, v.c[0] * S + 4, v.c[1] * S);
+    for (const o of sim.objectives) { g.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.beginPath(); g.arc(o.c[0] * S, o.c[1] * S, o.r * S, 0, 7); g.stroke(); g.fillText(o.id, o.c[0] * S - 4, o.c[1] * S + 4); }
+    const w = T.map.world; g.strokeStyle = '#000'; g.setLineDash([6, 4]); g.strokeRect(w.playMin * S, w.playMin * S, (w.playMax - w.playMin) * S, (w.playMax - w.playMin) * S); g.setLineDash([]);
+    const p = sim.player; g.fillStyle = '#000'; g.beginPath(); g.arc(p.x * S, p.z * S, 5, 0, 7); g.fill();
+    g.fillText('1 km', 20, cv.height - 20); g.fillRect(20, cv.height - 15, 1000 * S, 3);
+  }
+
+  // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
+  window.TF = {
+    sim, T, F, scene, camera, renderer, terrain, men, rag, HZ,
+    get state() { return sim; },
+    step(a = {}, n = 1) {
+      for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }
+      return sim.obs();
+    },
+    obs: () => sim.obs(), hash: () => sim.hash(),
+    render(dt = 1 / 60) { consumeEvents(); render(dt); },
+    settle() { render(0.016); for (let i = 0; i < 60; i++) { terrain.update(camera, 200); if (!terrain.pending && i > 1) break; } props.last = props.lastWire = null; props.update(camera); },
+    perf: () => ({ fps, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tiles: terrain.stats.tiles, terrainTris: terrain.stats.tris, corpses: men.corpses.length, ragdolls: rag.stats.active }),
+  };
+  function startGame() {
+    $('menu').style.display = 'none'; $('hud').hidden = false; running = true; audio.start();
+    renderer.domElement.requestPointerLock?.();
+    if (!started) { started = true; message('Stand to. The bombardment is in its last minutes.', 5); }
+  }
+  let started = false;
+  $('play').onclick = startGame;
+  // first frames: build the near ground before the player sees it
+  terrain.update(camera, 400);
+  if (AGENT) { $('menu').style.display = 'none'; $('hud').hidden = false; running = true; }
+  else { $('play').disabled = false; $('play').textContent = 'Go to the line'; setLoad(''); }
+  // respawn from the card: inject into the next tick
+  const realStep = sim.step.bind(sim);
+  sim.step = input => { if (pendingRespawn !== null && !sim.player.alive) { input = { ...input, respawn: true, respawnAt: pendingRespawn }; pendingRespawn = null; } return realStep(input); };
+  requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
+}
+
+function nearestOnSeg(p, a, b) {
+  const ax = a[0], ay = a[1], az = a[2], vx = b[0] - ax, vy = b[1] - ay, vz = b[2] - az, L2 = vx * vx + vy * vy + vz * vz || 1;
+  let t = ((p.x - ax) * vx + (p.y - ay) * vy + (p.z - az) * vz) / L2; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(ax + vx * t - p.x, ay + vy * t - p.y, az + vz * t - p.z);
+}
+
+// ---------- first-person SMLE: stock, magazine, bolt, nose cap, sights ----------
+function makeViewModel(camera) {
+  const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0x6b4529, roughness: 0.6 }), steel = new THREE.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.4, metalness: 0.7 });
+  const box = (w, h, d, m, x, y, z, rx = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.x = rx; g.add(b); return b; };
+  box(0.045, 0.11, 0.34, wood, 0, -0.05, 0.22, -0.12);          // butt
+  box(0.04, 0.05, 0.62, wood, 0, -0.005, -0.25);               // fore-end
+  box(0.03, 0.02, 0.58, wood, 0, 0.022, -0.28);                // handguard
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.25, 8), steel); barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.012, -0.66); g.add(barrel);
+  box(0.035, 0.04, 0.05, steel, 0, 0.005, -0.57);              // nose cap
+  box(0.004, 0.022, 0.006, steel, 0, 0.042, -0.58);            // foresight blade
+  box(0.03, 0.035, 0.16, steel, 0, 0.02, -0.02);               // receiver
+  box(0.035, 0.07, 0.07, steel, 0, -0.05, 0.0);                // magazine
+  box(0.02, 0.012, 0.02, steel, 0, 0.044, -0.07);              // rear sight
+  const bolt = new THREE.Group(); const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.07, 6), steel); handle.rotation.z = Math.PI / 2; handle.position.set(0.035, 0.02, 0.06); bolt.add(handle);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), steel); knob.position.set(0.07, 0.02, 0.06); bolt.add(knob); g.add(bolt); g.userData.bolt = bolt;
+  // the right hand on the wrist of the stock, the left under the fore-end
+  const skin = new THREE.MeshStandardMaterial({ color: 0xc19072, roughness: 0.7 }), sleeve = new THREE.MeshStandardMaterial({ color: 0x7b6c46, roughness: 0.95 });
+  const hand = (x, y, z) => { const h = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), skin); h.scale.set(0.9, 0.8, 1.3); h.position.set(x, y, z); g.add(h); const s = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.3, 8), sleeve); s.rotation.x = Math.PI / 2.4; s.position.set(x + 0.02, y - 0.09, z + 0.16); g.add(s); };
+  hand(0.01, -0.06, 0.08); hand(-0.005, -0.045, -0.33);
+  g.traverse(o => { if (o.isMesh) { o.renderOrder = 10; o.material.depthTest = true; } });
+  camera.add(g); g.userData.t = 0;
+  // the real model (models/weapons/lee_enfield.glb, CC0, Lucian Pavel) replaces the built-in rifle once it has loaded;
+  // the hands and sleeves stay, and the built-in bolt handle keeps cycling
+  const built = g.children.filter(o => o.isMesh && (o.material === wood || o.material === steel));
+  new GLTFLoader().load('models/weapons/lee_enfield.glb', gl => {
+    const r = gl.scene; r.rotation.y = Math.PI; r.position.set(0, -0.052, -0.3);
+    r.traverse(o => { if (o.isMesh) { o.renderOrder = 10; o.castShadow = false; } });
+    g.add(r); for (const o of built) o.visible = false; g.userData.bolt.visible = false; g.userData.model = r;
+  }, undefined, e => console.warn('lee_enfield.glb not loaded; using the built-in rifle', e));
+  return g;
+}
+function updateViewModel(g, p, W, dt, recoil, bob) {
+  const ads = p.ads, cyc = p.cool > 0 ? 1 - p.cool / W.cycle : 1, rel = p.reloading > 0;
+  g.userData.a = THREE.MathUtils.lerp(g.userData.a ?? 0, ads ? 1 : 0, Math.min(1, dt * 10));
+  const a = g.userData.a, sway = Math.sin(bob) * 0.01 * (1 - a);
+  // hip: low and right; aim: the sights on the eye line
+  g.position.set(THREE.MathUtils.lerp(0.17, 0, a) + sway, THREE.MathUtils.lerp(-0.2, -0.043, a) - recoil * 0.015 + Math.abs(Math.cos(bob)) * 0.006 * (1 - a), THREE.MathUtils.lerp(-0.38, -0.2, a) + recoil * 0.06);
+  g.rotation.set(recoil * 0.06 + (rel ? 0.5 : 0), THREE.MathUtils.lerp(0.05, 0, a), rel ? 0.4 : 0);
+  // bolt: up, back, forward, down after each shot
+  const b = g.userData.bolt, k = cyc < 1 ? Math.sin(Math.min(1, cyc * 1.2) * Math.PI) : 0;
+  b.position.z = k * 0.08; b.rotation.z = k * 0.9;
+}
+
+boot().catch(e => { console.error(e); setLoad('Failed to load: ' + e.message); });

@@ -1,0 +1,16 @@
+{
+ "source": "IGN RGE ALTI (ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES) via data.geopf.fr WMS-R, Licence Ouverte Etalab 2.0",
+ "crs": "EPSG:2154",
+ "originL93": [
+  675000,
+  6994000
+ ],
+ "note": "row 0 = north edge; world x = east, world z = south; z = 0 at the north edge",
+ "size": 6000,
+ "res": 2.5,
+ "n": 2401,
+ "base": 53,
+ "scale": 0.01,
+ "min": 54.097312927246094,
+ "max": 159.67881774902344
+}

@@ -19,6 +19,8 @@ Section references like **(§9.1)** point to the matching part of the README. Us
 
 Tick boxes as work is completed. Each item is "done" only when it is **made, integrated, historically reviewed (§11.4), and performance-checked**.
 
+> **Playable demo:** [`game/`](game/README.md) is a browser vertical-slice demo of **MAP-S02 La Boisselle & Lochnagar**: the real terrain at true scale (6 km × 6 km from IGN lidar), the 1916 trench lines, the 07:28 mines, the 07:30 attack, AI on both sides, ragdoll deaths, frequent respawn, out-of-bounds handling and headless AI playthrough tests. Items it covers are marked *(demo)* below. Demo work is a prototype, not "done" by the rule above.
+
 ---
 
 ## 0. Scope
@@ -29,6 +31,9 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 - **Artillery as an off-map, AI-driven system only**: barrages, creeping barrages, counter-battery fire and shell effects. Players can **request** barrages (officer + telephone or flare) but **cannot operate** guns.
 - Mines, gas, wire, mud, weather, night, flares, raids, tunnelling.
 - Factions: British (incl. Highland & Newfoundland), Australian, New Zealand, Canadian, German.
+- **Maps are large open battlefields at true scale** (1 game unit = 1 m), built from real elevation data and georeferenced trench maps, not arena-sized sets. MAP-S02 is one 6 km × 6 km map. Distance is handled by terrain LOD, fog and culling, not by shrinking the ground (decided 12 Nov 2026).
+- **Mobile is self-playing:** on phones and tablets the game plays itself. The AI controls the player through the same agent API the tests use (as in Cimmerian's "Let the AI play this level"), and the viewer watches the battle unfold with touch only for the camera, pausing and skipping. There are no on-screen twin-stick controls (decided 12 Nov 2026).
+- **Respawning is frequent and normal:** death is common for a soldier, so players redeploy within seconds at a friendly trench or a taken objective, and AI reinforcements come up in waves.
 
 ### Phase 2 options
 Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the backlog tagged **PH2** so they can be picked up after launch without re-planning.
@@ -56,14 +61,14 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 
 ### 1.1 Direction & documents
 - [ ] **PRE-001** [P0] Write the one-page game vision & pillars (authentic trench experience, squad co-operation, respect for the fallen)
-- [ ] **PRE-002** [P0] Choose the engine (Unreal 5 vs Unity) and the netcode model; document the reasons
+- [x] **PRE-002** [P0] ~~Choose the engine (Unreal 5 vs Unity)~~ **Decided: browser engine, pure JavaScript + WebGL2 (three.js), no build step**, following The Cimmerian (deterministic fixed tick, agent API, headless test runs). Netcode model still to choose *(demo)*
 - [ ] **PRE-003** [P0] Write the Game Design Document (GDD) skeleton, linking every system in §5 of this TODO
 - [ ] **PRE-004** [P0] **Art bible:** palette per battlefield (Flanders brown-grey, Somme chalk-white, Vimy snow-grey), lighting moods, material references (§3–5 photos)
 - [ ] **PRE-005** [P0] **Audio bible:** realism targets, reference recordings, mix philosophy (artillery is felt more than seen)
 - [ ] **PRE-006** [P0] **Historical accuracy policy:** date-gating rules (§11.4), naming conventions, sign-off process
 - [ ] **PRE-007** [P0] **Sensitivity & depiction policy:** casualties, gore toggle, treatment of the dead, enemy portrayal, real unit names
 - [ ] **PRE-008** [P0] Define the target platforms, minimum spec and frame-rate targets
-- [ ] **PRE-009** [P0] Set performance budgets: triangles, draw calls, texture memory per map, max players & AI agents
+- [ ] **PRE-009** [P0] Set performance budgets: triangles, draw calls, texture memory per map, max players & AI agents. Demo baseline: ~300 terrain tiles, 150–220 draw calls, 234 AI, 60 Hz sim at < 0.3 ms/tick (see `game/README.md`)
 - [ ] **PRE-010** [P1] Write the age-rating plan (gore, gas injuries, language)
 - [ ] **PRE-011** [P0] Write the scope document (Section 0 above) and get it signed off
 - [x] **PRE-012** [P0] ~~Decide: are light trench mortars (and the flamethrower) player-usable?~~ **Decided: Phase 2 option PH2-A.** Not built in Phase 1
@@ -77,16 +82,16 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **PIPE-003** [P0] DCC → engine export presets (scale, units, axes, LOD naming, collision naming)
 - [ ] **PIPE-004** [P0] Texture standards (PBR, texel density per asset class, channel packing)
 - [ ] **PIPE-005** [P0] **Data-driven gameplay:** weapon, unit, faction and map definitions in JSON / data assets, not hard-coded (§11.1, arf20 `properties.cfg`)
-- [ ] **PIPE-006** [P0] CI builds (nightly), automated smoke tests, crash reporting
+- [ ] **PIPE-006** [P0] CI builds (nightly), automated smoke tests, crash reporting. **AI playthroughs as regression tests:** deterministic sim + agent API + headless browser runs with state hashes (Cimmerian §11) *(demo: `game/test/run.sh`)*
 - [ ] **PIPE-007** [P0] Performance capture tooling (per-map perf runs)
 - [ ] **PIPE-008** [P1] Localisation pipeline (EN, FR, DE minimum; voice and text)
 - [ ] **PIPE-009** [P1] Mod / map-editor support decision & tooling
 - [ ] **PIPE-010** [P0] Attribution tracker: every external reference image, map, sound and music track with its licence (CC-BY NLS maps, PD IWM/AWM/LAC photos)
 
 ### 1.3 Custom editor tools
-- [ ] **TOOL-001** [P0] **Georeferenced trench-map importer:** load an NLS GeoTIFF / trench map as a terrain overlay in-editor (§12)
-- [ ] **TOOL-002** [P0] **Heightmap builder:** combine modern elevation data with map contours and hand-correct for 1916–17 terrain
-- [ ] **TOOL-003** [P0] **Trench spline tool:** draw a trench centre-line → auto-generate fire bays, traverses, revetment, duckboards, parapet/parados, collision and navmesh links (§2)
+- [ ] **TOOL-001** [P0] **Georeferenced trench-map importer:** load an NLS GeoTIFF / trench map as a terrain overlay in-editor (§12). *(demo: affine georeference + automatic vectorisation of trench lines, `tools/terrain/`)*
+- [ ] **TOOL-002** [P0] **Heightmap builder:** start from **real lidar terrain** (France: IGN RGE ALTI 1 m; Belgium: Digitaal Hoogtemodel Vlaanderen), then hand-correct for 1916–17 (remove post-war roads and embankments, restore filled craters, pre-blast ground under mines). *(demo: `tools/terrain/fetch_dem.mjs`, Lochnagar pre-blast fill)*
+- [ ] **TOOL-003** [P0] **Trench spline tool:** draw a trench centre-line → auto-generate fire bays, traverses, revetment, duckboards, parapet/parados, collision and navmesh links (§2) *(demo: crenellation, fire-step, parapet/parados cut, streamed revetment/duckboards/sandbags; no navmesh)*
 - [ ] **TOOL-004** [P0] **Communication-trench zig-zag generator** from a path
 - [ ] **TOOL-005** [P0] **Wire-belt tool:** paint a belt → auto-place pickets + wire type (entanglement, double apron, low, concertina) with randomised sag (§9.1)
 - [ ] **TOOL-006** [P0] **Crater stamper:** terrain deformation + decal + water fill, with size presets (shell / heavy shell / mine)
@@ -122,7 +127,7 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 
 | ID | Map | Battlefield | Date / conditions | Factions | Signature features | Pri |
 |---|---|---|---|---|---|---|
-| **MAP-S02** | **La Boisselle & Lochnagar** | Somme | 1 Jul 1916, dawn, clear | British vs German | Lochnagar & Y Sap mines, chalk, deep dugouts, Sausage & Mash Valleys | **P0 (vertical slice)** |
+| **MAP-S02** | **La Boisselle & Lochnagar** (6 × 6 km, true scale) | Somme | 1 Jul 1916, 07:28 mines, 07:30 zero hour, clear | British vs German | Lochnagar & Y Sap mines, chalk, deep dugouts, Sausage & Mash Valleys | **P0 (vertical slice)** *(demo)* |
 | MAP-S01 | Hawthorn Ridge & Beaumont-Hamel | Somme | 1 Jul 1916, 07:20 mine | British, Newfoundland vs German | Hawthorn mine, Y Ravine, uncut wire, sunken lane | P1 |
 | MAP-S03 | Delville Wood | Somme | 15–20 Jul 1916 | South African/British vs German | Shattered wood, close-quarters, constant shelling | P1 |
 | MAP-S04 | Pozières & Mouquet Farm | Somme | 23 Jul–Sep 1916 | Australian vs German | Village ruins, OG Lines, Gibraltar bunker, extreme shelling | P1 |
@@ -160,7 +165,7 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **MAP-x-16** Lighting & weather preset (time of day, fog, rain, snow, flares)
 - [ ] **MAP-x-17** Audio zones, ambience beds, reverb volumes, distant-battle soundscape ⛓ TOOL-012
 - [ ] **MAP-x-18** Set dressing pass (props, signs, letters, personal items)
-- [ ] **MAP-x-19** Out-of-bounds handling and map edge (distant battlefield matte, barrage-glow horizon)
+- [ ] **MAP-x-19** Out-of-bounds handling and map edge: an out-of-bounds warning past the play boundary, a hard stop at the map edge, and coarse land beyond it to the horizon (distant battlefield matte, barrage-glow horizon) *(demo)*
 - [ ] **MAP-x-20** LODs, occlusion, streaming, performance pass ⛓ PIPE-007
 - [ ] **MAP-x-21** Historical review against trench map + photos (sign-off) ⛓ PRE-006
 - [ ] **MAP-x-22** Playtest → iterate (≥3 rounds) → balance sign-off
@@ -566,7 +571,7 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **SYS-OBJ-001** [P0] **Frontline sector capture** (attack / defend trench by trench, as in Verdun's Frontlines) (§11.1)
 - [ ] **SYS-OBJ-002** [P0] Attack waves with **zero hour**: whistles, ladders, timed advance with the barrage
 - [ ] **SYS-OBJ-003** [P0] **Counter-attacks** after capture (defend the consolidated trench)
-- [ ] **SYS-MODE-001** [P0] **Frontlines** (PvP / PvE): sector tug-of-war
+- [ ] **SYS-MODE-001** [P0] **Frontlines** (PvP / PvE): sector tug-of-war, with fast redeploy (a few seconds) at friendly trenches and taken objectives, and AI reinforcement waves *(demo)*
 - [ ] **SYS-MODE-002** [P1] **Historical Operation:** scripted multi-phase battle following the real timeline (e.g. Vimy 9→12 April)
 - [ ] **SYS-MODE-003** [P1] **Trench Raid** (night, small teams, prisoner snatch, box barrage)
 - [ ] **SYS-MODE-004** [P1] **Squad Defence** (co-op vs AI waves)
@@ -591,6 +596,7 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **SYS-NET-004** [P1] Anti-cheat, reporting, admin tools
 - [ ] **SYS-NET-005** [P0] **Bots** to fill servers (⛓ AI section)
 - [ ] **SYS-TEC-001** [P0] Save / load (campaign), settings, key rebinding, controller support
+- [ ] **SYS-TEC-008** [P0] **Mobile = self-playing mode:** detect touch / small screens and start in autoplay. An AI pilot drives the player through `TF.step` (advance with the wave, take cover, fire, redeploy on death), with a cinematic camera (first person, over-the-shoulder, a slow orbit on death). Touch is for looking around, pause and speed (1× / 3×). Lower defaults: render scale, shadow map, tile budget, fewer AI. ⛓ PIPE-006 (agent API), AI-CORE-*
 - [ ] **SYS-TEC-002** [P0] Graphics settings & scalability (foliage, gas volume quality, shadow, crater decal limits)
 - [ ] **SYS-TEC-003** [P0] **Accessibility:** colour-blind modes (flare colours!), subtitles with speaker & direction, gore & casualty-density toggles, photosensitivity mode (flashes), hold-to-toggle options, aim assist (PvE)
 - [ ] **SYS-TEC-004** [P1] Localisation (EN / FR / DE, + more), regional voice sets
@@ -657,7 +663,7 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **ANM-RCT-001** [P0] Flinch / suppression cower (standing, crouched, prone), duck at incoming-shell sound
 - [ ] **ANM-RCT-002** [P0] Hit reactions by body zone (upper, lower, limbs), stagger, fall wounded
 - [ ] **ANM-RCT-003** [P0] **Downed / incapacitated** loop, crawling wounded, being dragged
-- [ ] **ANM-RCT-004** [P0] Deaths: shot (forward, backward, slump on the parapet, fall from a ladder), blast (ragdoll blend), toned-down variants
+- [ ] **ANM-RCT-004** [P0] Deaths: **physics ragdolls** for every death (bullet impulse at the wound, blast throw, collision with trench walls and shell holes), blended from the shot or slump pose; toned-down variants *(demo: cannon-es ragdolls on the real ground)*
 - [ ] **ANM-RCT-005** [P0] **Gassed:** coughing, clutching mask, choking, blinded walk (hand on the shoulder in front)
 - [ ] **ANM-RCT-006** [P1] Concussion stumble, deafened (hands to ears)
 - [ ] **ANM-RCT-007** [P1] Shell-shock (tremor idle), panic flee (morale break)
