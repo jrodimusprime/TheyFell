@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
 import { makeRifleRig, twoBoneIK, bakeSoldier } from './soldierSkin.js';
 import { Hands, GRIPS, blendGrip } from './hands.js';
+import { POSES } from './xrHands.js';
 
 const lerp = (a, b, t) => a + (b - a) * t, ease = t => t * t * (3 - 2 * t);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -28,10 +29,42 @@ export class FirstPerson {
     const tex = bakeSoldier({ scene: this.body }, 'BRI', 1, null, { detail: true, res: 2 });
     if (tex) { const cv = tex.userData.canvas, nm = new THREE.DataTexture(reliefFrom(cv, 5), cv.width, cv.height, THREE.RGBAFormat); nm.flipY = tex.flipY; nm.needsUpdate = true; nm.generateMipmaps = true; nm.minFilter = THREE.LinearMipmapLinearFilter; nm.magFilter = THREE.LinearFilter;
       this.body.traverse(o => { if (o.isSkinnedMesh) { o.material.normalMap = nm; o.material.normalScale.set(0.6, 0.6); o.material.roughness = 0.8; o.material.needsUpdate = true; } }); }
+    this.body.traverse(o => { if (o.isMesh && !o.isSkinnedMesh) o.visible = false; });   // no helmet or kit round the camera
+    // only the arms are drawn in first person (the chest and shoulders sit round the camera): mark each vertex by the bone
+    // that carries it and discard everything that isn't sleeve or hand
+    this.body.traverse(o => {
+      if (!o.isSkinnedMesh) return;
+      const g = o.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, bones = o.skeleton.bones, arm = new Float32Array(si.count);
+      for (let i = 0; i < si.count; i++) { let k = 0; for (let j = 1; j < 4; j++) if (sw.getComponent(i, j) > sw.getComponent(i, k)) k = j; arm[i] = /upperarm|lowerarm|hand_|index_|middle_|ring_|pinky_|thumb_/.test(bones[si.getComponent(i, k)].name) ? 1 : 0; }
+      g.setAttribute('aArm', new THREE.BufferAttribute(arm, 1));
+      o.material.onBeforeCompile = sh => {
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aArm; varying float vArm;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvArm = aArm;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vArm;').replace('void main() {', 'void main() {\n  if (vArm < 0.5) discard;');
+      };
+      o.material.needsUpdate = true;
+    });
     this.rig.add(this.body);
     this.body.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } });
     this.bones = {}; this.body.traverse(o => { if (o.isBone) this.bones[o.name] = o; });
     this.hands = new Hands(this.bones, this.body);   // measured in the rest pose, before anything moves
+    // the real hands: rigged left and right hands fitted at the sleeve's wrists; the model's own glove hands collapsed away
+    this.xr = skinned.xrHands || null;
+    if (this.xr) {
+      for (const [s, h] of [['l', this.xr.left], ['r', this.xr.right]]) {
+        this.scene.add(h.object); h.object.updateMatrixWorld(true);
+        const P = n => h.bones[n].getWorldPosition(new THREE.Vector3());
+        h.wristLocal = P('wrist'); h.fingersLocal = P('middle-finger-phalanx-proximal').sub(h.wristLocal).normalize();
+        h.palmLocal = h.palm.clone().addScaledVector(h.fingersLocal, -h.palm.dot(h.fingersLocal)).normalize();
+        h.palmCentreLocal = h.palmCentre();
+        // the wrist: a serge cuff from the forearm over the base of the hand, closing the hand's open end; flattened like a
+        // real wrist and turned with the palm, so the join follows the hand
+        const wide = P('index-finger-metacarpal').distanceTo(P('pinky-finger-metacarpal')) + 0.03;
+        const g = new THREE.CylinderGeometry(1, 1.08, 1, 20, 1, false); g.translate(0, 0.5, 0);   // 0 at the hand end, 1 at the forearm end
+        const cuff = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: 0x5f5236, roughness: 1, side: THREE.DoubleSide });
+        cuff.add(new THREE.Mesh(g, m));
+        cuff.userData = { wide }; this.scene.add(cuff); h.cuff = cuff;
+      }
+    }
     for (const n of ['Head', 'thigh_l', 'thigh_r']) this.bones[n].scale.setScalar(0.0001);   // no head (the camera is in it), no legs
     // he faces +Z; the camera looks down -Z. Eyes at the camera.
     this.body.rotation.y = Math.PI; this.body.position.set(0, -1.66, 0.03);   // shoulders just behind and below the eyes
@@ -107,10 +140,40 @@ export class FirstPerson {
     // left hand: palm up under the fore-end, fingers across to the far side
     const Fl = d(V(-0.75, 0.1, 0.65)).normalize(), Nl = d(V(0, 1, 0));
     const wrist = (grip, F, N, palm = 0.03, reach = 0.055) => w(grip).addScaledVector(N, -palm).addScaledVector(F, -reach);
-    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wrist(hand, Fr, Nr, away > 0.5 ? 0.015 : 0.035, away > 0.5 ? 0.075 : 0.05), up.clone().multiplyScalar(-1).addScaledVector(right, 0.9));
-    twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wrist(GRIP_L, Fl, Nl, 0.035, 0.05), up.clone().multiplyScalar(-1).addScaledVector(right, -0.35));
-    this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl);
-    this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend);
+    let wR = wrist(hand, Fr, Nr, away > 0.5 ? 0.015 : 0.035, away > 0.5 ? 0.075 : 0.05), wL = wrist(GRIP_L, Fl, Nl, 0.035, 0.05);
+    if (this.xr) {
+      // each real hand placed by its grip: palm centre on the wood (stock / fore-end radius ~2 cm), facing it
+      const place = (h, gripW, F, N, stand) => {
+        const f = F.clone().normalize(), n = N.clone().addScaledVector(f, -N.dot(f)).normalize(), x = new THREE.Vector3().crossVectors(f, n);
+        const fl = h.fingersLocal, nl = h.palmLocal, xl = new THREE.Vector3().crossVectors(fl, nl);
+        h.object.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f, n, x).multiply(new THREE.Matrix4().makeBasis(fl, nl, xl).transpose()));
+        h.object.position.copy(gripW).addScaledVector(n, -stand).sub(h.palmCentreLocal.clone().applyQuaternion(h.object.quaternion));
+        h.object.updateMatrixWorld(true);
+        return h.wristLocal.clone().applyMatrix4(h.object.matrixWorld);
+      };
+      wR = place(this.xr.right, w(hand), Fr, Nr, away > 0.5 ? 0.012 : 0.034);
+      wL = place(this.xr.left, w(GRIP_L), Fl, Nl, 0.034);
+    }
+    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, up.clone().multiplyScalar(-1).addScaledVector(right, 0.9));
+    twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wL, up.clone().multiplyScalar(-1).addScaledVector(right, -0.35));
+    if (this.xr) for (const n of ['hand_l', 'hand_r']) { B[n].scale.setScalar(0.001); B[n].updateMatrixWorld(true); }
+    if (this.xr) for (const [s, h] of [['l', this.xr.left], ['r', this.xr.right]]) {
+      const wristW = h.wristLocal.clone().applyMatrix4(h.object.matrixWorld), elbow = B['lowerarm_' + s].getWorldPosition(new THREE.Vector3());
+      const along = elbow.clone().sub(wristW).normalize();                       // up the forearm
+      const palmW = h.palmLocal.clone().transformDirection(h.object.matrixWorld);
+      const flat = palmW.addScaledVector(along, -palmW.dot(along)).normalize(), side = new THREE.Vector3().crossVectors(along, flat);
+      const c = h.cuff, w = c.userData.wide / 2;
+      c.position.copy(wristW).addScaledVector(along, -0.015);                      // starts 1.5 cm over the base of the hand
+      c.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(side, along, flat));
+      c.scale.set(w, Math.min(0.12, wristW.distanceTo(elbow) * 0.5), w * 0.68);   // wider across the palm than through it
+      c.visible = true;
+    }   // the sleeve's own gloves hidden (after the clip, which resets scale)
+    if (this.xr) {
+      const mix = (a, b, t) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] + (b[k] - a[k]) * t]));
+      this.xr.right.setPose(mix(POSES.trigger, pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
+      this.xr.left.setPose(POSES.grip);
+      for (const h of [this.xr.left, this.xr.right]) h.object.visible = true;
+    } else { this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl); this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend); }
   }
 }
 

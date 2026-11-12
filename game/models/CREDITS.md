@@ -185,3 +185,9 @@ Photographs projected onto the soldiers' heads. Both are Australian War Memorial
 | `faces/law.png` | "Studio portrait of 1723 Private (Pte) Frank Law, 2nd Reinforcements, 21st Battalion, of Glen Waverley, Victoria, circa June 1915", AWM DA09534, via Wikimedia Commons | Public domain |
 | `faces/mark.png` | "Soldier T. E. Mark, 1917", State Library of Queensland (negative 199507), via Wikimedia Commons; newspaper halftone smoothed | Public domain |
 | `faces/borzard.png` | "World War I Soldier V. A. Borzard", State Library of Queensland (negative 192023), via Wikimedia Commons; newspaper halftone smoothed | Public domain |
+
+## Hands (`hands/`)
+
+| File | What | Source | Licence |
+|---|---|---|---|
+| `hands/left.glb`, `hands/right.glb` | Rigged left and right hands, 25 joints each (the player's first-person hands) | WebXR input-profiles "generic-hand", https://github.com/immersive-web/webxr-input-profiles (npm `@webxr-input-profiles/assets`) | MIT, Copyright (c) 2019 Amazon (`hands/LICENSE-webxr-input-profiles.md`) |

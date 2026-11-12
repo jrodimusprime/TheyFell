@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SU from 'three/addons/utils/SkeletonUtils.js';
 import { bakeSoldier, addBrodie, loadFaces, makeRifleRig, holdRifle } from './soldierSkin.js';
 import { RIG, PART } from './soldiers.js';
+import { loadHands } from './xrHands.js';
 
 const MAP = { pelvis: 'pelvis', chest: 'spine_03', head: 'Head', uarmL: 'upperarm_l', farmL: 'lowerarm_l', uarmR: 'upperarm_r', farmR: 'lowerarm_r', thighL: 'thigh_l', shinL: 'calf_l', thighR: 'thigh_r', shinR: 'calf_r' };
 const CHILD = { pelvis: ['pelvis', 'spine_01', 1], chest: ['spine_03', 'neck_01', 1], head: ['neck_01', 'Head', 1], uarmL: ['upperarm_l', 'lowerarm_l', -1], farmL: ['lowerarm_l', 'hand_l', -1], uarmR: ['upperarm_r', 'lowerarm_r', -1], farmR: ['lowerarm_r', 'hand_r', -1], thighL: ['thigh_l', 'calf_l', -1], shinL: ['calf_l', 'foot_l', -1], thighR: ['thigh_r', 'calf_r', -1], shinR: ['calf_r', 'foot_r', -1] };
@@ -28,7 +29,9 @@ export async function loadSkinnedMen(scene, renderer) {
   const L = new GLTFLoader(), load = u => new Promise((res, rej) => L.load(u, res, undefined, rej));
   const [bri, ger, le, k98, faces] = await Promise.all([load('models/characters/soldier_british.glb'), load('models/characters/soldier_german.glb'), load('models/weapons/lee_enfield.glb'), load('models/weapons/kar98k.glb'), loadFaces()]);
   bakeSoldier(bri, 'BRI', 1, faces); bakeSoldier(ger, 'GER', 1, faces); addBrodie(bri);
-  return new SkinnedMen(scene, { BRI: { gltf: bri, gun: le.scene, kind: 'smle' }, GER: { gltf: ger, gun: k98.scene, kind: 'g98' } });
+  const men = new SkinnedMen(scene, { BRI: { gltf: bri, gun: le.scene, kind: 'smle' }, GER: { gltf: ger, gun: k98.scene, kind: 'g98' } });
+  men.xrHands = await loadHands('models/hands/', { skin: 0xc49a82 });   // the player's own hands (WebXR generic hands, MIT)
+  return men;
 }
 
 class SkinnedMen {

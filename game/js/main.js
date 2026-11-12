@@ -99,6 +99,7 @@ async function boot() {
   setLoad('Dressing the men (uniforms, faces, rifles)…');
   const skinned = await loadSkinnedMen(scene, renderer);
   const fp = new FirstPerson(skinned, SUN);
+  const fpCam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.01, 10);
   const rag = new Ragdolls(T);
   rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
   const fx = new FX(scene);
@@ -226,7 +227,9 @@ async function boot() {
     renderer.render(scene, camera);
     if (p.alive && !(window.TF && TF.view)) {   // the player's arms and rifle, in their own pass on top of the world
       camera.updateMatrixWorld(); fp.update(dt, camera, p, W, recoil, bob, fpMoving, rifleBlock());
-      renderer.autoClear = false; renderer.clearDepth(); renderer.render(fp.scene, camera); renderer.autoClear = true;
+      // its own camera: same view, but a 1 cm near plane, so hands close to the eye are never sliced off
+      fpCam.position.copy(camera.position); fpCam.quaternion.copy(camera.quaternion); fpCam.fov = camera.fov; fpCam.aspect = camera.aspect; fpCam.updateProjectionMatrix(); fpCam.updateMatrixWorld();
+      renderer.autoClear = false; renderer.clearDepth(); renderer.render(fp.scene, fpCam); renderer.autoClear = true;
     }
     hud(dt);
   }
