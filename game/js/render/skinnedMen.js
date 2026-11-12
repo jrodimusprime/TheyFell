@@ -52,6 +52,7 @@ class SkinnedMen {
     const gun = makeRifleRig(T.gun, T.kind); (live ? o : this.scene).add(gun); gun.visible = false;
     this.scene.add(o);
     const e = { o, gun, bones: this._bones(o), side, mixer: live ? new THREE.AnimationMixer(o) : null, clip: null, action: null };
+    e.rest = Object.fromEntries(Object.entries(e.bones).map(([n, b]) => [n, b.position.clone()]));   // each bone's own offset from its parent
     if (live) e.clips = Object.fromEntries(T.gltf.animations.map(a => [a.name, a]));
     return e;
   }
@@ -102,7 +103,13 @@ class SkinnedMen {
     for (const part of ORDER) {
       const bone = e.bones[MAP[part]], W = _m.multiplyMatrices(c.mats[PART[part]], off[part]);
       bone.parent.updateMatrixWorld(false);
-      _m2.copy(bone.parent.matrixWorld).invert().multiply(W).decompose(bone.position, bone.quaternion, bone.scale);
+      if (part === 'pelvis') _m2.copy(bone.parent.matrixWorld).invert().multiply(W).decompose(bone.position, bone.quaternion, bone.scale);
+      else {
+        // only the rotation comes from the ragdoll: the bone keeps its own length from its parent (the ragdoll's simple rig
+        // has different proportions; taking its positions stretched the neck and limbs)
+        const wq = new THREE.Quaternion().setFromRotationMatrix(W), pq = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+        bone.quaternion.copy(pq.multiply(wq)); bone.position.copy(e.rest[MAP[part]]); bone.scale.set(1, 1, 1);
+      }
       bone.updateMatrixWorld(true);
     }
     // the rifle where it fell (the instanced rifle's frame: muzzle -Z, origin near the trigger)
