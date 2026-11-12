@@ -1,5 +1,5 @@
 // They Fell: La Boisselle demo. Boot, the fixed-tick loop, input, camera, HUD and the agent API (window.TF).
-// URL flags: ?agent (no menu, the sim only advances through TF.step: for headless tests)  ?seed=N  ?cheat (god mode)
+// URL flags: ?agent (no menu, the sim only advances through TF.step: for headless tests)  ?seed=N  ?god or ?cheat (god mode)  ?rambo
 //            ?at=x,z (start position, metres)  ?time=HH:MM:SS (skip ahead)  ?lowres  ?nofx
 import * as THREE from 'three';
 import { loadTerrain } from './world/terrain.js';
@@ -126,7 +126,6 @@ async function boot() {
   const feed = [];
   function message(t, secs = 4) { $('msg').textContent = t; $('msg').style.opacity = 1; msgT = secs; }
   function stepSim(input) {
-    if (CHEAT && sim.player.hp < 100) sim.player.hp = 100;
     sim.step(input);
   }
   function consumeEvents() {
@@ -337,7 +336,7 @@ async function boot() {
       for (let i = 0; i < n; i++) { const input = { ...a }; if (i > 0) { input.crouch = input.prone = input.reload = input.grenade = false; } stepSim(input); }
       return sim.obs();
     },
-    obs: () => sim.obs(), hash: () => sim.hash(), rambo: on => { sim.rambo = !!on; return sim.rambo; },
+    obs: () => sim.obs(), hash: () => sim.hash(), rambo: on => { sim.rambo = !!on; return sim.rambo; }, god: on => { sim.god = !!on; return sim.god; },
     render(dt = 1 / 60) { consumeEvents(); render(dt); },
     settle() { render(0.016); for (let i = 0; i < 60; i++) { terrain.update(camera, 200); if (!terrain.pending && i > 1) break; } props.last = props.lastWire = null; props.update(camera); },
     perf: () => ({ fps, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, tiles: terrain.stats.tiles, terrainTris: terrain.stats.tris, corpses: men.corpses.length, ragdolls: rag.stats.active }),
@@ -352,6 +351,9 @@ async function boot() {
   const setRambo = on => { sim.rambo = on; $('rambo').textContent = `Rambo mode: ${on ? 'on (survive 10 bullets)' : 'off'}`; $('rambo').setAttribute('aria-pressed', on); };
   $('rambo').onclick = () => setRambo(!sim.rambo);
   if (Q.has('rambo')) setRambo(true);
+  const setGod = on => { sim.god = on; $('god').textContent = `God mode: ${on ? 'on' : 'off'}`; $('god').setAttribute('aria-pressed', on); };
+  $('god').onclick = () => setGod(!sim.god);
+  if (Q.has('god') || CHEAT) setGod(true);
   // first frames: build the near ground before the player sees it
   terrain.update(camera, 400);
   if (AGENT) { $('menu').style.display = 'none'; $('hud').hidden = false; running = true; }

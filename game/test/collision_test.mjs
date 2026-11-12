@@ -93,3 +93,13 @@ for (const key of ['jump', 'vault']) { const [a, n] = climbTrial(key); ok(`${key
   ok('Lochnagar: no trench survives inside the crater', wasTrench > 5 && stillTrench === 0, `${wasTrench} trench pieces before, ${stillTrench} after`);
   ok('Lochnagar: no wire or posts left inside the crater', wireLeft === 0 && spawnsIn === 0, `wire ${wireLeft}, posts ${spawnsIn}`);
 }
+
+// ---- God mode: nothing hurts the player ----
+{
+  const shooter = S.soldiers.find(x => !x.isPlayer) || S._spawn('GER', p.x + 5, p.z, 'rifle');
+  S.god = true; Object.assign(p, { alive: true, hp: 100 });
+  for (let i = 0; i < 50; i++) S._damage(p, 200, shooter, { kind: 'bullet', zone: 'head', dir: [1, 0, 0], point: [p.x, p.y, p.z] });
+  S._explode(p.x, p.y + 1, p.z, 20, 10, null, 'heavy'); S._damage(p, 500, null, { kind: 'fall', dir: [0, -1, 0], zone: 'legs', point: [p.x, p.y, p.z] });
+  ok('God mode: 50 head shots, a heavy shell at his feet and a fall, and he is untouched', p.alive && p.hp === 100, `hp ${p.hp}`);
+  S.god = false;
+}

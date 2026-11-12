@@ -23,9 +23,9 @@ The game fetches its terrain, so it needs a local server (opening `index.html` f
 | G | Throw a Mills bomb (3 per life, 4 s fuse) |
 | M | Trench map of the whole 6 km map, with the play boundary |
 | P | Pixel size: the game renders at a fraction of screen resolution and scales up with hard pixels (34 / 50 / 70 / 100 %) |
-| F3 / K / Esc | Debug and performance line / sound on or off / pause (the pause menu has **Rambo mode**: survive 10 bullets, the 11th drops you) |
+| F3 / K / Esc | Debug and performance line / sound on or off / pause (the pause menu has **Rambo mode**: survive 10 bullets, the 11th drops you; and **God mode**: nothing hurts you) |
 
-URL flags: `?seed=N`, `?cheat` (no damage), `?at=x,z` (start at a world position in metres), `?lowres`, `?agent` (no menu; the sim only advances through `TF.step`, for tests).
+URL flags: `?seed=N`, `?god` or `?cheat` (God mode), `?rambo`, `?at=x,z` (start at a world position in metres), `?lowres`, `?agent` (no menu; the sim only advances through `TF.step`, for tests).
 
 ## What happens
 

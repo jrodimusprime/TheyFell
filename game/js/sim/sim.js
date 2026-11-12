@@ -25,7 +25,7 @@ export class Sim {
     this.T = T; this.F = F; this.seed = seed; this.rng = mulberry32(seed); this.tick = 0;
     this.map = T.map; this.events = []; this.soldiers = []; this.shells = []; this.grenades = []; this.gt = 0;
     this.flags = { mine: false, zero: false };
-    this.rambo = false;
+    this.rambo = false; this.god = false;
     this.objectives = this.map.objectives.map(o => ({ ...o, owner: 'GER', progress: 0 }));
     this.score = { BRI: { kills: 0, deaths: 0 }, GER: { kills: 0, deaths: 0 } };
     this.waveT = { BRI: 0, GER: 0 };
@@ -253,6 +253,8 @@ export class Sim {
   }
   _damage(v, dmg, src, info) {
     if (!v.alive) return;
+    // God mode (Esc menu): nothing hurts the player at all
+    if (v.isPlayer && this.god) return;
     // Rambo mode (Esc menu): the player shrugs off bullets: 10 hits and he's still standing, the 11th drops him
     if (v.isPlayer && this.rambo && info.kind === 'bullet') dmg = 9.5;
     v.hp -= dmg; v.lastHit = info;
@@ -484,7 +486,7 @@ export class Sim {
 
   // ---------- agent interface ----------
   hash() {
-    const h = new FNV().u32(this.tick).u32(this.rng.state()).u32(this.rambo ? 1 : 0);
+    const h = new FNV().u32(this.tick).u32(this.rng.state()).u32(this.rambo ? 1 : 0).u32(this.god ? 1 : 0);
     for (const s of this.soldiers) h.f(s.x).f(s.y).f(s.z).f(s.hp).u32(s.alive ? 1 : 0).u32(s.mag);
     for (const o of this.objectives) h.f(o.progress);
     return h.hex();
