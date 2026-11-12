@@ -94,6 +94,7 @@ On death each part becomes a **cannon-es** physics body, joined by cone-twist co
 | `js/main.js` | Boot, loop, input, camera, view-model, HUD, map, agent API |
 | `data/` | `dem.bin` / `dem.json` (terrain), `map_laboisselle.json` (every trench, road, village, mine, objective, spawn) |
 | `vendor/` | three.js r170 (MIT), cannon-es 0.20 (MIT) |
+| `fonts/` | Libre Caslon Text and Display (SIL OFL, `fonts/OFL.txt`). Caslon was the standard British book and government typeface of 1916 |
 | `../tools/terrain/` | The pipeline that made `data/` (fetch, georeference, vectorise, build) |
 
 ## Not done yet

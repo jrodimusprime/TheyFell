@@ -277,7 +277,7 @@ async function boot() {
     mg.fillStyle = 'rgba(120,40,20,.8)';
     for (const o of sim.soldiers) if (o.alive && !o.isPlayer && o.side === p.side && Math.abs(o.x - p.x) < MR && Math.abs(o.z - p.z) < MR) { const [sx, sy] = S(o.x, o.z); mg.fillRect(sx - 1.5, sy - 1.5, 3, 3); }
     // objectives
-    mg.font = 'bold 18px Georgia'; mg.textAlign = 'center'; mg.textBaseline = 'middle';
+    mg.font = "bold 18px Caslon, Georgia"; mg.textAlign = 'center'; mg.textBaseline = 'middle';
     for (const o of sim.objectives) { const [sx, sy] = S(o.c[0], o.c[1]); if (Math.hypot(sx - C, sy - C) > C + o.r * k) continue;
       mg.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; mg.lineWidth = 2; mg.beginPath(); mg.arc(sx, sy, o.r * k, 0, 7); mg.stroke(); mg.fillStyle = mg.strokeStyle; mg.fillText(o.id, sx, sy); }
     // the way to the attack: the nearest objective your side doesn't hold
@@ -294,7 +294,7 @@ async function boot() {
       $('miniGoal').textContent = `Attack ${goal.id}: ${goal.name.replace(/ \(.*\)/, '')} · ${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'} · ${Math.round(brg)}°`;
     } else $('miniGoal').textContent = 'All objectives held';
     // north mark on the rim
-    const [nx, ny] = S(p.x, p.z - MR * 0.9); mg.fillStyle = '#1d1a14'; mg.font = 'bold 20px Georgia'; mg.fillText('N', nx, ny);
+    const [nx, ny] = S(p.x, p.z - MR * 0.9); mg.fillStyle = '#1d1a14'; mg.font = "bold 20px Caslon, Georgia"; mg.fillText('N', nx, ny);
     mg.restore();
     // you: an arrow pointing up (the way you face)
     mg.fillStyle = '#1d1a14'; mg.strokeStyle = '#f2d7a6'; mg.lineWidth = 2; mg.beginPath(); mg.moveTo(C, C - 11); mg.lineTo(C - 7, C + 8); mg.lineTo(C, C + 4); mg.lineTo(C + 7, C + 8); mg.closePath(); mg.fill(); mg.stroke();
@@ -318,7 +318,7 @@ async function boot() {
     g.lineWidth = 1;
     for (const t of T.map.trenches) { g.strokeStyle = t.side === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = t.kind === 'fire' ? 2 : 1; g.beginPath(); t.pts.forEach((q, i) => i ? g.lineTo(q[0] * S, q[1] * S) : g.moveTo(q[0] * S, q[1] * S)); g.stroke(); }
     g.strokeStyle = '#8a7a5a'; g.lineWidth = 3; for (const r of T.map.roads) { g.beginPath(); r.pts.forEach((q, i) => i ? g.lineTo(q[0] * S, q[1] * S) : g.moveTo(q[0] * S, q[1] * S)); g.stroke(); }
-    g.fillStyle = '#222'; g.font = '13px Georgia'; for (const v of T.map.villages) g.fillText(v.name, v.c[0] * S + 4, v.c[1] * S);
+    g.fillStyle = '#222'; g.font = "13px Caslon, Georgia"; for (const v of T.map.villages) g.fillText(v.name, v.c[0] * S + 4, v.c[1] * S);
     for (const o of sim.objectives) { g.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.beginPath(); g.arc(o.c[0] * S, o.c[1] * S, o.r * S, 0, 7); g.stroke(); g.fillText(o.id, o.c[0] * S - 4, o.c[1] * S + 4); }
     const w = T.map.world; g.strokeStyle = '#000'; g.setLineDash([6, 4]); g.strokeRect(w.playMin * S, w.playMin * S, (w.playMax - w.playMin) * S, (w.playMax - w.playMin) * S); g.setLineDash([]);
     const p = sim.player; g.fillStyle = '#000'; g.beginPath(); g.arc(p.x * S, p.z * S, 5, 0, 7); g.fill();

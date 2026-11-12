@@ -70,7 +70,7 @@ export class Props {
     this.floor = this._im(board, new THREE.MeshStandardMaterial({ color: 0x4a4034, roughness: 1 }), 9000);       // trench floor: trodden chalky mud
     this.step = this._im(board, this.plankMat, 6000);                                                              // the timber-faced fire-step
     // revetment, built like the real thing: an earth core, 2-inch boards in front of it, 4x4 posts and a waling beam on top
-    this.core = this._im(board, new THREE.MeshStandardMaterial({ color: 0x766c5c, roughness: 1 }), 12000);
+    this.core = this._im(board, new THREE.MeshStandardMaterial({ color: 0x564b3d, roughness: 1 }), 12000);
     this.boards = this._im(board, this.plankMat, 12000);
     this.posts = this._im(board, worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), 'post'), 20000);
     this.beams = this._im(board, worldPattern(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), 'post'), 16000);
