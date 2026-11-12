@@ -11,8 +11,8 @@ export const engageRange = s => s.role === 'mg' ? 700 : 300;
 export const hitChance = d => Math.max(0.01, Math.min(0.66, 0.5 - (d - 25) * 0.49 / 75));
 const G = 9.81;
 export const WEAPONS = {
-  smle:  { name: 'SMLE Mk III*', mag: 10, reserve: 60, cycle: 0.95, reload: 0.42, clip: 5, dmg: 100, spread: 0.0035, hip: 0.03, range: 700, auto: false },
-  g98:   { name: 'Gewehr 98', mag: 5, reserve: 60, cycle: 1.0, reload: 0.5, clip: 5, dmg: 100, spread: 0.0035, hip: 0.03, range: 700, auto: false },
+  smle:  { name: 'SMLE Mk III*', mag: 10, reserve: 60, cycle: 0.95, reload: 0.42, clip: 5, dmg: 100, spread: 0.0012, hip: 0.03, range: 700, auto: false },
+  g98:   { name: 'Gewehr 98', mag: 5, reserve: 60, cycle: 1.0, reload: 0.5, clip: 5, dmg: 100, spread: 0.0011, hip: 0.03, range: 700, auto: false },
   mg08:  { name: 'MG 08', mag: 250, reserve: 2000, cycle: 0.133, reload: 6, clip: 250, dmg: 80, spread: 0.010, hip: 0.010, range: 1100, auto: true },
 };
 // a bullet's damage is not a sure kill: drawn from a bell curve for where it hits (out of 100 hp). A body hit averages 58
@@ -29,6 +29,17 @@ const STRIKE_TICKS = 36, STRIKE_HIT = 15, REACH = 2.0;
 const STEEL = { bayonet: [85, 25], club: [60, 18], knife: [65, 20] };
 const steelDamage = (kind, rng) => { const [m, sd] = STEEL[kind] || STEEL.bayonet; return Math.max(15, m + sd * rng.gauss()); };
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+// the player's aim: a slow breathing sway (a figure of eight, radians) that the view shows and the shot follows, most
+// standing, half crouched, next to nothing lying down, three times as much on the move; and the scatter of a shot
+const STANCE_SWAY = [0.0015, 0.0008, 0.0002], STANCE_SPREAD = [1, 0.75, 0.5];
+export function aimSway(s, tick) {
+  const t = tick / HZ, moving = s.intent && (s.intent.f || s.intent.s), a = STANCE_SWAY[s.stance] * (moving ? 3 : 1) * (s.ads ? 1 : 1.6);
+  return [a * (Math.sin(t * 0.9) + 0.45 * Math.sin(t * 2.3 + 1.1)), a * 0.75 * (Math.sin(t * 1.8 + 0.4) + 0.35 * Math.sin(t * 3.1))];
+}
+export function aimSpread(s) {
+  const W = WEAPONS[s.weapon], moving = s.intent && (s.intent.f || s.intent.s);
+  return (s.ads ? W.spread : W.hip) * STANCE_SPREAD[s.stance] + (moving ? 0.012 : 0);
+}
 const PICKUP_TICKS = 66;   // 1.1 s to stoop, swap rifles and come up again
 const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1 };   // advance: the AI jogs forward (stopping to fire)
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
@@ -347,7 +358,8 @@ export class Sim {
     // now and then a round fails to feed or a case sticks: a rifle about one round in 120, the machine gun one in 300
     if (s.rng() < (W.auto ? 1 / 300 : 1 / 120)) { s.jam = s.isPlayer ? 1e9 : 1.8 + s.rng() * 1.4; this.events.push({ t: 'jam', id: s.id }); }
     const moving = s.intent && (s.intent.f || s.intent.s);
-    const spread = exact ? 0 : (s.isPlayer ? (s.ads ? W.spread : W.hip) : 0) + (moving ? 0.012 : 0) + (s.stance === 2 ? -0.001 : 0);
+    const spread = exact ? 0 : s.isPlayer ? aimSpread(s) : (moving ? 0.012 : 0);
+    if (s.isPlayer) { const [sy, sp] = aimSway(s, this.tick); yaw += sy; pitch += sp; }   // (where the swaying view was pointing)
     const r = s.rng; yaw += r.gauss() * spread; pitch += r.gauss() * spread;
     const cp = Math.cos(pitch), dx = -Math.sin(yaw) * cp, dy = Math.sin(pitch), dz = -Math.cos(yaw) * cp;
     const ox = s.x, oy = this._eye(s), oz = s.z;

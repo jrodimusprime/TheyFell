@@ -32,6 +32,7 @@
   #prompt { font-size: 15px; margin-bottom: 6px; min-height: 1.2em; opacity: .95; }
   #feed { font-size: 13px; line-height: 1.5; opacity: .9; }
   #cross { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: rgba(233,226,207,.8); box-shadow: 0 0 2px #000; }
+  #gauge { position: fixed; left: 50%; top: 50%; border: 1px solid rgba(233,226,207,.45); border-radius: 50%; pointer-events: none; box-shadow: 0 0 2px rgba(0,0,0,.5); transition: width .12s, height .12s, margin .12s; }
   #oob { position: fixed; left: 0; right: 0; top: 30%; text-align: center; display: none; }
   #oob h2 { font-family: 'Caslon Display', 'Caslon', Georgia, serif; margin: 0; color: #f2d7a6; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; text-shadow: 0 2px 8px #000; }
   #oob p { margin: 6px 0 0; font-size: 16px; font-style: italic; text-shadow: 0 1px 4px #000; }
@@ -74,7 +75,7 @@
   <div class="bc"><div id="prompt"></div><div id="msg"></div></div>
   <canvas id="mini" width="400" height="400"></canvas><div id="miniGoal"></div>
 </div>
-<div id="cross" hidden></div>
+<div id="cross" hidden></div><div id="gauge" hidden></div>
 <div id="vignette"></div><div id="hurt"></div>
 <div id="oob"><h2>Out of bounds</h2><p>Return to the battlefield</p></div>
 <div id="dead"><div class="card"><h2>You fell</h2><p id="deadwhy"></p>

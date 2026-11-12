@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { loadTerrain } from './world/terrain.js';
 import { Features } from './world/features.js';
-import { Sim, HZ, DT, WEAPONS, PRE_ZERO_RATE, ZERO_TIME, MINE_AT } from './sim/sim.js';
+import { Sim, HZ, DT, WEAPONS, PRE_ZERO_RATE, ZERO_TIME, MINE_AT, aimSway, aimSpread } from './sim/sim.js';
 import { TerrainView, buildGroundMap, splatGround } from './render/terrainView.js';
 import { Props } from './render/props.js';
 import { SoldiersView } from './render/soldiers.js';
@@ -217,6 +217,7 @@ async function boot() {
       camera.position.set(p.x, p.y + eye + Math.sin(bob) * (moving ? 0.035 : 0) + climb, p.z);
       { const ct = climbT(p); if (ct >= 0) { const cp = climbPose(p, T, ct, 0.95); camera.position.set(cp.hip.x, cp.hip.y + 0.62 - cp.lean * 0.18, cp.hip.z).addScaledVector(p._climbPlan.f, Math.sin(cp.lean) * 0.25); } }   // the eye follows the scramble up the wall
       camera.rotation.set(0, 0, 0); camera.rotation.order = 'YXZ'; camera.rotation.y = AGENT ? p.yaw : yaw; camera.rotation.x = (AGENT ? p.pitch : pitch) + recoil * 0.02;
+      { const [sy, sp] = aimSway(p, sim.tick + acc / DT); camera.rotation.y += sy; camera.rotation.x += sp; }   // the sway: where a shot would go
       if (p.pickup > 0) { const u = 1 - p.pickup / (p.pickupTotal || 66), dn = Math.sin(Math.min(1, u) * Math.PI); camera.position.y -= 0.85 * dn; camera.rotation.x -= 0.9 * dn; }   // stooping to the fallen man's rifle
       if (!AGENT) { p.yaw = yaw; }
       deathCam = 0; vm.visible = true;
@@ -300,6 +301,7 @@ async function boot() {
     $('oob').style.display = p.alive && sim.outOfBounds() ? 'block' : 'none';
     drawMini(dt);
     $('cross').hidden = !p.alive || p.ads;
+    { const g = $('gauge'); g.hidden = !p.alive || p.ads || !(p.climb <= 0); if (!g.hidden) { const r = Math.max(5, Math.tan(aimSpread(p) * 2) * innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)); g.style.width = g.style.height = (2 * r) + 'px'; g.style.margin = `${-r}px 0 0 ${-r}px`; } }   // (two sigma: most shots land inside it)
     if ($('debug').style.display === 'block') {
       const info = renderer.info;
       $('debug').textContent = `fps ${fps.toFixed(0)}  draw calls ${info.render.calls}  tris ${(info.render.triangles / 1000).toFixed(0)}k\n` +
