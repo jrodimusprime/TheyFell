@@ -61,7 +61,7 @@ or you have moved away
 
 ✓ review shooting accuracy and do one of those accuracy gauges for when couching standing prone and add the sway etc like all the games do — done 12 Nov 2026: ring round the crosshair; sway by stance
 
-if we overtake an area and there is a new spawn point make sure the troops come out of a fox hole or something like that, a tunnel underground that is dark… as it looks like they’re coming otu of the air lol. also it looks like heaaaaps of troops are coming out of those just use a couple troops the rest should be coming from the back spawn points as they would in a real battle
+✓ if we overtake an area and there is a new spawn point make sure the troops come out of a fox hole or something like that, a tunnel underground that is dark… as it looks like they’re coming otu of the air lol. also it looks like heaaaaps of troops are coming out of those just use a couple troops the rest should be coming from the back spawn points as they would in a real battle — done 13 Nov 2026: a dugout entrance at each strongpoint; men climb its stairs up out of the dark; two per wave from each, the rest from the rear (ready to test)
 
 reload with a straight wrist on the right wrist, let the fingers do te work
 

@@ -41,6 +41,7 @@
   #oob h2 { font-family: 'Caslon Display', 'Caslon', Georgia, serif; margin: 0; color: #f2d7a6; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; text-shadow: 0 2px 8px #000; }
   #oob p { margin: 6px 0 0; font-size: 16px; font-style: italic; text-shadow: 0 1px 4px #000; }
   #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.45) 100%); }
+  #below { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 35%, rgba(4,3,2,.7) 0%, #040302 70%); opacity: 0; }
   #hurt { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, rgba(120,0,0,.55) 100%); opacity: 0; }
   #dead { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,.35); pointer-events: auto; }
   #dead .card { text-align: center; background: rgba(20,18,14,.82); padding: 22px 34px; border: 1px solid rgba(233,226,207,.3); }
@@ -70,6 +71,7 @@
 <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/", "cannon-es": "./vendor/cannon/cannon-es.js" } }</script>
 </head>
 <body>
+<div id="below"></div>
 <div id="hud" hidden>
   <div class="tl"><div id="clock">07:26:30</div><div id="phase"></div></div>
   <div class="tc"><div id="compass">N</div><div id="objectives"></div></div>

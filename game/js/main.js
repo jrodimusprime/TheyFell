@@ -6,6 +6,7 @@ import { loadTerrain } from './world/terrain.js';
 import { Features } from './world/features.js';
 import { Sim, HZ, DT, WEAPONS, PRE_ZERO_RATE, ZERO_TIME, MINE_AT, aimSway, aimSpread, nadeLaunch, THROW_RELEASE } from './sim/sim.js';
 import { loadGrenades } from './render/grenades.js';
+import { Dugouts } from './render/dugouts.js';
 import { TerrainView, buildGroundMap, splatGround } from './render/terrainView.js';
 import { Props } from './render/props.js';
 import { SoldiersView } from './render/soldiers.js';
@@ -110,6 +111,7 @@ async function boot() {
   const skinned = await loadSkinnedMen(scene, renderer);
   const fp = new FirstPerson(skinned, SUN);
   const nades = await loadGrenades(scene); fp.setNade(nades.protos.mills);
+  const dugouts = new Dugouts(scene, sim.dugouts, T);
   const fpCam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.01, 10);
   const rag = new Ragdolls(T);
   rag.onSettle = (x, z) => blood.pool(x, z);   // a body comes to rest: blood pools under it
@@ -312,6 +314,8 @@ async function boot() {
     { let t = ''; if (p.alive && !(p.pickup > 0) && !(p.climb > 0)) { const i = sim.nearDrop(p); if (i >= 0) { const d = sim.drops[i]; t = d.weapon === p.weapon ? `E: take his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)` : `E: swap your rifle for his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)`; } } else if (p.pickup > 0) t = 'Taking his rifle…'; $('prompt').textContent = t; }
     $('feed').innerHTML = feed.map(f => `<div>${f[0]}</div>`).join(''); for (const f of feed) f[1] -= dt; while (feed.length && feed[feed.length - 1][1] < 0) feed.pop();
     msgT -= dt; if (msgT < 0) $('msg').style.opacity = 0;
+    // coming up out of a dugout: dark down the stairs, the light coming as the head comes up past the top step
+    { const D = p.alive && p.emerge > 0 && p.emergeAt; $('below').style.opacity = D ? Math.max(0, Math.min(1, (D.y + 0.35 - camera.position.y) / 0.8)).toFixed(3) : 0; }
     hurt = Math.max(0, hurt - dt * 1.2); $('hurt').style.opacity = hurt * 0.8 + (p.alive && p.hp < 50 ? (50 - p.hp) / 80 : 0);
     // out of bounds: just tell the player
     $('oob').style.display = p.alive && sim.outOfBounds() ? 'block' : 'none';
@@ -480,7 +484,7 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
-    nade: (on, t = 0) => { nadeReady = on; meterT = t; return nadePower(); }, nades,
+    nade: (on, t = 0) => { nadeReady = on; meterT = t; return nadePower(); }, nades, dugouts,
     sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
     get state() { return sim; }, get shooters() { return shooters; },
     step(a = {}, n = 1) {

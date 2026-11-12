@@ -26,6 +26,8 @@ export function bulletDamage(W, zone, rng) {
 // close quarters: a strike is wound up for STRIKE_HIT ticks, lands if he is still within reach and in front, then
 // recovers; damage on a bell curve for the weapon (the bayonet usually kills, a club or knife often takes two)
 const STRIKE_TICKS = 36, STRIKE_HIT = 15, REACH = 2.0;
+// forward spawns (a strongpoint his side holds): men come up a dugout's stairs, two at most from each per wave
+const EMERGE_TICKS = 110, FWD_PER_WAVE = 2;
 // grenades (three a man: the British the Mills bomb, the Germans the stick grenade). A throw: 0.5 s to get it out and pull
 // the pin, then the overhand throw, the bomb leaving the hand 0.34 s into it (THROW_RELEASE ticks before the end); the
 // fuse burns from the release (the Mills's lever flies off then): 5 s, the stick grenade's 5.5. Speed 6 to 28 m/s with
@@ -93,6 +95,8 @@ export class Sim {
     this.flags = { mine: false, zero: false };
     this.rambo = false; this.god = false;
     this.objectives = this.map.objectives.map(o => ({ ...o, owner: 'GER', progress: 0 }));
+    this.dugouts = this.objectives.map(o => this._dugoutFor(o));   // the way up from the deep dugouts at each strongpoint
+    this.fwd = {};   // men each forward spawn may still send up this wave
     this.score = { BRI: { kills: 0, deaths: 0 }, GER: { kills: 0, deaths: 0 } };
     this.waveT = { BRI: 0, GER: 0 };
     this.drops = [];   // rifles lying where men fell
@@ -105,6 +109,33 @@ export class Sim {
     // the men still to come: each side's whole strength (historically ~10,000 British in 12 battalions against ~2,000 of
     // Reserve Infantry Regiment 110 here) less those already in the line; every man sent in comes out of it
     this.reserve = {}; for (const side of ['BRI', 'GER']) this.reserve[side] = Math.max(0, strength[side] - this.soldiers.filter(o => o.side === side).length);
+  }
+  // a dugout entrance at a strongpoint: on level, open ground 12-60 m from its middle (not in a trench, the wire, a ruin
+  // or a mine crater), its mouth facing the middle. Men sent up there climb its stairs out of the dark.
+  _dugoutFor(o) {
+    const T = this.T, [cx, cz] = o.c; let best = null;
+    for (let r = 12; r <= 60 && !best; r += 4) for (let k = 0; k < 16; k++) {
+      const a = k * Math.PI / 8 + r * 0.37, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      if ((this.map.mines || []).some(m => Math.hypot(x - m.c[0], z - m.c[1]) < m.craterR * 1.35)) continue;   // (not in a mine crater or on its lip)
+      if (T.trenchAt(x, z, {}).d < 5 || this.F.wireAt(x, z) > 0 || this.F.wallAt(x, z, T.height(x, z) - 1, 2.5)) continue;
+      let lo = 1e9, hi = -1e9; for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) { const h = T.height(x + i * 1.2, z + j * 1.2); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+      if (hi - lo > 0.6) continue;
+      const sc = hi - lo + Math.abs(r - 18) * 0.01; if (!best || sc < best.sc) best = { sc, x, z };
+    }
+    if (!best) best = { x: cx + 15, z: cz };
+    const yaw = Math.atan2(-(cx - best.x), -(cz - best.z));   // facing out of the mouth, towards the middle (forward = -sin, -cos)
+    return { name: o.name, x: best.x, z: best.z, y: T.height(best.x, best.z), yaw, next: 0 };
+  }
+  // coming up the dugout stairs (steep, as they were): from 2.4 m back and 3.2 m down, up to the mouth, then a step out into the open; a second
+  // man waits below until the first is clear
+  _emerge(s) {
+    const D = s.emergeAt, fx = -Math.sin(D.yaw), fz = -Math.cos(D.yaw);
+    if (s.emergeWait > 0) { s.emergeWait--; s.x = D.x - fx * 2.4; s.z = D.z - fz * 2.4; s.y = D.y - 3.2; return; }
+    s.emerge--; const u = 1 - s.emerge / EMERGE_TICKS;
+    if (u < 0.75) { const k = u / 0.75; s.x = D.x - fx * 2.4 * (1 - k); s.z = D.z - fz * 2.4 * (1 - k); s.y = D.y - 3.2 * (1 - k) - 0.05; }
+    else { const k = (u - 0.75) / 0.25; s.x = D.x + fx * 1.6 * k; s.z = D.z + fz * 1.6 * k; s.y = this.T.height(s.x, s.z); }
+    s.yaw = D.yaw; s.vy = 0; s.onGround = true;
+    if (s.emerge <= 0) { s.emergeAt = null; s.y = this.T.height(s.x, s.z); if (s.ai) s.ai.post = [s.x, s.z]; }
   }
   // the tally: fallen, still standing in the field, and the reserve still to come
   tally(side) { let field = 0; for (const o of this.soldiers) if (o.side === side && o.alive) field++; return { fallen: this.score[side].deaths, field, reserve: this.reserve[side], left: field + this.reserve[side] }; }
@@ -214,6 +245,7 @@ export class Sim {
     if (a.yaw !== undefined) p.yaw = a.yaw; if (a.pitch !== undefined) p.pitch = Math.max(-1.45, Math.min(1.45, a.pitch));
     if (a.crouch) p.stance = p.stance === 1 ? 0 : 1; if (a.prone) p.stance = p.stance === 2 ? 0 : 2;
     p.ads = !!a.ads;
+    if (p.emerge > 0) { p.intent = null; this._weaponTick(p); return; }   // coming up out of the dugout: he can look about, no more
     // E by a fallen man's rifle: stoop, put yours down, take his (with what he had left in it and in his pouches)
     if (p.pickup > 0) {
       p.pickup--; p.intent = null; p.ads = false;
@@ -233,6 +265,7 @@ export class Sim {
   _think(s) {
     this._weaponTick(s);
     const ai = s.ai, t = this.time;
+    if (s.emerge > 0) { s.intent = null; return; }   // still coming up the dugout stairs
     if (s.throw > 0) { s.intent = null; return; }   // mid-throw
     if (--ai.think > 0) { this._aimAndFire(s); return; }
     ai.think = (Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350 ? 45 : 20) + s.rng.int(20);   // far from the player: thinks half as often
@@ -507,7 +540,7 @@ export class Sim {
   _explode(x, y, z, r, kill, src, kind = 'shell') {
     this.events.push({ t: 'explosion', p: [x, y, z], r, kind });
     for (const o of this.soldiers) {
-      if (!o.alive) continue;
+      if (!o.alive || o.emerge > 0) continue;   // (down in a dugout)
       const d = Math.hypot(o.x - x, o.y + 0.9 - y, o.z - z); if (d > r) continue;
       // a man in a trench is sheltered from a burst outside it
       // (but a bomb in the trench itself is in there with him; and its walls hold most of it in from a man up on top)
@@ -522,6 +555,7 @@ export class Sim {
 
   // ---------- movement (player and AI share it) ----------
   _move(s) {
+    if (s.emerge > 0) { this._emerge(s); return; }
     const T = this.T, I = s.intent;
     if (s.climb > 0) {          // scrambling up a trench wall or over the parapet
       s.climb -= DT;
@@ -761,7 +795,7 @@ export class Sim {
   takeoverChoices(side, x = this.player.x, z = this.player.z, n = 12) {
     const goal = this.target(side, x, z), gx = goal ? goal.c[0] : x, gz = goal ? goal.c[1] : z;
     const foes = this.soldiers.filter(o => o.alive && o.side !== side), out = [];
-    const mine = this.soldiers.filter(o => o.alive && !o.isPlayer && o.side === side && !(o.climb > 0)).sort((a, b) => Math.hypot(a.x - gx, a.z - gz) - Math.hypot(b.x - gx, b.z - gz) || a.id - b.id);
+    const mine = this.soldiers.filter(o => o.alive && !o.isPlayer && o.side === side && !(o.climb > 0) && !(o.emerge > 0)).sort((a, b) => Math.hypot(a.x - gx, a.z - gz) - Math.hypot(b.x - gx, b.z - gz) || a.id - b.id);
     for (const o of mine) { if (foes.some(f => Math.abs(f.x - o.x) < 25 && Math.abs(f.z - o.z) < 25 && Math.hypot(f.x - o.x, f.z - o.z) < 25)) continue; out.push(o); if (out.length >= n) break; }
     return out;
   }
@@ -779,17 +813,22 @@ export class Sim {
     return true;
   }
   // N: the player goes on as another man in the fight, and an AI takes over the man he was (they swap: no one leaves the
-  // line). Each time a fresh cluster: men of his side round the objective he is attacking (within 150 m of it, wider if
+  // line). Each time a fresh cluster: men of his side round the objective he is attacking (within 250 m of it, wider if
   // there are too few), one of them at random as its seed and his 9 nearest comrades; one of those 10 at random, never one
   // of the last six he has been (so it can't flick back and forth between two men), never one about to be overrun.
   switchCandidates(p) {
     const g = this.target(p.side, p.x, p.z), gx = g ? g.c[0] : p.x, gz = g ? g.c[1] : p.z, recent = p.switchHist || [];
-    const mine = this.soldiers.filter(o => o.alive && !o.isPlayer && o.side === p.side && !(o.climb > 0) && !(o.throw > 0) && !(o.strike > 0) && !recent.includes(o.id));
+    const mine = this.soldiers.filter(o => o.alive && !o.isPlayer && o.side === p.side && !(o.climb > 0) && !(o.emerge > 0) && !(o.throw > 0) && !(o.strike > 0) && !recent.includes(o.id));
     let pool = [];
-    for (const R of [150, 300, 600, Infinity]) { pool = mine.filter(o => Math.hypot(o.x - gx, o.z - gz) < R); if (pool.length >= 10) break; }
+    for (const R of [250, 500, Infinity]) { pool = mine.filter(o => Math.hypot(o.x - gx, o.z - gz) < R); if (pool.length >= 10) break; }
     if (!pool.length) return [];
-    const seed = pool[p.rng.int(pool.length)];
-    return pool.map(o => [Math.hypot(o.x - seed.x, o.z - seed.z), o]).sort((a, b) => a[0] - b[0] || a[1].id - b[1].id).slice(0, 10).map(q => q[1])
+    // the seed: of two dozen men drawn at random, one of the four with his nine nearest comrades closest round him (a
+    // real knot of men, not a straggler and whoever happens to be nearest him)
+    const near10 = c => pool.map(o => [Math.hypot(o.x - c.x, o.z - c.z), o]).sort((a, b) => a[0] - b[0] || a[1].id - b[1].id).slice(0, 10);
+    const tries = []; for (let i = 0; i < Math.min(24, pool.length); i++) { const c = pool[p.rng.int(pool.length)], n = near10(c); tries.push([n[n.length - 1][0], c]); }
+    tries.sort((a, b) => a[0] - b[0] || a[1].id - b[1].id);
+    const seed = tries[p.rng.int(Math.min(4, tries.length))][1];
+    return near10(seed).map(q => q[1])
       .filter(o => !this._nearestFoe(o, 6));
   }
   _switchMan(p) {
@@ -814,10 +853,24 @@ export class Sim {
     this.reserve[s.side]--;
     const pts = this.spawnPoints(s.side), r = s.rng;
     let pick = at ? pts.find(q => q.name === at) : null;
-    if (!pick) { // nearest to where the fight is, for the player; spread for AI
-      pick = s.isPlayer ? pts.reduce((b, q) => Math.hypot(q.p[0] - s.x, q.p[1] - s.z) < Math.hypot(b.p[0] - s.x, b.p[1] - s.z) ? q : b) : r.pick(pts);
+    if (!pick) { // nearest to where the fight is, for the player; for the AI, a couple up each forward dugout per wave, the rest from the rear
+      if (s.isPlayer) pick = pts.reduce((b, q) => Math.hypot(q.p[0] - s.x, q.p[1] - s.z) < Math.hypot(b.p[0] - s.x, b.p[1] - s.z) ? q : b);
+      else { const fwd = pts.filter(q => q.name !== 'Trench' && (this.fwd[s.side + q.name] || 0) > 0), rear = pts.filter(q => q.name === 'Trench');
+        pick = fwd.length ? r.pick(fwd) : rear.length ? r.pick(rear) : r.pick(pts); if (pick.name !== 'Trench') this.fwd[s.side + pick.name] = (this.fwd[s.side + pick.name] || 0) - 1; }
     }
+    const dug = pick.name !== 'Trench' ? this.dugouts.find(d => d.name === pick.name) : null;
     let [x, z] = pick.p;
+    if (dug) {   // up the dugout stairs (one man at a time)
+      const wait = Math.max(0, dug.next - this.tick); dug.next = this.tick + wait + 55;
+      if (s.isPlayer) s.weapon = s.side === 'BRI' ? 'smle' : 'g98';
+      Object.assign(s, { hp: 100, alive: true, climb: 0, climbTo: null, stance: 0, stamina: 1, pickup: 0, vy: 0, onGround: true, mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, throw: 0, lastHit: null, jam: 0, strike: 0,
+        emerge: EMERGE_TICKS, emergeWait: wait, emergeAt: dug, x: dug.x, z: dug.z, y: dug.y - 3.2, yaw: dug.yaw, pitch: 0 });
+      this._emerge(s); s.emerge++;   // (placed at the foot of the stairs)
+      if (s.ai) Object.assign(s.ai, { mode: s.side === 'BRI' ? 'advance' : s.role === 'mg' ? 'mg' : 'hold', target: -1, goal: null, post: [dug.x, dug.z], think: 30 + r.int(60) });
+      if (s.ai && s.side === 'BRI') { s.ai.goal = this._goalFor(s); if (this.time < ZERO) s.ai.mode = 'hold'; }
+      s.gaveUp = false; this.events.push({ t: 'respawn', id: s.id, p: [s.x, s.y, s.z], dugout: dug.name });
+      return true;
+    }
     if (!s.isPlayer && s.side === 'GER') {   // into one of the bays near there, anywhere along it (not all onto the one spot)
       const near = this.trenchPts.GER.filter(q => Math.abs(q[0] - x) < 90 && Math.abs(q[1] - z) < 90);
       if (near.length) { const q = this._alongBay(near[r.int(near.length)], r.range(-6, 6)); x = q[2]; z = q[3]; }
@@ -825,7 +878,7 @@ export class Sim {
     } else { const snap = this._snapToTrench(x + r.range(-25, 25), z + r.range(-25, 25), s.side, 60, s.isPlayer || s.side === 'GER'); if (snap) [x, z] = snap; }
     if (s.isPlayer) s.weapon = s.side === 'BRI' ? 'smle' : 'g98';   // (a fresh man has his own rifle again)
     Object.assign(s, { x, z, y: this.T.height(x, z), vy: 0, hp: 100, alive: true, climb: 0, climbTo: null, stance: 1, stamina: 1, pickup: 0,
-      mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, throw: 0, lastHit: null });
+      mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, throw: 0, lastHit: null, emerge: 0, emergeAt: null });
     if (s.ai) Object.assign(s.ai, { mode: s.side === 'BRI' ? 'advance' : s.role === 'mg' ? 'mg' : 'hold', target: -1, goal: null, post: [x, z], think: 30 + r.int(60) });
     if (s.ai && s.side === 'BRI') { s.ai.goal = this._goalFor(s); if (this.time < ZERO) s.ai.mode = 'hold'; }
     s.gaveUp = false; this.events.push({ t: 'respawn', id: s.id, p: [x, s.y, z] });
@@ -836,6 +889,7 @@ export class Sim {
     for (const side of ['BRI', 'GER']) {
       if (this.tick < this.waveT[side]) continue;
       this.waveT[side] = this.tick + HZ * (side === 'BRI' ? 20 : 28);
+      for (const o of this.objectives) if (o.owner === side) this.fwd[side + o.name] = FWD_PER_WAVE;
       for (const s of this.soldiers) if (!s.isPlayer && s.side === side && !s.alive && this.tick - s.deadAt > HZ * 8 && this.reserve[side] > 0) this._respawn(s);
     }
   }

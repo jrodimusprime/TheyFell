@@ -18,7 +18,7 @@ const r2 = await ev(`(() => { const S = TF.sim, p = S.player; p.jam = 1e9; TF.st
   TF.step({ yaw: p.yaw, reload: true }, 1); TF.step({ yaw: p.yaw }, 80); return { hud, magHeld: mag, jamAfter: p.jam }; })()`);
 ok('a jammed rifle shows on the HUD, does not fire, and R clears it', /Jammed/.test(r2.hud) && r2.jamAfter === 0, JSON.stringify(r2));
 // 3. AI hand-to-hand, filmed
-const got = await ev(`(() => { const S = TF.sim, p = S.player; for (let i = 0; i < 60 * 360; i++) { TF.step({ yaw: p.yaw }, 1);
+const got = await ev(`(() => { const S = TF.sim, p = S.player; for (let i = 0; i < 60 * 540; i++) { TF.step({ yaw: p.yaw }, 1);
     for (const e of S.events) if (e.t === 'strike' && e.id !== p.id) { const s = S.soldiers[e.id]; if (s.alive) { window.__st = e.id; S.events.length = 0; return { id: e.id, steel: e.steel, side: s.side }; } }
     S.events.length = 0; } return null; })()`);
 log('[strike]', JSON.stringify(got));

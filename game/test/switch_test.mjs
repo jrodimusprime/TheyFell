@@ -13,7 +13,8 @@ for (let i = 0; i < 150 * HZ; i++) { S.step({}); S.events.length = 0; }
 const picks = [], spreads = [], goalD = []; let lost = 0;
 for (let k = 0; k < 20; k++) {
   const was = [p.x, p.z];
-  const c = S.switchCandidates({ ...p, rng: (() => { const r = () => 0.5; r.int = n => 0; return r; })() });   // (a look at a cluster, without using up his rng)
+  let q = 12345 + k * 7919; const rr = () => ((q = (q * 16807) % 2147483647) / 2147483647); rr.int = n => Math.floor(rr() * n);
+  const c = S.switchCandidates({ ...p, rng: rr });   // (a look at a cluster, without using up his rng)
   if (c.length > 1) { const cx = c.reduce((a, o) => a + o.x, 0) / c.length, cz = c.reduce((a, o) => a + o.z, 0) / c.length; spreads.push(Math.max(...c.map(o => Math.hypot(o.x - cx, o.z - cz)))); }
   S.step({ switchMan: true }); const e = S.events.find(q => q.t === 'switch'); S.events.length = 0;
   if (!e) { picks.push(null); continue; }

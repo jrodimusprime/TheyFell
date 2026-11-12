@@ -17,5 +17,6 @@ node test/cdp.mjs "http://localhost:8642/index.html?agent" test/pickup.js "${TMP
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/shooters.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|harness error"
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/melee.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|harness error"
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/grenade.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|harness error"
+node test/cdp.mjs "http://localhost:8642/index.html?agent" test/dugout.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|harness error"
 node test/cdp.mjs "http://localhost:8642/index.html?agent" test/assault.js "${TMPDIR:-/tmp}/theyfell-test" | grep -E "PASS|FAIL|EXCEPTION|harness error|\[end\]|\[assault\]"
 kill $srv
