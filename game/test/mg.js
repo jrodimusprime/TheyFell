@@ -30,8 +30,20 @@ const f1 = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}],
 await ev(`(() => { const S = TF.sim, g = S.guns[${vk}]; TF.step({ yaw: g.yaw0 + 0.1, pitch: 0.02, fire: true }, 1); for (let j = 0; j < 3; j++) TF.render(1 / 60); TF.hold = true; return true; })()`);
 await shot('mg_4_player_on_vickers_firing', 88); await ev('TF.hold = false; true');
 ok('holding the trigger: ~8 rounds a second', f1.fired >= 13 && f1.fired <= 17, JSON.stringify(f1));
-const t1 = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}]; TF.step({ yaw: g.yaw0 + 2.5, pitch: 0.9 }, 2); return { off: +Math.abs(((p.yaw - g.yaw0 + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI).toFixed(2), arc: g.arc, pitch: +p.pitch.toFixed(2) }; })()`);
-ok('it traverses only through its arc and elevates within limits', t1.off <= t1.arc + 1e-6 && t1.pitch <= 0.35, JSON.stringify(t1));
+const t1 = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}]; TF.step({ yaw: g.yaw0 + Math.PI, pitch: 0.9 }, 2); const back = Math.abs(Math.cos(g.aimYaw - g.yaw0) + 1) < 1e-6; TF.step({ yaw: g.yaw0 + 2.5, pitch: 0 }, 2); return { back, onGun: p.gun, side: +(g.aimYaw - g.yaw0).toFixed(2), pitch: (TF.step({ yaw: g.yaw0, pitch: 0.9 }, 1), +p.pitch.toFixed(2)) }; })()`);
+ok('it traverses all the way round and elevates within limits', t1.back && t1.side === 2.5 && t1.onGun === vk && t1.pitch <= 0.35, JSON.stringify(t1));
+// the rounds go where the crosshair is: a German stood 70 m off, the view laid on his chest, a short burst
+const h1 = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}];
+  let best = null; for (let k = -6; k <= 6; k++) { const yw = g.yaw0 + k * 0.08, x = p.x - Math.sin(yw) * 70, z = p.z - Math.cos(yw) * 70, y = TF.T.height(x, z), ey = S._eye(p), ty = y + 1.2;
+    const dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz), dy = ty - ey, L = Math.hypot(d, dy); const tt = TF.T.raycast(p.x, ey, p.z, dx / L, dy / L, dz / L, L);
+    if (tt < 0 && !TF.T.inTrench?.(x, z)) { best = { x, z, y, yaw: yw, pitch: Math.atan2(dy, d) }; break; } }
+  if (!best) return { skip: true };
+  const o = S.soldiers.find(s => s.side === "GER" && s.alive && s.gun < 0 && !(s.emerge > 0));
+  Object.assign(o, { x: best.x, z: best.z, y: best.y, vy: 0, stance: 0, hp: 100, emerge: 0, climb: 0 }); if (o.ai) { o.ai.mode = 'hold'; o.ai.post = [best.x, best.z]; }
+  const id = o.id; let rounds = 0; const b0 = g.belt; g.heat = 0;
+  for (let i = 0; i < 20 && o.alive; i++) { Object.assign(o, { x: best.x, z: best.z, y: best.y, stance: 0 }); TF.step({ yaw: best.yaw, pitch: best.pitch, fire: true }, 1); }
+  TF.step({ yaw: best.yaw, pitch: best.pitch }, 1); return { dead: !o.alive, rounds: b0 - g.belt, yaw: +(best.yaw - g.yaw0).toFixed(2) }; })()`);
+ok('the rounds hit what the crosshair is on: a man at 70 m falls to the first rounds', h1.skip || (h1.dead && h1.rounds <= 4), JSON.stringify(h1));
 const r1 = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}]; const belts = g.belts; TF.step({ yaw: g.yaw0, reload: true }, 1); const ch = g.change; TF.step({ yaw: g.yaw0 }, 60 * 6); return { change: ch, belt: g.belt, belts0: belts, belts: g.belts }; })()`);
 ok('R: a fresh belt (4.5 s with the loader)', r1.change > 4 && r1.change < 5 && r1.belt === 250 && r1.belts === r1.belts0 - 1, JSON.stringify(r1));
 const l1 = await ev(`(() => { const S = TF.sim, p = S.player; TF.step({ yaw: p.yaw, pickup: true }, 1); return { onGun: p.gun }; })()`);

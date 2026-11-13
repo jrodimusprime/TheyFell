@@ -173,7 +173,7 @@ async function boot() {
         if (d < 1500) { if (e.gun !== undefined) { const L = Math.hypot(e.h[0] - e.o[0], e.h[1] - e.o[1], e.h[2] - e.o[2]) || 1; fx.muzzle([e.o[0] - (e.h[0] - e.o[0]) / L * 0.68, e.o[1] - (e.h[1] - e.o[1]) / L * 0.68 + 0.08, e.o[2] - (e.h[2] - e.o[2]) / L * 0.68], e.h, e.id !== p.id && d < 200 && Math.random() < 0.4); } else fx.muzzle(e.o, e.h, d < 200); }
         if (Math.hypot(e.h[0] - cp.x, e.h[2] - cp.z) < 400) fx.impact(e.h, e.victim >= 0);
         audio.shot(e.o, e.w, e.id === p.id);
-        if (e.id === p.id) { recoil = e.gun !== undefined ? 0.35 : 1; if (e.gun === undefined) audio.bolt(); }
+        if (e.id === p.id) { recoil = e.gun !== undefined ? 0.15 : 1; if (e.gun === undefined) audio.bolt(); }
         else if (e.victim !== p.id) { // a near miss cracks past
           const t = nearestOnSeg(cp, e.o, e.h); if (t < 3 && s.side !== p.side) hurt = Math.max(hurt, 0.12);
           if (t < 12 && d > 25) audio.snap(e.o, t);
@@ -245,7 +245,7 @@ async function boot() {
       camera.position.set(p.x, p.y + eye + Math.sin(bob) * (moving ? 0.035 : 0) + climb, p.z);
       { const ct = climbT(p); if (ct >= 0) { const cp = climbPose(p, T, ct, 0.95); camera.position.set(cp.hip.x, cp.hip.y + 0.62 - cp.lean * 0.18, cp.hip.z).addScaledVector(p._climbPlan.f, Math.sin(cp.lean) * 0.25); } }   // the eye follows the scramble up the wall
       camera.rotation.set(0, 0, 0); camera.rotation.order = 'YXZ'; camera.rotation.y = AGENT ? p.yaw : yaw; camera.rotation.x = (AGENT ? p.pitch : pitch) + recoil * 0.02;
-      { const [sy, sp] = aimSway(p, sim.tick + acc / DT); camera.rotation.y += sy; camera.rotation.x += sp; }   // the sway: where a shot would go
+      if (p.gun < 0) { const [sy, sp] = aimSway(p, sim.tick + acc / DT); camera.rotation.y += sy; camera.rotation.x += sp; }   // the sway: where a shot would go (a gun on its mount does not sway)
       if (p.pickup > 0) { const u = 1 - p.pickup / (p.pickupTotal || 66), dn = Math.sin(Math.min(1, u) * Math.PI); camera.position.y -= 0.85 * dn; camera.rotation.x -= 0.9 * dn; }   // stooping to the fallen man's rifle
       if (!AGENT) { p.yaw = yaw; }
       deathCam = 0; vm.visible = true;

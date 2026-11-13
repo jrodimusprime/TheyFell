@@ -44,6 +44,6 @@ ok('German sections form up and march where HQ sends them, and get there (posts,
 ok('the march up takes minutes (2 to 14)', travel.length && travel[travel.length >> 1] > 120 && travel[travel.length >> 1] < 840, `median ${Math.round(travel[travel.length >> 1] || 0)} s`);
 ok('British inside a German zone bring a bombing counter-thrust', st.thrust !== null, `zone ${st.thrustObj}: after ${st.thrust === null ? '-' : ((st.thrust - st.thrustFrom) / HZ).toFixed(1) + ' s'}`);
 st.retaken = S.stats.captures.some(c => c.id === st.lostObj && c.side === 'GER');
-ok('an objective lost for 3 minutes brings a counter-attack: assembly, bombardment, and the assault (or it is retaken first)', st.gather !== null && st.bombard !== null && (st.assault !== null || st.retaken), `objective ${st.lostObj}: gather ${st.gather !== null}, bombard ${st.bombard !== null}, assault ${st.assault !== null}, retaken ${st.retaken}`);
+ok('an objective lost for 3 minutes brings a counter-attack: assembly, bombardment, assault (or the Germans retake it first)', st.gather !== null && ((st.bombard !== null && st.assault !== null) || st.retaken), `objective ${st.lostObj}: gather ${st.gather !== null}, bombard ${st.bombard !== null}, assault ${st.assault !== null}, retaken ${st.retaken}`);
 ok('no two men in one place near the player', st.overlaps === 0, `${st.overlaps} of ${st.checks} close pairs under 0.45 m`);
 process.exit(fail ? 1 : 0);

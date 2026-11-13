@@ -301,8 +301,12 @@ export class Sim {
     if (g.rng() < 1 / 400) { gun.jam = 2.5 + g.rng() * 2; gun.trigger = false; this.events.push({ t: 'gunjam', gun: gun.id, id: g.id }); }
     if (!g.isPlayer && --gun.burst <= 0) { gun.pause = 0.25 + g.rng() * 0.8; gun.trigger = false; }
     // the round: the gun's aim, a little dispersion (more as the barrel heats), the shake of the mount
-    const r = g.rng, disp = K.disp * (1 + gun.heat * 0.6);
-    const M = this.gunMuzzle(gun, gun.aimYaw + r.gauss() * disp, gun.aimPitch + r.gauss() * disp * 0.7), { ox, oy, oz, dx, dy, dz } = M;
+    // the player's rounds go down his line of sight (the crosshair) with a third of the spread: he is laying the gun
+    // by eye, not by a guess at the range
+    const r = g.rng, disp = g.isPlayer ? K.disp * 0.33 * (1 + gun.heat * 0.3) : K.disp * (1 + gun.heat * 0.6);
+    const M = this.gunMuzzle(gun, gun.aimYaw + r.gauss() * disp, gun.aimPitch + r.gauss() * disp * 0.7);
+    if (g.isPlayer) { M.ox = g.x; M.oy = this._eye(g); M.oz = g.z; }
+    const { ox, oy, oz, dx, dy, dz } = M;
     let tHit = this.T.raycast(ox, oy, oz, dx, dy, dz, K.range); if (tHit < 0) tHit = K.range;
     let victim = null, zone = 'body';
     const near = [];
@@ -726,10 +730,9 @@ export class Sim {
     if (a.crouch) p.stance = p.stance === 1 ? 0 : 1; if (a.prone) p.stance = p.stance === 2 ? 0 : 2;
     p.ads = !!a.ads;
     if (p.emerge > 0) { p.intent = null; this._weaponTick(p); return; }   // coming up out of the dugout: he can look about, no more
-    if (p.gun >= 0) {   // on a machine gun: traverse it (within its arc), the trigger, R a fresh belt, E to leave it
+    if (p.gun >= 0) {   // on a machine gun: traverse it (all the way round), the trigger, R a fresh belt, E to leave it
       const gun = this.guns[p.gun];
       if (!gun || gun.gunner !== p.id || a.pickup) { if (gun) this._dismount(p); else p.gun = -1; this._weaponTick(p); return; }
-      const off = wrapAngle(p.yaw - gun.yaw0); if (Math.abs(off) > gun.arc) p.yaw = gun.yaw0 + Math.sign(off) * gun.arc;
       p.pitch = Math.max(-0.3, Math.min(0.35, p.pitch));
       gun.aimYaw = p.yaw; gun.aimPitch = p.pitch; gun.trigger = !!a.fire;
       if (a.reload && gun.belt < BELT && gun.change <= 0 && gun.belts > 0) { const ld = gun.loader >= 0 && this.soldiers[gun.loader].alive; gun.belts--; gun.change = ld ? 4.5 : 8; this.events.push({ t: 'belt', gun: gun.id, id: p.id }); }
@@ -761,12 +764,12 @@ export class Sim {
     if (--ai.think > 0) { this._aimAndFire(s); return; }
     ai.think = (Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350 ? 60 + s.rng.int(30) : 20 + s.rng.int(20));   // far from the player: thinks a third as often
     // before the barrage lifts, the Germans shelter in their deep dugouts (they come up when it lifts: the race for the parapet)
-    if (ai.mode === 'shelter') { s.stance = 1; s.intent = null; if (t >= ZERO - 4 + s.rng.range(0, 25)) ai.mode = s.role === 'mg' ? 'mg' : 'hold'; return; }
+    if (ai.mode === 'shelter') { s.stance = 1; s.intent = null; if (t >= ZERO + s.rng.range(2, 8)) ai.mode = s.role === 'mg' ? 'mg' : 'hold'; return; }   // (up the dugout stairs within seconds of the barrage lifting: the race for the parapet)
     // in reserve (under cover in the intermediate line) or forming up behind the lines: waiting on HQ, unless the enemy is on them
     if (ai.mode === 'reserve' || ai.mode === 'muster') { s.intent = null; s.stance = 1; if (this._enemyNear(s, 60)) { ai.mode = 'hold'; ai.style = null; ai.post = [s.x, s.z]; } else return; }
     // British: wait in the trench for zero hour and their wave, then go over the top and walk forward
     if (s.side === 'BRI' && ai.mode === 'hold' && !ai.goal) {
-      if (t >= ZERO + ai.wave * 25 + s.rng.range(0, 6)) { ai.mode = 'advance'; ai.goal = this._goalFor(s); s.stance = 0; }
+      if (t >= ZERO + ai.wave * 0.8 + s.rng.range(0, 1.5))   /* (everyone goes at the whistles, within a couple of seconds of each other: no waiting for a later wave) */ { ai.mode = 'advance'; ai.goal = this._goalFor(s); s.stance = 0; }
       else { s.intent = null; s.stance = 1; return; }
     }
     // look for an enemy: nearest visible within range
@@ -889,7 +892,7 @@ export class Sim {
     // (a sight check holds for 0.1 s on the same man, so a machine gun isn't re-tracing 700 m for every round of a burst)
     if (d > engageRange(s)) { ai.target = -1; ai.think = Math.min(ai.think, 6); return; }
     if (!(ai.losFor === o.id && this.tick - ai.losAt < 6)) { if (!this._canSee(s, o, d)) { ai.target = -1; ai.losFor = -1; ai.think = Math.min(ai.think, 6); return; } ai.losFor = o.id; ai.losAt = this.tick; }
-    if (s.side !== this.player.side) {
+    if (s.side !== this.player.side && o.isPlayer) {   // (the forgiving model is for shots at the player only; at other men, aimed fire as the British have)
       // the enemy's shooting: each round hits with a chance falling linearly from 50% at 25 m to 1% at 100 m (1% beyond).
       // A hit is aimed true at what shows of the man (cover still stops it); a miss goes a metre or more wide.
       const pHit = hitChance(d);
@@ -1302,11 +1305,16 @@ export class Sim {
       if (end) { this.over = { ...end, at: this.clock() }; this.events.push({ t: 'gameover', ...this.over }); }
     }
     for (const o of this.objectives) {
-      let b = 0, g = 0;
-      for (const s of this.soldiers) if (s.alive && Math.hypot(s.x - o.c[0], s.z - o.c[1]) < o.r) s.side === 'BRI' ? b++ : g++;
-      const push = b > g ? 1 : g > b ? -1 : 0;
-      if (!push) continue;
-      o.progress = Math.max(-1, Math.min(1, o.progress + push * 0.04 * Math.min(4, Math.abs(b - g))));
+      // taking a strongpoint means holding it: twice as many British as Germans inside it and no German left at its heart
+      // (the inner third), for about 30 s; the Germans win it back by outnumbering the British there (faster: they know
+      // it); contested, it drifts back to whoever holds it
+      let b = 0, g = 0, gCore = 0;
+      for (const s of this.soldiers) { if (!s.alive || s.emerge > 0) continue; const d = Math.hypot(s.x - o.c[0], s.z - o.c[1]); if (d >= o.r) continue; if (s.side === 'BRI') b++; else { g++; if (d < o.r * 0.35) gCore++; } }
+      const old = o.progress;
+      if (b >= 3 && b >= 2 * g && gCore === 0) o.progress = Math.min(1, o.progress + 1 / 60);
+      else if (g > b) o.progress = Math.max(-1, o.progress - 1 / 30);
+      else o.progress += (o.owner === 'BRI' ? 1 : -1) * (1 / 240) * (o.progress > -1 && o.progress < 1 ? 1 : 0);
+      o.progress = Math.max(-1, Math.min(1, o.progress)); if (o.progress === old) continue;
       const owner = o.progress >= 1 ? 'BRI' : o.progress <= -1 ? 'GER' : o.owner;
       if (owner !== o.owner) { o.owner = owner; this.events.push({ t: 'captured', id: o.id, name: o.name, side: owner }); this.stats.captures.push({ at: this.clock(), id: o.id, name: o.name, side: owner }); }
     }
