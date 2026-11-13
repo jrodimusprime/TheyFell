@@ -8,6 +8,7 @@ export const HZ = 60, DT = 1 / HZ;
 // the enemy's chance of hitting with a round at distance d metres: 50% at 25 m, 1% at 100 m, linear between (and beyond, capped)
 // how far a man will engage: riflemen 300 m, machine guns 700 m
 export const engageRange = s => s.role === 'mg' ? 700 : 300;
+const hm = s => { const [h, m] = (s || '08:30').split(':').map(Number); return h * 3600 + m * 60; };   // 'hh:mm' as seconds of the day
 export const hitChance = d => Math.max(0.01, Math.min(0.66, 0.5 - (d - 25) * 0.49 / 75));
 const G = 9.81;
 export const WEAPONS = {
@@ -94,7 +95,7 @@ export function aimSpread(s) {
   return (s.ads ? W.spread : W.hip) * STANCE_SPREAD[s.stance] + (moving ? 0.012 : 0);
 }
 const PICKUP_TICKS = 66;   // 1.1 s to stoop, swap rifles and come up again
-const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1, stroll: 1.3 };   // stroll: a German walking his trench   // advance: the AI jogs forward (stopping to fire)
+const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1, stroll: 1.3, march: 4.0 };   // march: a section coming up at the double   // stroll: a German walking his trench   // advance: the AI jogs forward (stopping to fire)
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
 const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO = 7 * 3600 + 30 * 60;
 // before zero hour the clock runs 5x fast: the mines go up ~6 s in and the whistles blow ~30 s in; after zero, real time
@@ -114,6 +115,8 @@ export class Sim {
     this.waveT = { BRI: 0, GER: 0 };
     this.drops = [];   // rifles lying where men fell
     this.guns = [];    // machine guns on their mounts
+    this.hq = { sections: [], nextId: 0, counter: null, zones: null };   // the German HQ (docs/RESERVES.md)
+    this._placed = [];   // places taken this tick (not yet in the grid)
     this.trenchPts = { BRI: this._trenchPoints('BRI'), GER: this._trenchPoints('GER') };
     // the player first, then the AI, in a fixed order (Cimmerian §11: stable entity order)
     const ps = this.map.playerStart.pos, p0 = this._snapToTrench(ps[0], ps[1], playerSide, 30, true) || ps;   // on the fire-step, looking over the parapet
@@ -395,6 +398,190 @@ export class Sim {
     s.intent = d > tol ? { f: 1, s: 0, run: alert && d > 6, jump: false, stroll: ai.style === 'patrol' && !alert, yaw: Math.atan2(-dx, -dz) } : null;
     if (!s.intent && ai.style === 'wait' && !(ai.target >= 0)) { const S = this.T.segs[ai.seg]; if (S) { const ux = S.bx - S.ax, uz = S.bz - S.az; s.yaw = Math.atan2(ux, uz) + (s.id % 2 ? Math.PI : 0); } }   // looking along the trench
   }
+  // ---------- reserves (docs/RESERVES.md) ----------
+  // a free place near (x, z) on open ground: no one within 0.75 m (rings outward)
+  _freeSpot(x, z) {
+    for (let ring = 0; ring < 8; ring++) for (let k = 0; k < (ring ? 8 * ring : 1); k++) {
+      const a = k * Math.PI * 2 / (8 * ring || 1) + ring, px = x + Math.cos(a) * ring * 0.8, pz = z + Math.sin(a) * ring * 0.8;
+      let clear = true; const gx = Math.floor(px / 2), gz = Math.floor(pz / 2);
+      if (this.bump) for (let cz = gz - 1; cz <= gz + 1 && clear; cz++) for (let cx = gx - 1; cx <= gx + 1 && clear; cx++) { const l = this.bump.get((cx << 12) | cz); if (l) for (const o of l) if (o.alive && Math.hypot(o.x - px, o.z - pz) < 0.75) { clear = false; break; } }
+      if (clear) for (const q of this._placed) if (Math.hypot(q[0] - px, q[1] - pz) < 0.75) { clear = false; break; }
+      if (clear && Math.abs(this.T.height(px, pz) - this.T.height(x, z)) < 0.8) { this._placed.push([px, pz]); return [px, pz]; }
+    }
+    return [x, z];
+  }
+  _deepPoint(side, near) {
+    const R = this.map.reserves[side]; let pts = side === 'BRI' ? (this.time >= hm(R.deepFrom) && this.rng() < 0.35 ? R.deep : R.line) : R.deep;
+    if (side === 'GER') pts = pts.filter(p => !this.objectives.some(o => o.owner === 'BRI' && Math.hypot(o.c[0] - p[0], o.c[1] - p[1]) < o.r + 150));   // (Contalmaison taken: not there)
+    if (!pts.length) return R.deepFallback || R.deep[0];
+    return near ? pts.reduce((b, p) => Math.hypot(p[0] - near[0], p[1] - near[1]) < Math.hypot(b[0] - near[0], b[1] - near[1]) ? p : b) : pts[this.rng.int(pts.length)];
+  }
+  _fromRear(s) {
+    if (this.reserve[s.side] <= 0) return false;
+    this.reserve[s.side]--;
+    const r = s.rng, need = s.side === 'GER' ? this._neediest() : null, c = this._deepPoint(s.side, need ? need.c : null);
+    const [x, z] = this._freeSpot(c[0] + r.range(-40, 40), c[1] + r.range(-40, 40));
+    if (s.isPlayer) s.weapon = s.side === 'BRI' ? 'smle' : 'g98';
+    Object.assign(s, { x, z, y: this.T.height(x, z), vy: 0, hp: 100, alive: true, climb: 0, climbTo: null, stance: 1, stamina: 1, pickup: 0,
+      mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, throw: 0, lastHit: null, emerge: 0, emergeAt: null, gun: -1, gunRole: null, pinned: 0, role: s.role === 'mg' ? 'rifle' : s.role });
+    if (s.ai) Object.assign(s.ai, { target: -1, goal: null, post: [x, z], think: 30 + r.int(60), style: null, route: null, up: false, alertUntil: 0, counter: -1, closeIn: 0, fleeUntil: 0 });
+    if (s.side === 'BRI') { s.ai.mode = this.time < ZERO ? 'hold' : 'advance'; s.ai.goal = this._goalFor(s); }
+    else { s.ai.mode = 'muster'; this._muster(s, c); }
+    s.gaveUp = false; this.events.push({ t: 'respawn', id: s.id, p: [x, s.y, z], rear: true });
+    return true;
+  }
+  // German sections: men coming back at the second position fall in at its muster point; a section goes when it has 8
+  // (or after 40 s with fewer)
+  _muster(s, c) {
+    const hq = this.hq; let sec = hq.sections.find(q => q.state === 'muster' && Math.hypot(q.at[0] - c[0], q.at[1] - c[1]) < 1);
+    if (!sec) { sec = { id: hq.nextId++, at: c, men: [], state: 'muster', since: this.tick, task: null }; hq.sections.push(sec); }
+    sec.men.push(s.id); s.ai.section = sec.id;
+  }
+  // each objective's German zone: its fire-trench bays, and how things stand there
+  _zones() {
+    if (this.hq.zones) return this.hq.zones;
+    return (this.hq.zones = this.objectives.map((o, i) => ({ i, o, bays: this.trenchPts.GER.filter(p => Math.hypot(p[0] - o.c[0], p[1] - o.c[1]) < o.r + 120 && this.T.segs[p[2]].kind === 0) })));
+  }
+  _zoneState(z) {
+    const o = z.o, R = o.r + 150; let bri = 0, ger = 0, briIn = 0, gerIn = 0, threat = 0, bx = 0, bz = 0;
+    const gx = Math.floor(o.c[0] / 100), gz = Math.floor(o.c[1] / 100);
+    for (let cz = gz - 5; cz <= gz + 5; cz++) for (let cx = gx - 5; cx <= gx + 5; cx++) { const l = this.grid.get((cx << 8) | cz); if (!l) continue;
+      for (const s of l) { const d = Math.hypot(s.x - o.c[0], s.z - o.c[1]); if (s.side === 'BRI') { if (d < 400) { threat++; bx += s.x; bz += s.z; } if (d < R) bri++; if (d < o.r) briIn++; } else if (d < R && s.ai && s.ai.mode !== 'muster' && s.ai.mode !== 'reserve') { ger++; if (d < o.r) gerIn++; } } }
+    return { bri, ger, briIn, gerIn, threat, from: threat ? [bx / threat, bz / threat] : null };
+  }
+  // the zone that most needs men (for where a man comes back)
+  _neediest() { const Z = this._zones(); let best = null, bv = -1e9; for (const z of Z) { const st = z.st || { threat: 0, ger: 0 }; const v = (z.o.owner === 'GER' ? 1 : 0.6) * (Math.min(60, 12 + st.threat * 0.6) - st.ger - (z.coming || 0)); if (v > bv) { bv = v; best = z.o; } } return best; }
+  // the German HQ, every 5 s: hold each zone at the strength its threat calls for; a hasty counter-thrust where the
+  // British have got in; a deliberate counter-attack on an objective lost for some minutes; a withdrawal from one that
+  // cannot be held
+  _hq() {
+    if (!this.map.reserves || this.tick % (5 * HZ) !== 7) return;
+    const Z = this._zones(), hq = this.hq, t = this.tick;
+    for (const z of Z) { z.st = this._zoneState(z); z.coming = 0; }
+    for (const sec of hq.sections) if (sec.state === 'march' && sec.dest >= 0) Z[sec.dest].coming += sec.men.length;
+    // sections formed up: send them where they're needed most (or to a counter-attack's assembly)
+    for (const sec of hq.sections) {
+      if (sec.state !== 'muster') continue;
+      sec.men = sec.men.filter(id => this.soldiers[id].alive && this.soldiers[id].ai.mode === 'muster');
+      if (sec.men.length < 8 && (t - sec.since < 40 * HZ || !sec.men.length)) continue;
+      const ca = hq.counter && hq.counter.state === 'gather' && this.soldiers.filter(m => m.alive && m.ai && m.ai.route && m.ai.route.task === 'counter').length < 40 ? hq.counter : null;   // (a counter-attack takes 40 at most)
+      // the immediate reserve thin (under 40): this section goes to the intermediate line to make it up
+      if (!ca && this.soldiers.filter(m => m.alive && m.side === 'GER' && m.ai && m.ai.mode === 'reserve').length + hq.sections.filter(q => q.task === 'reserve' && q.state === 'march').reduce((n, q) => n + q.men.length, 0) < 40) {
+        const RG = this.map.reserves.GER.ready, rp = RG[sec.id % RG.length];
+        sec.state = 'march'; sec.dest = -1; sec.task = 'reserve';
+        sec.men.forEach((id, k) => { const m = this.soldiers[id]; m.ai.mode = 'march'; m.ai.route = { pts: [rp], i: 0, k, n: sec.men.length, dest: -1, task: 'reserve' }; });
+        this.events.push({ t: 'section', id: sec.id, dest: -1, n: sec.men.length, task: 'reserve' }); continue;
+      }
+      let dest = ca ? ca.obj : -1, bv = -1e9;
+      if (!ca) for (const z of Z) { if (z.o.owner !== 'GER') continue; const v = Math.min(60, 12 + z.st.threat * 0.6) - z.st.ger - z.coming; if (v > bv) { bv = v; dest = z.i; } }
+      if (dest < 0) continue;
+      const o = this.objectives[dest], away = this._awayFrom(o), stage = ca ? ca.stage : [o.c[0] + away[0] * (o.r + 160), o.c[1] + away[1] * (o.r + 160)];
+      sec.state = 'march'; sec.dest = dest; sec.task = ca ? 'counter' : 'hold'; Z[dest].coming += sec.men.length;
+      sec.men.forEach((id, k) => { const m = this.soldiers[id]; m.ai.mode = 'march'; m.ai.route = { pts: [stage, ca ? stage : o.c], i: 0, k, n: sec.men.length, dest, task: sec.task }; });
+      this.events.push({ t: 'section', id: sec.id, dest, n: sec.men.length, task: sec.task });
+    }
+    hq.sections = hq.sections.filter(q => q.state === 'muster' || (q.state === 'march' && q.men.some(id => this.soldiers[id].alive && this.soldiers[id].ai.mode === 'march')));
+    for (const z of Z) {
+      const o = z.o, st = z.st;
+      // hasty counter-thrust: British inside a German zone, the nearest reserve party goes in at once with bombs
+      if (o.owner === 'GER' && st.briIn > 0 && st.gerIn < st.briIn * 1.5 && t > (z.thrustAt || 0)) {
+        const party = this.soldiers.filter(m => m.alive && m.side === 'GER' && m.ai && m.ai.mode === 'reserve').sort((a, b) => Math.hypot(a.x - o.c[0], a.z - o.c[1]) - Math.hypot(b.x - o.c[0], b.z - o.c[1]) || a.id - b.id).slice(0, 6 + Math.min(6, st.briIn));
+        if (party.length) { z.thrustAt = t + 60 * HZ; for (const m of party) Object.assign(m.ai, { mode: 'advance', counter: z.i, goal: st.from ? [o.c[0] * 0.5 + st.from[0] * 0.5, o.c[1] * 0.5 + st.from[1] * 0.5] : o.c.slice(), fireUntil: 0, rushUntil: t + 300 * HZ });   // (at a run: they are needed now)
+          this.events.push({ t: 'counter', kind: 'thrust', obj: z.i, n: party.length }); }
+      }
+      // withdraw: a German zone the British hold several times over; its survivors back to the next German one
+      if (o.owner === 'GER' && st.ger > 0 && st.ger <= 5 && st.bri >= st.ger * 3 && st.bri >= 8 && t > (z.withdrawnAt || 0)) {
+        const next = Z.filter(q => q !== z && q.o.owner === 'GER').sort((a, b) => Math.hypot(a.o.c[0] - o.c[0], a.o.c[1] - o.c[1]) - Math.hypot(b.o.c[0] - o.c[0], b.o.c[1] - o.c[1]))[0];
+        const to = next ? next.o.c : this._deepPoint('GER'); z.withdrawnAt = t + 120 * HZ;
+        for (const m of this.soldiers) if (m.alive && m.side === 'GER' && m.ai && !(m.gun >= 0) && Math.hypot(m.x - o.c[0], m.z - o.c[1]) < o.r + 150 && (m.ai.mode === 'hold' || m.ai.mode === 'advance'))
+          Object.assign(m.ai, { mode: 'march', route: { pts: [to], i: 0, k: m.id % 8, n: 8, dest: next ? next.i : -1, task: 'hold' }, style: null });
+        this.events.push({ t: 'withdraw', obj: z.i, to: next ? next.i : -1 });
+      }
+      // a deliberate counter-attack on an objective lost for 3 minutes, when 20 men can be found for it
+      if (o.owner === 'BRI') { z.lostAt = z.lostAt || t; } else z.lostAt = 0;
+      if (o.owner === 'BRI' && !hq.counter && t - z.lostAt > 180 * HZ && this.reserve.GER > 20) {
+        const away = this._awayFrom(o), stage = [o.c[0] + away[0] * (o.r + 200), o.c[1] + away[1] * (o.r + 200)]; hq.counter = { obj: z.i, stage, state: 'gather', since: t };
+        // the regiment's reserve first (it is near): up to 24 of the immediate reserve go to the assembly; sections from the rear follow
+        const res = this.soldiers.filter(m => m.alive && m.side === 'GER' && m.ai && m.ai.mode === 'reserve').sort((a, b) => Math.hypot(a.x - stage[0], a.z - stage[1]) - Math.hypot(b.x - stage[0], b.z - stage[1]) || a.id - b.id).slice(0, 24);
+        res.forEach((m, k) => { m.ai.mode = 'march'; m.ai.route = { pts: [stage, stage], i: 0, k: k % 8, n: 8, dest: z.i, task: 'counter' }; });
+        this.events.push({ t: 'counter', kind: 'gather', obj: z.i, n: res.length });
+      }
+    }
+    // the counter-attack: gathered (20 men there, or 4 minutes), the guns shell the objective, then in by rushes
+    const ca = hq.counter;
+    if (ca) {
+      const o = this.objectives[ca.obj], there = this.soldiers.filter(m => m.alive && m.side === 'GER' && m.ai && m.ai.route && m.ai.route.task === 'counter' && Math.hypot(m.x - ca.stage[0], m.z - ca.stage[1]) < 40);
+      if (o.owner === 'GER') hq.counter = null;
+      else if (ca.state === 'gather' && (there.length >= 20 || (t - ca.since > 240 * HZ && there.length >= 8))) {
+        ca.state = 'shell'; ca.goAt = t + 50 * HZ; ca.men = there.map(m => m.id);
+        for (let i = 0; i < 26; i++) this.shells.push({ x: o.c[0] + this.rng.gauss() * o.r * 0.5, z: o.c[1] + this.rng.gauss() * o.r * 0.5, at: t + 40 + this.rng.int(45 * HZ), kind: this.rng() < 0.4 ? 'shrapnel' : 'he', cal: 'field', side: 'GER' });
+        this.events.push({ t: 'counter', kind: 'bombard', obj: ca.obj, n: there.length });
+      } else if (ca.state === 'shell' && t >= ca.goAt) {
+        ca.state = 'go';
+        for (const id of ca.men) { const m = this.soldiers[id]; if (m.alive) Object.assign(m.ai, { mode: 'advance', counter: ca.obj, goal: [o.c[0] + m.rng.range(-o.r, o.r) * 0.5, o.c[1] + m.rng.range(-o.r, o.r) * 0.5], route: null, fireUntil: 0 }); }
+        this.events.push({ t: 'counter', kind: 'assault', obj: ca.obj, n: ca.men.length });
+      } else if (ca.state === 'go' && ca.men.every(id => !this.soldiers[id].alive || this.soldiers[id].ai.mode !== 'advance')) hq.counter = null;
+    }
+    // men who reach a counter-attack's assembly after it has gone in: into the assault if it is still going on; else a post
+    // in the objective if it is German again, or back to the immediate reserve
+    for (const m of this.soldiers) {
+      if (!m.alive || m.side !== 'GER' || !m.ai || m.ai.mode !== 'march' || !m.ai.route || m.ai.route.task !== 'counter') continue;
+      const R = m.ai.route, live = hq.counter && hq.counter.obj === R.dest; if (live && hq.counter.state !== 'go') continue;
+      if (Math.hypot(m.x - R.pts[0][0], m.z - R.pts[0][1]) > 40 && live) continue;
+      const o = this.objectives[R.dest];
+      if (live) Object.assign(m.ai, { mode: 'advance', counter: R.dest, goal: [o.c[0] + m.rng.range(-o.r, o.r) * 0.5, o.c[1] + m.rng.range(-o.r, o.r) * 0.5], route: null, fireUntil: 0 });
+      else if (o.owner === 'GER') this._takePost(m, Z[R.dest]);
+      else { const RG = this.map.reserves.GER.ready; m.ai.route = { pts: [RG[m.id % RG.length]], i: 0, k: m.id % 8, n: 8, dest: -1, task: 'reserve' }; }
+    }
+    // men of a counter-thrust or counter-attack whose objective is German again settle into it
+    for (const m of this.soldiers) if (m.alive && m.side === 'GER' && m.ai && m.ai.mode === 'advance' && m.ai.counter >= 0) { const o = this.objectives[m.ai.counter]; if (o.owner === 'GER' && Math.hypot(m.x - o.c[0], m.z - o.c[1]) < o.r + 60) this._takePost(m, Z[m.ai.counter]); }
+  }
+  // which way is away from the British, at an objective (for staging points): from the British there, or due east
+  _awayFrom(o) { const z = this.hq.zones && this.hq.zones[this.objectives.indexOf(o)], f = z && z.st && z.st.from; if (!f) return [1, 0]; const dx = o.c[0] - f[0], dz = o.c[1] - f[1], L = Math.hypot(dx, dz) || 1; return [dx / L, dz / L]; }
+  // a section on the march: in a loose file abreast of the route (each man his own slot), at the double; it stops to
+  // fire at an enemy close by; at the end it takes up posts in its zone
+  _march(s, best, bd) {
+    const ai = s.ai, R = ai.route, w = R.pts[R.i];
+    const fwd0 = Math.atan2(-(w[0] - s.x), -(w[1] - s.z)), lat = (R.k - (R.n - 1) / 2) * 3, ox = Math.cos(fwd0) * lat, oz = -Math.sin(fwd0) * lat;
+    const gx = w[0] + ox, gz = w[1] + oz, dx = gx - s.x, dz = gz - s.z, d = Math.hypot(dx, dz);
+    const dw = Math.hypot(w[0] - s.x, w[1] - s.z), last = R.i + 1 >= R.pts.length;
+    if (d < 6 || dw < (last && R.task === 'hold' ? 60 : 20)) {   // (there: in the zone, or by the waypoint; his own slot may be in a wall)
+      if (R.i + 1 < R.pts.length) R.i++;
+      else if (R.task === 'counter') { s.intent = null; s.stance = 1; return; }   // at the counter-attack's assembly: down, waiting
+      else if (R.task === 'reserve') { ai.mode = 'reserve'; ai.route = null; ai.post = [s.x, s.z]; s.intent = null; return; }   // into the intermediate line's dugouts
+      else { const Z = this._zones(); if (R.dest >= 0) this._takePost(s, Z[R.dest]); else { ai.mode = 'muster'; this._muster(s, this._deepPoint('GER')); } return; }
+    }
+    if (best >= 0 && bd < 90 && this.tick < ai.fireUntil) { s.intent = null; s.stance = 1; return; }   // stopped to fire
+    s.stance = 0; s.intent = { f: 1, s: 0, run: false, march: true, jump: true, yaw: this._wireDetour(s, Math.atan2(-dx, -dz)) };
+  }
+  // a post in a zone: the fire-trench bay with fewest men (and the trench habits), else an open post in the shell holes
+  _takePost(m, z) {
+    const ai = m.ai, o = z.o; ai.counter = -1; ai.route = null; ai.mode = 'hold';
+    const used = new Map(); for (const q of this.soldiers) if (q.alive && q.side === 'GER' && q.ai && q.ai.seg !== undefined && q.ai.mode === 'hold') used.set(q.ai.seg, (used.get(q.ai.seg) || 0) + 1);
+    const bays = z.bays.filter(p => !this.T.segs[p[2]].gone && (used.get(p[2]) || 0) < 4).sort((a, b) => (used.get(a[2]) || 0) - (used.get(b[2]) || 0) || Math.hypot(a[0] - m.x, a[1] - m.z) - Math.hypot(b[0] - m.x, b[1] - m.z));
+    if (bays.length) { const b = bays[0], q = this._alongBay(b, m.rng.range(-3, 3)); ai.post = [q[2], q[3]]; this._trenchStyle(m, b[2], q); return; }
+    const st = z.st || {}, f = st.from || [o.c[0] - 300, o.c[1]], a = Math.atan2(f[1] - o.c[1], f[0] - o.c[0]) + m.rng.range(-0.9, 0.9), rr = o.r * (0.5 + m.rng() * 0.4);
+    ai.style = 'open'; ai.seg = undefined; ai.post = this._freeSpot(o.c[0] + Math.cos(a) * rr, o.c[1] + Math.sin(a) * rr); ai.face = Math.atan2(-(f[0] - ai.post[0]), -(f[1] - ai.post[1]));
+  }
+  // no two men in one place: any two closer than 0.6 m (men standing still too) pushed apart, as far as the ground lets
+  // them; near the player every 4th tick, everyone else every 30th
+  _separate() {
+    const p = this.player, near = this.tick % 4 === 0, all = this.tick % 30 === 0; if (!near && !all) return;
+    const T = this.T, okAt = (m, x, z) => T.height(x, z) - m.y < STEP_UP && !this.F.wallAt(x, z, m.y);
+    for (const [k, l] of this.bump) {
+      for (let i = 0; i < l.length; i++) {
+        const a = l[i]; if (!a.alive || a.climb > 0 || a.emerge > 0 || a.isPlayer) continue;
+        if (!all && Math.abs(a.x - p.x) + Math.abs(a.z - p.z) > 350) continue;
+        const gx = Math.floor(a.x / 2), gz = Math.floor(a.z / 2);
+        for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) { const l2 = this.bump.get((cx << 12) | cz); if (!l2) continue;
+          for (const b of l2) { if (b === a || !b.alive || b.id < a.id && !b.isPlayer || b.climb > 0 || b.emerge > 0 || Math.abs(b.y - a.y) > 1.6 || (a.gun >= 0 && a.gun === b.gun)) continue;
+            const dx = a.x - b.x, dz = a.z - b.z, d = Math.hypot(dx, dz), MIN = b.isPlayer ? 0.8 : 0.6; if (d >= MIN) continue;
+            const ux = d > 1e-4 ? dx / d : Math.cos(a.id), uz = d > 1e-4 ? dz / d : Math.sin(a.id), push = (MIN - d) / (b.isPlayer ? 1 : 2);
+            const ax = a.x + ux * push, az = a.z + uz * push; if (okAt(a, ax, az)) { a.x = ax; a.z = az; }
+            if (!b.isPlayer && !(b.gun >= 0)) { const bx = b.x - ux * push, bz2 = b.z - uz * push; if (okAt(b, bx, bz2)) { b.x = bx; b.z = bz2; } } } }
+      }
+    }
+  }
   // the tally: fallen, still standing in the field, and the reserve still to come
   tally(side) { let field = 0; for (const o of this.soldiers) if (o.side === side && o.alive) field++; return { fallen: this.score[side].deaths, field, reserve: this.reserve[side], left: field + this.reserve[side] }; }
   get time() { return START_TIME + this.gt; }
@@ -454,7 +641,11 @@ export class Sim {
         if (out.length % 64 === 0 && pool.length > 4000) pool.splice(0, 0); }
       while (out.length < n) out.push(pts[out.length % pts.length]); return out; };
     const briPts = weighted(bri, ps.x, ps.z, nb, 300), gerPts = shuffle(weighted(ger, lx, lz - 60, Math.max(0, ng), 320));
-    for (let i = 0; i < nb; i++) { const p = briPts[i % briPts.length]; const s = this._spawn('BRI', p[0], p[1]); s.ai.wave = i % 4; s.stance = 1; }
+    // the British: three in four in the front and support trenches (waves 0-3); the rest, the Tyneside Irish, on the
+    // Tara-Usna line a mile back, who go forward at zero hour too and have the whole way to cross
+    const RES = this.map.reserves || {}, nLine = RES.BRI ? Math.floor(nb * 0.25) : 0;
+    for (let i = 0; i < nb - nLine; i++) { const p = briPts[i % briPts.length]; const s = this._spawn('BRI', p[0], p[1]); s.ai.wave = i % 4; s.stance = 1; }
+    for (let i = 0; i < nLine; i++) { const c = RES.BRI.line[i % RES.BRI.line.length], q = this._freeSpot(c[0] + r.range(-140, 140), c[1] + r.range(-140, 140)); const s = this._spawn('BRI', q[0], q[1]); s.ai.wave = 1 + (i % 2); s.stance = 1; }
     // machine guns: the known posts, then more spread along the German front system opposite the attack
     const mgAt = this.map.mgs.slice(), front = ger.filter(p => this.T.segs[p[2]].kind === 0);
     for (let k = 0; mgAt.length < this.nMG && front.length && k < 200; k++) { const p = front[Math.floor((k * 0.618034 % 1) * front.length)]; if (mgAt.every(q => Math.hypot(q[0] - p[0], q[1] - p[1]) > 70)) mgAt.push([p[0], p[1]]); }
@@ -473,6 +664,9 @@ export class Sim {
         for (const q of this._clusterIn(bay, n, r)) { const s = this._spawn('GER', q[0], q[1]); s.stance = 1; s.ai.mode = 'shelter'; s.ai.post = [q[2], q[3]]; this._trenchStyle(s, bay[2], q); i++; }
       } }
     for (const s of this.soldiers) if (s.role === 'mg') s.ai.mode = 'shelter';
+    // the German immediate reserve: ~70 men under cover in the intermediate line, ~1,000 yards back
+    if (RES.GER) { const n = Math.min(70, Math.floor(ng * 0.18));
+      for (let i = 0; i < n; i++) { const c = RES.GER.ready[i % RES.GER.ready.length], q = this._freeSpot(c[0] + r.range(-35, 35), c[1] + r.range(-35, 35)); const s = this._spawn('GER', q[0], q[1]); s.stance = 1; s.ai.mode = 'reserve'; s.ai.ready = i % RES.GER.ready.length; s.ai.post = q; } }
   }
 
   // ---------- the tick ----------
@@ -486,7 +680,7 @@ export class Sim {
   }
   step(input = {}) {
     const p = this.player;
-    this._buildGrid();
+    this._buildGrid(); this._placed.length = 0;
     this._player(p, input);
     for (const s of this.soldiers) if (!s.isPlayer && s.alive) this._think(s);
     this._guns();
@@ -494,6 +688,8 @@ export class Sim {
     this._director();
     this._objectives();
     this._respawns(input);
+    this._hq();
+    this._separate();
     this.tick++;
     this.gt += DT * (this.time < ZERO ? PRE_ZERO_RATE : 1);
   }
@@ -547,6 +743,8 @@ export class Sim {
     ai.think = (Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350 ? 45 : 20) + s.rng.int(20);   // far from the player: thinks half as often
     // before the barrage lifts, the Germans shelter in their deep dugouts (they come up when it lifts: the race for the parapet)
     if (ai.mode === 'shelter') { s.stance = 1; s.intent = null; if (t >= ZERO - 4 + s.rng.range(0, 25)) ai.mode = s.role === 'mg' ? 'mg' : 'hold'; return; }
+    // in reserve (under cover in the intermediate line) or forming up behind the lines: waiting on HQ, unless the enemy is on them
+    if (ai.mode === 'reserve' || ai.mode === 'muster') { s.intent = null; s.stance = 1; if (this._enemyNear(s, 60)) { ai.mode = 'hold'; ai.style = null; ai.post = [s.x, s.z]; } else return; }
     // British: wait in the trench for zero hour and their wave, then go over the top and walk forward
     if (s.side === 'BRI' && ai.mode === 'hold' && !ai.goal) {
       if (t >= ZERO + ai.wave * 25 + s.rng.range(0, 6)) { ai.mode = 'advance'; ai.goal = this._goalFor(s); s.stance = 0; }
@@ -594,12 +792,12 @@ export class Sim {
     }
     if (ai.mode !== 'shelter' && this._grabGun(s)) return;
     if (ai.mode !== 'shelter' && this._considerThrow(s, cand, best)) return;
-    if (best >= 0) { ai.seen = this.tick; if (s.side === 'BRI' && ai.mode === 'advance' && bd > 40 && s.rng() < 0.45) { ai.fireUntil = this.tick + 60 + s.rng.int(120); } }
+    if (best >= 0) { ai.seen = this.tick; if ((ai.mode === 'advance' || ai.mode === 'march') && bd > 40 && s.rng() < (ai.mode === 'march' ? 0.25 : 0.45)) { ai.fireUntil = this.tick + 60 + s.rng.int(120); } }
     if (s.mag === 0 && !s.reloading) this._startReload(s);
     // movement intent
     if (ai.mode === 'advance' && ai.goal) {
       const dx = ai.goal[0] - s.x, dz = ai.goal[1] - s.z, d = Math.hypot(dx, dz);
-      if (d < 6) { ai.goal = this._goalFor(s, true); }
+      if (d < 6) { const o = ai.counter >= 0 && ai.counter !== undefined ? this.objectives[ai.counter] : null; ai.goal = o ? [o.c[0] + s.rng.range(-o.r, o.r) * 0.6, o.c[1] + s.rng.range(-o.r, o.r) * 0.6] : this._goalFor(s, true); }   // (a counter-attack keeps to its objective)
       const firing = this.tick < ai.fireUntil;
       if (this.tick < s.pinned) {   // machine-gun fire cracking past: down flat, crawling on now and then; then up and a rush forward
         s.stance = 2; ai.rushUntil = s.pinned + 150 + s.rng.int(120);
@@ -607,6 +805,13 @@ export class Sim {
       }
       s.stance = firing ? 1 : 0;
       s.intent = firing ? null : { f: 1, s: 0, run: (best >= 0 && bd < 120) || this.tick < (ai.rushUntil || 0), jump: true, yaw: this._wireDetour(s, Math.atan2(-dx, -dz)) + s.rng.range(-0.15, 0.15) };
+    } else if (ai.mode === 'march' && ai.route) {
+      this._march(s, best, bd);
+    } else if (ai.mode === 'hold' && s.side === 'GER' && ai.style === 'open') {
+      // an open post in the shell holes round a strongpoint: down (prone or kneeling), facing the threat, firing
+      const dx = ai.post[0] - s.x, dz = ai.post[1] - s.z, d = Math.hypot(dx, dz);
+      s.stance = d > 1 ? 0 : (s.id % 3 ? 2 : 1); s.intent = d > 1 ? { f: 1, s: 0, run: false, jump: true, yaw: Math.atan2(-dx, -dz) } : null;
+      if (!s.intent && !(ai.target >= 0) && ai.face !== undefined) s.yaw = ai.face;
     } else if (ai.mode === 'hold' && s.side === 'GER' && ai.style) {
       this._trenchWork(s, best, bd);
     } else if (ai.mode === 'hold' || ai.mode === 'mg') {
@@ -644,7 +849,7 @@ export class Sim {
     const startled = this.tick < (ai.reactUntil || 0);
     if (ai.closeIn && !startled && this.tick % 3 === s.id % 3) { const o = this._nearestFoe(s, REACH * 0.95); if (o) { const want = Math.atan2(-(o.x - s.x), -(o.z - s.z)); if (Math.abs(wrapAngle(want - s.yaw)) < 0.6) { s.yaw = want; this._startStrike(s); return; } } }
     if (ai.target < 0) return;
-    if (s.side === 'BRI' && ai.mode === 'advance' && this.tick >= ai.fireUntil && s.rng() > 0.004) return;   // walking forward, rifle at the port
+    if ((ai.mode === 'advance' || ai.mode === 'march') && this.tick >= ai.fireUntil && s.rng() > 0.004) return;   // on the move, rifle at the port
     const o = this.soldiers[ai.target]; if (!o.alive) { ai.target = -1; return; }
     const dx = o.x - s.x, dz = o.z - s.z, d = Math.hypot(dx, dz), ty = o.y + HEIGHT[o.stance] * 0.7, dy = ty - this._eye(s);
     // he turns to the man at a man's pace (startled, slower), and fires only once he is facing him
@@ -882,7 +1087,7 @@ export class Sim {
     let sp = 0, mx = 0, mz = 0;
     if (I && (I.f || I.s)) {
       const run = I.run && s.stamina > 0.05;
-      sp = s.stance === 2 ? SPEED.prone : s.stance === 1 ? SPEED.crouch : run ? SPEED.run : s.isPlayer ? SPEED.walk : I.stroll ? SPEED.stroll : SPEED.advance;
+      sp = s.stance === 2 ? SPEED.prone : s.stance === 1 ? SPEED.crouch : run ? SPEED.run : s.isPlayer ? SPEED.walk : I.stroll ? SPEED.stroll : I.march ? SPEED.march : SPEED.advance;
       if (run) s.stamina = Math.max(0, s.stamina - DT / 14); else s.stamina = Math.min(1, s.stamina + DT / 9);
       const f = I.f, sd = I.s, L = Math.hypot(f, sd) || 1, sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
       mx = (-sy * f + cy * sd) / L; mz = (-cy * f - sy * sd) / L;
@@ -1113,19 +1318,19 @@ export class Sim {
     return true;
   }
   // N: the player goes on as another man in the fight, and an AI takes over the man he was (they swap: no one leaves the
-  // line). Each time a fresh cluster: men of his side round the objective he is attacking (within 250 m of it, wider if
+  // line). Each time a fresh cluster: men of his side round the objective he is attacking (within 450 m of it, wider if
   // there are too few), one of them at random as its seed and his 9 nearest comrades; one of those 10 at random, never one
   // of the last six he has been (so it can't flick back and forth between two men), never one about to be overrun.
   switchCandidates(p) {
     const g = this.target(p.side, p.x, p.z), gx = g ? g.c[0] : p.x, gz = g ? g.c[1] : p.z, recent = p.switchHist || [];
     const mine = this.soldiers.filter(o => o.alive && !o.isPlayer && o.side === p.side && !(o.climb > 0) && !(o.emerge > 0) && !(o.gun >= 0) && !(o.throw > 0) && !(o.strike > 0) && !recent.includes(o.id));
     let pool = [];
-    for (const R of [250, 500, Infinity]) { pool = mine.filter(o => Math.hypot(o.x - gx, o.z - gz) < R); if (pool.length >= 10) break; }
+    for (const R of [450, 900, Infinity]) { pool = mine.filter(o => Math.hypot(o.x - gx, o.z - gz) < R); if (pool.length >= 10) break; }
     if (!pool.length) return [];
-    // the seed: of two dozen men drawn at random, one of the four with his nine nearest comrades closest round him (a
+    // the seed: of four dozen men drawn at random, one of the four with his nine nearest comrades closest round him (a
     // real knot of men, not a straggler and whoever happens to be nearest him)
     const near10 = c => pool.map(o => [Math.hypot(o.x - c.x, o.z - c.z), o]).sort((a, b) => a[0] - b[0] || a[1].id - b[1].id).slice(0, 10);
-    const tries = []; for (let i = 0; i < Math.min(24, pool.length); i++) { const c = pool[p.rng.int(pool.length)], n = near10(c); tries.push([n[n.length - 1][0], c]); }
+    const tries = []; for (let i = 0; i < Math.min(48, pool.length); i++) { const c = pool[p.rng.int(pool.length)], n = near10(c); tries.push([n[n.length - 1][0], c]); }
     tries.sort((a, b) => a[0] - b[0] || a[1].id - b[1].id);
     const seed = tries[p.rng.int(Math.min(4, tries.length))][1];
     return near10(seed).map(q => q[1])
@@ -1156,7 +1361,10 @@ export class Sim {
     if (!pick) { // nearest to where the fight is, for the player; for the AI, a couple up each forward dugout per wave, the rest from the rear
       if (s.isPlayer) pick = pts.reduce((b, q) => Math.hypot(q.p[0] - s.x, q.p[1] - s.z) < Math.hypot(b.p[0] - s.x, b.p[1] - s.z) ? q : b);
       else { const fwd = pts.filter(q => q.name !== 'Trench' && (this.fwd[s.side + q.name] || 0) > 0), rear = pts.filter(q => q.name === 'Trench');
-        pick = fwd.length ? r.pick(fwd) : rear.length ? r.pick(rear) : r.pick(pts); if (pick.name !== 'Trench') this.fwd[s.side + pick.name] = (this.fwd[s.side + pick.name] || 0) - 1; }
+        pick = fwd.length ? r.pick(fwd) : rear.length ? r.pick(rear) : r.pick(pts); if (pick.name !== 'Trench') this.fwd[s.side + pick.name] = (this.fwd[s.side + pick.name] || 0) - 1;
+        // the rest come from behind: the British from the Tara-Usna line (and, later, Albert and Becourt Wood), the
+        // Germans from the second position, in sections HQ sends up (docs/RESERVES.md)
+        if (pick.name === 'Trench' && this.map.reserves) return this._fromRear(s); }
     }
     const dug = pick.name !== 'Trench' ? this.dugouts.find(d => d.name === pick.name) : null;
     let [x, z] = pick.p;

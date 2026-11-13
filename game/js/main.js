@@ -195,6 +195,11 @@ async function boot() {
       } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
       else if (e.t === 'throw' && e.id === p.id) audio.pin();
+      else if (e.t === 'counter' || e.t === 'withdraw') {   // the German HQ's moves, when they are near enough to matter to you
+        const o = sim.objectives[e.obj], d = o ? Math.hypot(o.c[0] - p.x, o.c[1] - p.z) : 1e9;
+        if (d < 900) { const n = `${o.name.replace(/ \(.*\)/, '')} (${o.id})`;
+          const t = e.t === 'withdraw' ? `The Germans are falling back from ${n}` : e.kind === 'thrust' ? `German bombers are counter-attacking at ${n}` : e.kind === 'gather' ? `Germans are massing for a counter-attack on ${n}` : e.kind === 'bombard' ? `German guns are shelling ${n}: a counter-attack is coming` : `The German counter-attack is going in at ${n}`;
+          if (e.kind === 'assault' || e.kind === 'bombard') message(t, 5); else addFeed(t); } }
       else if (e.t === 'mount' && e.id === p.id) { const g = sim.guns[e.gun]; addFeed(`You take over the ${GUNS[g.kind].name}`); audio.reload(); }
       else if (e.t === 'belt' && e.id === p.id) { audio.reload(); message('Changing the belt…', 2); }
       else if (e.t === 'gunjam' && e.id === p.id) message('Stoppage: clearing it…', 2);
