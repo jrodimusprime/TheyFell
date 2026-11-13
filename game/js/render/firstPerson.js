@@ -175,7 +175,7 @@ export class FirstPerson {
     this.gun.position.copy(hip.pos).lerp(aimPos, a).add(off);
     this.gun.updateMatrixWorld(true);
     // bolt: lift (turn) and slide
-    let lift = 0, back = 0, hand = GRIP_R.clone();
+    let lift = 0, back = 0, hand = GRIP_R.clone(), thumbPress = 0;
     const knobAt = (l, b) => KNOB.clone().lerp(KNOB_UP, l).add(V(0, 0, -b));
     if (cyc >= 0) {
       const t = cyc;
@@ -191,7 +191,14 @@ export class FirstPerson {
       if (t < 0.06) hand = lerpV(GRIP_R, KNOB, t / 0.06);
       else if (t < 0.12) { lift = ease((t - 0.06) / 0.06); hand = knobAt(lift, 0); }
       else if (t < 0.18) { lift = 1; back = ease((t - 0.12) / 0.06) * BOLT_TRAVEL; hand = knobAt(1, back); }
-      else if (t < 0.82) { lift = 1; back = BOLT_TRAVEL; const u = (t - 0.18) / 0.64, c = (u * 2) % 1; hand = c < 0.3 ? lerpV(knobAt(1, back), CHARGER.clone().add(V(0, 0.05, 0)), c / 0.3) : CHARGER.clone().add(V(0, 0.05 - Math.sin(Math.min(1, (c - 0.3) / 0.5) * Math.PI) * 0.06, 0)); }
+      else if (t < 0.82) {
+        // the hand over to the charger guide once and held there, beside and over it; the thumb pushes the five rounds of
+        // each clip down into the magazine (twice, for ten), the wrist straight, the hand still
+        lift = 1; back = BOLT_TRAVEL; const u = (t - 0.18) / 0.64, at = CHARGER.clone().add(V(-0.055, 0.012, -0.015));
+        hand = u < 0.12 ? lerpV(knobAt(1, back), at, u / 0.12) : u > 0.92 ? lerpV(at, knobAt(1, back), (u - 0.92) / 0.08) : at;
+        const c = ((u - 0.12) / 0.8 * 2) % 1; thumbPress = u < 0.12 || u > 0.92 ? 0 : Math.sin(Math.min(1, Math.max(0, (c - 0.15) / 0.7)) * Math.PI);
+        hand.y -= thumbPress * 0.006;   // (a little give as he pushes)
+      }
       else if (t < 0.88) { lift = 1; back = (1 - ease((t - 0.82) / 0.06)) * BOLT_TRAVEL; hand = knobAt(1, back); }
       else if (t < 0.93) { lift = 1 - ease((t - 0.88) / 0.05); hand = knobAt(lift, 0); }
       else hand = lerpV(KNOB, GRIP_R, (t - 0.93) / 0.07);
@@ -203,20 +210,21 @@ export class FirstPerson {
     const B = this.bones, G = this.gun.matrixWorld, w = v => v.clone().applyMatrix4(G), d = v => v.clone().transformDirection(G);
     const up = V(0, 1, 0).transformDirection(this.rig.matrixWorld), right = V(1, 0, 0).transformDirection(this.rig.matrixWorld);
     // right hand: on the stock (fingers round under the wrist of the stock, palm on its right side) or at the bolt / charger
-    const away = Math.min(1, hand.distanceTo(GRIP_R) / 0.05), pressing = rel >= 0.18 && rel < 0.82 && hand.y > KNOB_UP.y + 0.01;
+    const away = Math.min(1, hand.distanceTo(GRIP_R) / 0.05), pressing = rel >= 0.2 && rel < 0.8;
     // aiming: an underarm grip, the hand cupping the wrist of the stock from below (palm up, fingers wrapping up the far
     // side, elbow tucked down), hidden under the stock from the eye; at the hip, round the wrist from the side
     const under = 0;   // normal grip; the right hand is simply hidden when aiming (it is out of sight)
     const Fr = d(V(0.15, -0.8, 0.55)).lerp(d(V(0.92, 0.05, 0.38)), under).lerp(pressing ? d(V(-0.1, -0.35, 0.9)) : d(V(0.25, -0.2, 0.95)), away).normalize();
-    const Nr = d(V(1, 0, 0)).lerp(d(V(0.05, 1, 0)), under).lerp(pressing ? d(V(0, -1, 0)) : d(V(0.7, -0.3, 0.2)), away).normalize();
+    const Nr = d(V(1, 0, 0)).lerp(d(V(0.05, 1, 0)), under).lerp(pressing ? d(V(0.55, -0.83, 0)) : d(V(0.7, -0.3, 0.2)), away).normalize();
     const gripR = blendGrip(GRIPS.stock, pressing ? GRIPS.press : GRIPS.pinch, away);
     // left hand: palm up under the fore-end, fingers across to the far side
     const Fl = d(V(-0.97, -0.05, 0.22)).normalize(), Nl = d(V(0, 1, 0));   // fingers straight across under the fore-end, wrapping its far side
     const wrist = (grip, F, N, palm = 0.03, reach = 0.055) => w(grip).addScaledVector(N, -palm).addScaledVector(F, -reach);
     let wR = wrist(hand, Fr, Nr, away > 0.5 ? 0.015 : 0.035, away > 0.5 ? 0.075 : 0.05), wL = wrist(GRIP_L, Fl, Nl, 0.035, 0.05);
+    let placeFn = null;
     if (this.xr) {
       // each real hand placed by its grip: palm centre on the wood (stock / fore-end radius ~2 cm), facing it
-      const place = (h, gripW, F, N, stand) => {
+      const place = placeFn = (h, gripW, F, N, stand) => {
         const f = F.clone().normalize(), n = N.clone().addScaledVector(f, -N.dot(f)).normalize(), x = new THREE.Vector3().crossVectors(f, n);
         const fl = h.fingersLocal, nl = h.palmLocal, xl = new THREE.Vector3().crossVectors(fl, nl);
         h.object.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f, n, x).multiply(new THREE.Matrix4().makeBasis(fl, nl, xl).transpose()));
@@ -241,7 +249,20 @@ export class FirstPerson {
       } else if (this.nade) this.nade.visible = false;
       wL = place(this.xr.left, w(GRIP_L), Fl, Nl, 0.034);
     }
-    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, onGun ? up.clone().multiplyScalar(-1).addScaledVector(right, 0.25) : up.clone().multiplyScalar(-1).addScaledVector(right, 0.9 - 0.7 * under));   // elbow tucked down when aiming
+    const poleR = onGun ? up.clone().multiplyScalar(-1).addScaledVector(right, 0.25) : up.clone().multiplyScalar(-1).addScaledVector(right, 0.9 - 0.7 * under);
+    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, poleR);   // elbow tucked down when aiming
+    // off the stock (at the bolt, thumbing a charger in) the wrist stays straight: the hand turned to run on from the
+    // forearm, put back on the same knob or charger, the arm solved again (twice, to settle); the fingers and thumb do
+    // the work. (On the stock the grip's own set of the hand stands.)
+    if (placeFn && !onGun && this.nadeArm < 0.1 && away > 0.02) {
+      const k = Math.min(1, away * 1.5);
+      for (let it = 0; it < 2; it++) {
+        const el = B.lowerarm_r.getWorldPosition(new THREE.Vector3()), wr = B.hand_r.getWorldPosition(new THREE.Vector3()), fa = wr.sub(el).normalize();
+        const F2 = Fr.clone().lerp(fa, k).normalize();
+        wR = placeFn(this.xr.right, w(hand), F2, Nr, away > 0.5 ? 0.012 : 0.034);
+        twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, poleR);
+      }
+    }
     twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wL, up.clone().multiplyScalar(-1).addScaledVector(right, onGun ? -0.25 : -0.35));
     if (this.xr) for (const n of ['hand_l', 'hand_r']) { B[n].scale.setScalar(0.001); B[n].updateMatrixWorld(true); }
     if (this.xr) for (const [s, h] of [['l', this.xr.left], ['r', this.xr.right]]) {
@@ -260,7 +281,7 @@ export class FirstPerson {
       const mix = (a, b, t) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] + (b[k] - a[k]) * t]));
       if (onGun) { this.xr.right.setPose({ thumb: 0.35, index: 0.9, middle: 0.95, ring: 0.95, pinky: 0.95 }); this.xr.left.setPose({ thumb: 0.35, index: 0.9, middle: 0.95, ring: 0.95, pinky: 0.95 }); }
       else if (this.nadeArm > 0.5 && this.lastNH) this.xr.right.setPose(this.lastNH.held ? { thumb: 0.7, index: 0.85, middle: 0.88, ring: 0.9, pinky: 0.92 } : { thumb: 0.2, index: 0.15, middle: 0.15, ring: 0.2, pinky: 0.25 });
-      else this.xr.right.setPose(mix(mix(POSES.trigger, { thumb: 0.75, index: 0.45, middle: 0.95, ring: 0.98, pinky: 1 }, under), pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
+      else this.xr.right.setPose(mix(mix(POSES.trigger, { thumb: 0.75, index: 0.45, middle: 0.95, ring: 0.98, pinky: 1 }, under), pressing ? { thumb: 0.15 + thumbPress * 0.8, index: 0.5, middle: 0.58, ring: 0.64, pinky: 0.7 } : POSES.pinch, away));
       if (!onGun) this.xr.left.setPose({ thumb: 0.5, index: 0.7, middle: 0.72, ring: 0.74, pinky: 0.76 });   // cradling: fingertips on the far side, not over the top
       const hideRight = a > 0.55 && away < 0.3 && this.nadeArm < 0.1 && !onGun;   // aiming: the trigger hand is out of sight under the stock
       this.xr.left.object.visible = true; this.xr.right.object.visible = !hideRight; this.xr.right.cuff.visible = !hideRight;
