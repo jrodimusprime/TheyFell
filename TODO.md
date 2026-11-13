@@ -31,18 +31,22 @@ HIGHEST PRIORITY (in order)
 ✓ german soldiers in trenches should have different modes - sometimes popping up to shoot from trenches hwith head and shoulders over the top - sometimes waiting in defence to shoot who comes down. take your time animating this properly and getting the gameplay right. take your time on this and push to master once done. some should also walk the length of the trench up and down — done 13 Nov 2026: four habits in the fire trenches (pop up over the parapet and duck, wait on the floor for whoever comes down, patrol the trench, steady at the parapet); the fire-step raised so a man on it shows his head and shoulders over the sandbags
 
 
-✓ respawning and resupply should come from deeper behind enemy lines - the germans will walk towards different trenches or open defence areas near targets... take your time doing this tactic. thinking through options as the current path of using the spawning areas is just bad... better they come from behind enemy lines and walk so you dont get 100 dudes spawning at one point... then push to master. germans will also need to move to take back regions at times to get back into their defensive trenches there or in open defensive zones. ensure germans can never overlap each other - their bounding boxes steop them. — done 13 Nov 2026: both armies' reserves from three depths (docs/RESERVES.md): British from the Tara–Usna line and Albert/Bécourt; Germans from the second position in sections a German HQ marches up to trench bays or open posts, an immediate reserve in the intermediate line for bombing counter-thrusts, deliberate counter-attacks with a bombardment, withdrawals; a separation pass so no two men overlap
+✓ respawning and resupply should come from deeper behind enemy lines - the germans will walk towards different trenches or open defence areas near targets... take your time doing this tactic. thinking through options as the current path of using the spawning areas is just bad... better they come from behind enemy lines and walk so you dont get 100 dudes spawning at one point... then push to master. germans will also need to move to take back regions at times to get back into their defensive trenches there or in open defensive zones. ensure germans can never overlap each other - their bounding boxes steop them.
+
+✓ when you zoom in it should make pixels relative to the zoom so things are lsightly clearer if that makes sense. — done 13 Nov 2026: aiming, the pixel density rises with the zoom (x1.56 at full aim), back down when you lower the rifle
 
 
 inside trenches walking past people is a bit weird you can push other players out of the way etc... make sure that is smoother if someone has a walking vector towards an AI player of the same team they kind of move aside in a trench - you may need to do some animation and spend time making that look correct.
 
-once you have taken all posts A B C D E it is game over and a stats age is displayed, asks you if oyu want to start again
+✓ once you have taken all posts A B C D E it is game over and a stats age is displayed, asks you if oyu want to start again — done 13 Nov 2026: holding A to D at once is a British victory (no British left to send, a German one); the end card says who won and why, both sides in numbers, kills by cause, your own war, the objectives as they fell; begin again or keep watching
 
 gennades should bounce nicely up a trench and around corners push that to master
 
 the map looks crap in terms of quality (when you press M that map) - the directional one. take some time making that nicer. also the bottom round map should say A B C D E in the centre of the circle of the zone 
 
 walking in trenches can make the player pop up randomly on planks etc, so lets make the walking area on the trenches just the trench floor, if they want to pop up on a standing bench whatever its called lets offer a new keyboard letter maybe T to get into trench aiming mode for defence. this will be handy later when we need to do a defensive mission
+
+dudes look like they are half in the wall inside trenches need to make sure their bodies are in bounding boxes vs walls
 
 
 ✓ attacker AI should avoid barbed wire if it can — done 12 Nov 2026: goes round a belt when he can see a way through
@@ -113,12 +117,12 @@ i assume if enemies were killed outside of where i saw them or my guys they get 
 ### In scope
 - First- and third-person **infantry** combat in trenches, tunnels, craters and no man's land.
 - Player-usable **small arms**: rifles, pistols, light machine guns, **emplaced machine guns** (Vickers / MG 08), grenades, rifle grenades, melee, tools.
-- **Artillery as an off-map, AI-driven system only**: barrages, creeping barrages, counter-battery fire and shell effects. Players can **request** barrages (officer + telephone or flare) but **cannot operate** guns.
+- **Artillery as an off-map, AI-driven system only**: barrages, creeping barrages, counter-battery fire and shell effects. Players can **request** barrages (flare) but **cannot operate** guns.
 - Mines, gas, wire, mud, weather, night, flares, raids, tunnelling.
 - Factions: British (incl. Highland & Newfoundland), Australian, New Zealand, Canadian, German.
 - **Maps are large open battlefields at true scale** (1 game unit = 1 m), built from real elevation data and georeferenced trench maps, not arena-sized sets. MAP-S02 is one 6 km × 6 km map. Distance is handled by terrain LOD, fog and culling, not by shrinking the ground (decided 12 Nov 2026).
 - **Mobile is self-playing:** on phones and tablets the game plays itself. The AI controls the player through the same agent API the tests use (as in Cimmerian's "Let the AI play this level"), and the viewer watches the battle unfold with touch only for the camera, pausing and skipping. There are no on-screen twin-stick controls (decided 12 Nov 2026).
-- **Respawning is frequent and normal:** death is common for a soldier, so players redeploy within seconds at a friendly trench or a taken objective, and AI reinforcements come up in waves.
+
 
 ### Phase 2 options
 Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the backlog tagged **PH2** so they can be picked up after launch without re-planning.
@@ -144,23 +148,6 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 
 ## 1. Pre-production & foundations
 
-### 1.1 Direction & documents
-- [ ] **PRE-001** [P0] Write the one-page game vision & pillars (authentic trench experience, squad co-operation, respect for the fallen)
-- [x] **PRE-002** [P0] ~~Choose the engine (Unreal 5 vs Unity)~~ **Decided: browser engine, pure JavaScript + WebGL2 (three.js), no build step**, following The Cimmerian (deterministic fixed tick, agent API, headless test runs). Netcode model still to choose *(demo)*
-- [ ] **PRE-003** [P0] Write the Game Design Document (GDD) skeleton, linking every system in §5 of this TODO
-- [ ] **PRE-004** [P0] **Art bible:** palette per battlefield (Flanders brown-grey, Somme chalk-white, Vimy snow-grey), lighting moods, material references (§3–5 photos)
-- [ ] **PRE-005** [P0] **Audio bible:** realism targets, reference recordings, mix philosophy (artillery is felt more than seen)
-- [ ] **PRE-006** [P0] **Historical accuracy policy:** date-gating rules (§11.4), naming conventions, sign-off process
-- [ ] **PRE-007** [P0] **Sensitivity & depiction policy:** casualties, gore toggle, treatment of the dead, enemy portrayal, real unit names
-- [ ] **PRE-008** [P0] Define the target platforms, minimum spec and frame-rate targets
-- [ ] **PRE-009** [P0] Set performance budgets: triangles, draw calls, texture memory per map, max players & AI agents. Demo baseline: ~300 terrain tiles, 150–220 draw calls, 234 AI, 60 Hz sim at < 0.3 ms/tick (see `game/README.md`)
-- [ ] **PRE-010** [P1] Write the age-rating plan (gore, gas injuries, language)
-- [ ] **PRE-011** [P0] Write the scope document (Section 0 above) and get it signed off
-- [x] **PRE-012** [P0] ~~Decide: are light trench mortars (and the flamethrower) player-usable?~~ **Decided: Phase 2 option PH2-A.** Not built in Phase 1
-- [x] **PRE-013** [P1] ~~Decide whether to include the French faction (Somme southern sector)~~ **Decided: Phase 2 option PH2-B.** Not built in Phase 1
-- [ ] **PRE-014** [P0] Define game modes for launch (see `SYS-MODE-*`)
-- [ ] **PRE-015** [P1] Monetisation / DLC policy, if any (cosmetics must stay historically accurate)
-
 
 
 ## 2. Research & reference gathering
@@ -174,9 +161,6 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **RES-007** [P1] Record or licence authentic weapon sounds (live-fire sessions with collectors)
 - [ ] **RES-008** [P1] Voice reference: period slang, regional accents (Australian, Canadian, Scottish, Newfoundland, Bavarian/Prussian German)
 - [ ] **RES-009** [P1] War diaries for each mission's real timeline (Section 13 sources)
-- [ ] **RES-010** [P0] Hire or consult a historical advisor; schedule review gates
-
----
 
 
 
@@ -255,16 +239,6 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **ART-DUG-008** [P1] Cook-house, latrine, ration store
 - [ ] **ART-DUG-009** [P1] Signal exchange (switchboard, cables)
 
-### 4.6 Underground: subways & mines (§10.2)
-- [ ] **ART-UG-001** [P1] **Subway** module set: straight, curve, junction, chamber, stair exit (Grange Subway, chalk)
-- [ ] **ART-UG-002** [P1] Electric lights + cable, water pipe, telephone line, side chambers (aid post, ammo store)
-- [ ] **ART-UG-003** [P1] **Mine shaft** (vertical, windlass) & incline
-- [ ] **ART-UG-004** [P1] **Mine gallery** with timber sets (clay & chalk variants), spoil sandbags
-- [ ] **ART-UG-005** [P1] **Charge chamber**: stacked ammonal tins, detonator wires, tamping sandbags
-- [ ] **ART-UG-006** [P1] Listening post: geophone, "clay-kicker" work face
-- [ ] **ART-UG-007** [P1] Collapsed gallery (camouflet) state
-- [ ] **ART-UG-008** [P2] German gallery variant
-
 ### 4.7 Obstacles (§9.1)
 - [ ] **ART-OBS-001** [P0] **Barbed wire entanglement** (tileable belt sections, 3 densities)
 - [ ] **ART-OBS-002** [P0] **Double apron fence**
@@ -284,7 +258,6 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **ART-PRP-003** [P0] Ration tins (bully beef, Maconochie), biscuit tins, jam tins
 - [ ] **ART-PRP-004** [P0] Petrol-tin water cans, water bottles
 - [ ] **ART-PRP-005** [P0] **Braziers**, candles, hurricane lanterns, carbide lamps
-- [ ] **ART-PRP-006** [P0] **Field telephone** + cable reels + cable runs (trench wall & buried)
 - [ ] **ART-PRP-007** [P0] **Trench periscopes** (box, tube, Zeiss binocular) (§9.3)
 - [ ] **ART-PRP-008** [P0] **Gas gong** (shell case / oil drum) + rattle + klaxon (§9.3)
 - [ ] **ART-PRP-009** [P0] **Stretchers** (canvas, wheeled stretcher carrier)
@@ -432,7 +405,6 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **AUD-ENV-004** [P1] Tunnel ambience; **digging & listening** sounds (picks, clay-kicking, enemy tapping through the earth)
 - [ ] **AUD-ENV-005** [P0] **Gas gong**, rattle, klaxon, bell
 - [ ] **AUD-ENV-006** [P0] **Officers' whistles** (zero hour)
-- [ ] **AUD-ENV-007** [P0] Field telephone ring, buzzer, crank
 - [ ] **AUD-ENV-008** [P1] Rats, crows, larks (dawn), distant dogs
 - [ ] **AUD-ENV-009** [P1] Brazier crackle, kettle, mess tins
 - [ ] **AUD-ENV-010** [P0] Cloth & kit foley (webbing rattle, crawling, greatcoat, gas-mask on / off breathing)
@@ -467,27 +439,10 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 
 ## 5. Game functionality (systems & mechanics)
 
-### 5.1 Core player
-- [ ] **SYS-PLY-001** [P0] First-person controller: walk, sprint (stamina), crouch, prone, lean (around traverses)
-- [ ] **SYS-PLY-002** [P0] **Ladder climb**; **vault parapet / "go over the top"** context action
-- [ ] **SYS-PLY-003** [P0] Jump / drop into trench, slide down crater sides
-- [ ] **SYS-PLY-004** [P0] **Stamina & encumbrance** (kit weight ~30 kg; carrying wire, ammo or a stretcher)
-- [ ] **SYS-PLY-005** [P0] **Mud locomotion:** speed reduction by mud depth, **getting stuck** (struggle mini-action, teammate pull-out), losing boots (P2)
-- [ ] **SYS-PLY-006** [P0] Wading & **drowning risk in flooded shell holes** (stamina drain, rescue)
-- [ ] **SYS-PLY-007** [P0] Third-person body awareness in first person (see own legs in mud)
-- [ ] **SYS-PLY-008** [P0] Interaction system (use, pick up, carry, drag, place)
-- [ ] **SYS-PLY-009** [P1] Peek-over-parapet & periscope use mode
-- [ ] **SYS-PLY-010** [P1] Cold / wet exposure (stamina & accuracy penalties on Vimy snow, Passchendaele rain)
+
 
 ### 5.2 Combat
-- [ ] **SYS-CMB-001** [P0] **Ballistics:** bullet drop, velocity, penetration by material (sandbag, timber, plate)
-- [ ] **SYS-CMB-002** [P0] **Bolt-action cycling** as a timed action; clip reloads vs single-round top-up
-- [ ] **SYS-CMB-003** [P0] Weapon sway, breathing, rest on parapet / sandbag (stability bonus)
-- [ ] **SYS-CMB-004** [P0] **LMG:** pan / belt reloads, bipod deploy, heat
-- [ ] **SYS-CMB-005** [P0] **Emplaced MG:** mount / dismount, traverse limits, belt feeding by a second crewman (faster fire), water cooling (Vickers), **jams & clearing drills**
-- [ ] **SYS-CMB-006** [P0] **Weapon jams** (mud fouling raises the jam chance)
-- [ ] **SYS-CMB-007** [P0] **Grenades:** Mills (pin, lever, ~4 s fuse) vs stick grenade (cord, ~4.5 s), throw arcs (stick throws further), cooking rules, bounce physics, fragmentation vs blast damage model
-- [ ] **SYS-CMB-008** [P1] Rifle grenades (arc, cup discharger)
+
 - [ ] **SYS-CMB-009** [P0] **Melee:** bayonet thrust / charge, butt-stroke, club & knife, shove; trench-width constraints
 - [ ] **SYS-CMB-010** [P0] **Damage & injury model:** hit locations, bleeding, incapacitation (downed, can be bandaged or carried), death
 - [ ] **SYS-CMB-011** [P0] **Suppression:** near-miss & shell-burst effects on aim, vision and movement
@@ -495,7 +450,6 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **SYS-CMB-013** [PH2] Flamethrower (German): fuel, range, burning, panic effects *(Phase 2 option PH2-A)*
 - [ ] **SYS-CMB-014** [PH2] Light trench mortar (crew-served: loader + layer, range table, bombs as resource) *(Phase 2 option PH2-A)*
 - [ ] **SYS-CMB-015** [P0] Friendly fire rules & penalties
-- [ ] **SYS-CMB-016** [P1] Sniper scopes (glint, limited FOV), loophole plates (can be shut; AP rounds P2)
 
 ### 5.3 Battlefield systems (§9–10)
 - [ ] **SYS-WIRE-001** [P0] **Wire:** blocks & slows movement, snags (stuck state), damages, cut by hand (timed, noisy), by shells (gaps), marking gaps (tape)
@@ -505,8 +459,7 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **SYS-ART-002** [P0] **Preliminary bombardment** phase (map-scripted)
 - [ ] **SYS-ART-003** [P0] **Creeping barrage:** timed lifts from barrage-map data; friendly-fire risk if players run ahead (⛓ TOOL-009)
 - [ ] **SYS-ART-004** [P1] **Box barrage** (for raids)
-- [ ] **SYS-ART-005** [P1] **SOS barrage on request:** officer fires a red Very light or uses the field telephone → delayed barrage on pre-registered target zones
-- [ ] **SYS-ART-006** [P1] Telephone lines **cut by shellfire** → requests fail → send a runner / repair the line
+- [ ] **SYS-ART-005** [P1] **SOS barrage on request:** officer fires a flare → delayed barrage on pre-registered target zones
 - [ ] **SYS-ART-007** [P1] Duds (chance by shell type) remaining as hazards
 - [ ] **SYS-ART-008** [P1] Counter-battery abstraction (enemy barrage intensity reduces over the match if "counter-battery" objectives are met)
 - [ ] **SYS-DEF-001** [P0] **Terrain deformation:** craters from shells & mines (persistent per match, networked)
@@ -525,271 +478,22 @@ Decided on 12 Nov 2026: these are **not** part of Phase 1. They stay in the back
 - [ ] **SYS-NGT-001** [P0] **Night & darkness** with light sources (lamps, braziers, flares)
 - [ ] **SYS-NGT-002** [P0] **Flares:** illumination radius & duration; "freeze" mechanic (stationary = less visible); flare signals readable by both sides
 - [ ] **SYS-WTH-001** [P0] **Weather system:** rain, sleet, snow, fog, wind direction & strength (feeds gas)
-- [ ] **SYS-WTH-002** [P1] **Mud depth simulation:** rain raises mud depth & flooding over time; shelling churns ground into mud
+
 - [ ] **SYS-WTH-003** [P1] Visibility modifiers from weather (AI perception too)
 - [ ] **SYS-MED-001** [P0] **Medical:** bandage self/ally, stretcher-bearers (carry with 2+ players or AI), aid post healing, evacuation scoring
 - [ ] **SYS-MED-002** [P1] Trench foot / exposure (long-match status effect, P2 for multiplayer)
 - [ ] **SYS-LOG-001** [P0] **Resupply:** ammo & grenade crates, carry parties, limited bombs per squad
 - [ ] **SYS-LOG-002** [P1] Rations & water (long modes / campaign)
 - [ ] **SYS-COM-001** [P1] **Runners:** physically carry messages (orders / barrage requests) when phones are down
-- [ ] **SYS-COM-002** [P1] Field telephone network (nodes, lines, repair)
-- [ ] **SYS-COM-003** [P2] Signal lamps, pigeons (single-player flavour)
-- [ ] **SYS-OBS-001** [P1] **Periscopes & OP tree:** spotting enemies, marking for the squad
 - [ ] **SYS-OBS-002** [P1] Spotting / marking system (limited, historically plausible: no "magic radar")
 - [ ] **SYS-SNP-001** [P1] Sniper loopholes (shuttered), sniper hide positions
-- [ ] **SYS-CON-001** [P0] **Consolidation:** after capture, a timer to "reverse" the trench (build a new fire-step / parapet) to gain a defensive bonus
 - [ ] **SYS-CON-002** [P1] Digging: shell-scrapes, connecting craters into a line, filling sandbags
-
-### 5.4 Objectives, modes & meta
-- [ ] **SYS-OBJ-001** [P0] **Frontline sector capture** (attack / defend trench by trench, as in Verdun's Frontlines) (§11.1)
-- [ ] **SYS-OBJ-002** [P0] Attack waves with **zero hour**: whistles, ladders, timed advance with the barrage
-- [ ] **SYS-OBJ-003** [P0] **Counter-attacks** after capture (defend the consolidated trench)
-- [ ] **SYS-MODE-001** [P0] **Frontlines** (PvP / PvE): sector tug-of-war, with fast redeploy (a few seconds) at friendly trenches and taken objectives, and AI reinforcement waves *(demo)*
-- [ ] **SYS-MODE-002** [P1] **Historical Operation:** scripted multi-phase battle following the real timeline (e.g. Vimy 9→12 April)
-- [ ] **SYS-MODE-003** [P1] **Trench Raid** (night, small teams, prisoner snatch, box barrage)
-- [ ] **SYS-MODE-004** [P1] **Squad Defence** (co-op vs AI waves)
-- [ ] **SYS-MODE-005** [P2] **Tunnellers** (underground asymmetric mode, Hill 60)
-- [ ] **SYS-MODE-006** [P1] **Single-player / co-op campaign** (one mission per map, briefing → mission → debrief letter)
-- [ ] **SYS-MODE-007** [P0] Tutorial on the Rehearsal Ground (movement, ladders, gas drill, wire cutting, bombing, MG crew)
-- [ ] **SYS-SQD-001** [P0] **Squads & roles:** section of 4–8 with roles (rifleman, bomber, Lewis gunner, officer/NCO, stretcher-bearer, sniper, signaller/runner, engineer); limits per side (e.g. MG & sniper caps, as in Isonzo)
-- [ ] **SYS-SQD-002** [P0] Officer abilities: whistle (rally / advance), request barrage, mark objective, flare signals
-- [ ] **SYS-SQD-003** [P1] Morale / cohesion system (near officers & comrades = steadier aim, less panic)
-- [ ] **SYS-SQD-004** [P1] Surrender & prisoners (hands up, escort to the rear, score)
-- [ ] **SYS-PRG-001** [P1] Progression & unlocks, **date-gated** per map / year (no Brodie in 1915 maps, etc.)
-- [ ] **SYS-PRG-002** [P1] Loadout system per role & faction (data-driven)
-- [ ] **SYS-PRG-003** [P2] Cosmetic regimental insignia (historically correct only)
-- [ ] **SYS-SCR-001** [P0] Scoring: captures, defence, medical evacuations, resupply, wire cut, consolidation (team-play weighted)
-- [ ] **SYS-CDX-001** [P1] **Codex:** unlock entries (weapons, equipment, battles) with README text & archival photos
-- [ ] **SYS-CDX-002** [P2] Post-mission "historical note" screen (what really happened, casualties, memorials)
-
-### 5.5 Technical & platform
-- [ ] **SYS-NET-001** [P0] Multiplayer netcode (server-authoritative), lag compensation for ballistics
-- [ ] **SYS-NET-002** [P0] Network replication of terrain deformation, wire states, gas volumes, mines
-- [ ] **SYS-NET-003** [P0] Dedicated servers, server browser, matchmaking
-- [ ] **SYS-NET-004** [P1] Anti-cheat, reporting, admin tools
-- [ ] **SYS-NET-005** [P0] **Bots** to fill servers (⛓ AI section)
-- [ ] **SYS-TEC-001** [P0] Save / load (campaign), settings, key rebinding, controller support
-- [ ] **SYS-TEC-008** [P0] **Mobile = self-playing mode:** detect touch / small screens and start in autoplay. An AI pilot drives the player through `TF.step` (advance with the wave, take cover, fire, redeploy on death), with a cinematic camera (first person, over-the-shoulder, a slow orbit on death). Touch is for looking around, pause and speed (1× / 3×). Lower defaults: render scale, shadow map, tile budget, fewer AI. ⛓ PIPE-006 (agent API), AI-CORE-*
-- [ ] **SYS-TEC-002** [P0] Graphics settings & scalability (foliage, gas volume quality, shadow, crater decal limits)
-- [ ] **SYS-TEC-003** [P0] **Accessibility:** colour-blind modes (flare colours!), subtitles with speaker & direction, gore & casualty-density toggles, photosensitivity mode (flashes), hold-to-toggle options, aim assist (PvE)
-- [ ] **SYS-TEC-004** [P1] Localisation (EN / FR / DE, + more), regional voice sets
-- [ ] **SYS-TEC-005** [P1] Telemetry (heatmaps per map for balance)
-- [ ] **SYS-TEC-006** [P1] Replay / spectator camera
-- [ ] **SYS-TEC-007** [P2] Map editor / modding SDK
 
 ---
 
-## 6. Animation
-
-### 6.1 Character locomotion (3rd person; matching 1st-person body)
-- [ ] **ANM-LOC-001** [P0] Idle (relaxed, alert, cold-shivering, exhausted)
-- [ ] **ANM-LOC-002** [P0] Walk / jog / sprint (with rifle low, at port, slung)
-- [ ] **ANM-LOC-003** [P0] Crouch-walk (in a trench: head below the parapet), crouch idle
-- [ ] **ANM-LOC-004** [P0] Prone, crawl (rifle cradled), roll, prone-to-stand
-- [ ] **ANM-LOC-005** [P0] **Ladder climb** (up / down, under fire), **vault the parapet**, scramble up a crater lip
-- [ ] **ANM-LOC-006** [P0] Jump down into a trench / shell hole, slide down a muddy slope
-- [ ] **ANM-LOC-007** [P0] **Mud wading** (knee / thigh depth), **stuck-in-mud struggle**, being pulled out (2-person paired anim)
-- [ ] **ANM-LOC-008** [P0] Water wading, treading water in a shell hole, drowning (restrained)
-- [ ] **ANM-LOC-009** [P0] Duckboard walking (balance), slipping / falling
-- [ ] **ANM-LOC-010** [P0] **Lean** around a traverse, peek over the parapet, step up onto the fire-step
-- [ ] **ANM-LOC-011** [P1] Wire snag (caught, struggling free), stepping over low wire, crawling under wire
-- [ ] **ANM-LOC-012** [P1] Carry heavy load (wire coil, ammo boxes, sandbags), drag a casualty, carry a stretcher (2-person and 4-person sync)
-- [ ] **ANM-LOC-013** [P1] Snow walking (Vimy), leaning into the wind
-- [ ] **ANM-LOC-014** [P1] Turn-in-place, starts / stops, trench-corner pivots (motion-matching set)
-
-### 6.2 Weapon handling (1st person + 3rd person per weapon)
-- [ ] **ANM-WPN-001** [P0] **SMLE:** idle, aim, fire, **bolt cycle**, charger-clip reload (5+5), single-round top-up, empty reload, fix / unfix bayonet, inspect, sprint, melee butt
-- [ ] **ANM-WPN-002** [P0] **Gewehr 98:** same set (5-round stripper clip)
-- [ ] **ANM-WPN-003** [P1] Ross, sniper variants (scope in / out), periscope rifle
-- [ ] **ANM-WPN-004** [P0] **Lewis:** hip / shoulder / bipod fire, **pan change**, jam clear, carry
-- [ ] **ANM-WPN-005** [P1] **MG 08/15:** bipod fire, belt change, carry
-- [ ] **ANM-WPN-006** [P0] **Vickers (emplaced):** mount / dismount, traverse, fire, **belt-feed (2nd crewman)**, jam drill, refill water, carry tripod & gun (2 men)
-- [ ] **ANM-WPN-007** [P0] **MG 08 (sledge):** same set; drag the sledge
-- [ ] **ANM-WPN-008** [P0] Webley: fire, break-open reload (with / without speedloader); Luger: toggle action, magazine change
-- [ ] **ANM-WPN-009** [P0] **Mills bomb:** pull pin, hold lever, overhand throw, lob (over the traverse), underarm (into a dugout), drop / cook
-- [ ] **ANM-WPN-010** [P0] **Stick grenade:** unscrew cap, pull cord, long throw, short lob
-- [ ] **ANM-WPN-011** [P1] Rifle grenade: load rod / cup, angled fire from a braced rifle
-- [ ] **ANM-WPN-012** [P0] **Melee:** bayonet thrust, parry, charge run, club swing, knife stab, spade strike, shove; hit reactions to each
-- [ ] **ANM-WPN-013** [P0] **Very pistol:** load, fire upward, signal colours
-- [ ] **ANM-WPN-014** [P0] **Wire-cutters:** cut sequence (prone & kneeling), rifle-mounted cutter
-- [ ] **ANM-WPN-015** [PH2] Flamethrower 2-man team (tank carrier + nozzle man) *(Phase 2 option PH2-A)*
-- [ ] **ANM-WPN-016** [PH2] Light trench mortar: drop bomb, adjust elevation, carry tube & baseplate *(Phase 2 option PH2-A)*
-- [ ] **ANM-WPN-017** [P0] Weapon switching per pair, holster / sling, pick up / drop
 
 ### 6.3 Actions & interactions
 - [ ] **ANM-ACT-001** [P0] **Put on / take off gas mask** (PH helmet & small box respirator; German mask): fast, under stress, fumbling variant
-- [ ] **ANM-ACT-002** [P0] **Sound the gas gong / rattle**
-- [ ] **ANM-ACT-003** [P0] **Blow whistle** (officer), signal "advance" arm gestures
-- [ ] **ANM-ACT-004** [P0] **Use periscope** (box & tube), use binoculars, read a map
-- [ ] **ANM-ACT-005** [P0] **Bandage** self & ally; **stretcher lift / carry / set down** (paired / quad sync)
-- [ ] **ANM-ACT-006** [P0] Pick up / carry / drop ammo box, resupply a teammate
-- [ ] **ANM-ACT-007** [P1] **Field telephone:** crank, speak; splice a cut wire
-- [ ] **ANM-ACT-008** [P1] **Lay wire:** screw a picket in, run wire, muffled-mallet hammering
-- [ ] **ANM-ACT-009** [P1] **Dig:** shovel, fill sandbags, place sandbags (consolidation), dig out a buried comrade
-- [ ] **ANM-ACT-010** [P1] **Tunnelling:** clay-kicking, timbering, listening with a geophone, laying ammonal tins
-- [ ] **ANM-ACT-011** [P1] Open / close a sniper-plate shutter, open / close a gas curtain
-- [ ] **ANM-ACT-012** [P1] **Surrender** (hands up), take a prisoner, escort, search
-- [ ] **ANM-ACT-013** [P1] Mark a wire gap with tape, plant a marker flag
-- [ ] **ANM-ACT-014** [P0] Climb into / out of a dugout (stairs), duck under a low entrance
-
-### 6.4 Reactions & deaths (restrained, ⛓ PRE-007)
-- [ ] **ANM-RCT-001** [P0] Flinch / suppression cower (standing, crouched, prone), duck at incoming-shell sound
-- [ ] **ANM-RCT-002** [P0] Hit reactions by body zone (upper, lower, limbs), stagger, fall wounded
-- [ ] **ANM-RCT-003** [P0] **Downed / incapacitated** loop, crawling wounded, being dragged
-- [ ] **ANM-RCT-004** [P0] Deaths: **physics ragdolls** for every death (bullet impulse at the wound, blast throw, collision with trench walls and shell holes), blended from the shot or slump pose; toned-down variants *(demo: cannon-es ragdolls on the real ground)*
-- [ ] **ANM-RCT-005** [P0] **Gassed:** coughing, clutching mask, choking, blinded walk (hand on the shoulder in front)
-- [ ] **ANM-RCT-006** [P1] Concussion stumble, deafened (hands to ears)
-- [ ] **ANM-RCT-007** [P1] Shell-shock (tremor idle), panic flee (morale break)
-- [ ] **ANM-RCT-008** [P1] Buried / partially buried struggle
-- [ ] **ANM-RCT-009** [PH2] Burning reaction (flamethrower) *(Phase 2 option PH2-A)*
-
-### 6.5 Ambient & life-in-the-trench (AI-driven, also menu diorama)
-- [ ] **ANM-AMB-001** [P0] **Stand-to** at dawn (on the fire-step, rifle on the parapet)
-- [ ] **ANM-AMB-002** [P0] Sentry watch with periscope, sentry dozing
-- [ ] **ANM-AMB-003** [P1] Sleeping in a funk hole / on the fire-step, huddled under a groundsheet in rain
-- [ ] **ANM-AMB-004** [P1] Cooking on a brazier, eating from tins, drinking tea / rum issue
-- [ ] **ANM-AMB-005** [P1] Writing letters, reading, smoking, card games
-- [ ] **ANM-AMB-006** [P1] Delousing ("chatting"), scraping mud off boots, cleaning a rifle, foot inspection (whale oil)
-- [ ] **ANM-AMB-007** [P1] Pumping water, repairing the parapet, filling sandbags
-- [ ] **ANM-AMB-008** [P2] Rats scurrying (creature anims), crows pecking
-
-### 6.6 Environment & prop animation
-- [ ] **ANM-ENV-001** [P0] Wire sway in wind, wire recoil when cut
-- [ ] **ANM-ENV-002** [P0] Flare parachute descent & sway
-- [ ] **ANM-ENV-003** [P0] Gas-gong swing, lamp sway & flicker
-- [ ] **ANM-ENV-004** [P1] Dugout timbers shaking, dust falling (bombardment)
-- [ ] **ANM-ENV-005** [P1] Gas-curtain blowing, groundsheet flapping, signs swinging
-- [ ] **ANM-ENV-006** [P1] Duckboards tilting and sinking underfoot in deep mud
-- [ ] **ANM-ENV-007** [P1] Tree collapse (shelled), ruin wall collapse
-
-### 6.7 Cinematics
-- [ ] **ANM-CIN-001** [P0] Zero-hour sequence: officer checks watch → whistle → ladders → over the top
-- [ ] **ANM-CIN-002** [P1] Mine-detonation camera sequences (Lochnagar, Messines)
-- [ ] **ANM-CIN-003** [P1] Mission intro / outro vignettes (letters read over trench scenes)
-- [ ] **ANM-CIN-004** [P2] Memorial epilogue (present-day Vimy, Tyne Cot, Lochnagar)
 
 ---
 
-## 7. AI
-
-### 7.1 AI foundations
-- [ ] **AI-CORE-001** [P0] **Navigation for trench networks:** navmesh with trench, ladder, parapet-vault and dugout-stair links; crater and mud cost layers; wire as an obstacle with a "cut" option
-- [ ] **AI-CORE-002** [P0] **Perception:** sight (with light level, flares, fog, rain, smoke, gas-mask FOV), hearing (shots, footsteps on surfaces, digging, wire cutting), suppression awareness
-- [ ] **AI-CORE-003** [P0] **Cover system:** fire-step positions, traverse corners, crater lips, ruins, pillbox embrasures; peek / fire / duck cycles
-- [ ] **AI-CORE-004** [P0] Behaviour-tree / utility framework with shared blackboards per squad
-- [ ] **AI-CORE-005** [P0] **Squad coordination:** formations for trench movement (single file), over-the-top lines / waves, leapfrogging, bombing parties
-- [ ] **AI-CORE-006** [P0] **Commander AI** (per side): allocates squads to sectors, triggers attacks, counter-attacks and reinforcements, uses the barrage system
-- [ ] **AI-CORE-007** [P0] Difficulty scaling (reaction time, accuracy, tactical depth) & bot fill for multiplayer
-- [ ] **AI-CORE-008** [P1] Morale model shared with players (rally on officers, break under heavy shelling)
-- [ ] **AI-CORE-009** [P1] Dialogue / bark system tied to AI state (callouts, orders)
-- [ ] **AI-CORE-010** [P0] Debug visualisation (perception cones, cover scores, squad orders)
-
-### 7.2 Infantry roles
-- [ ] **AI-INF-001** [P0] **Rifleman:** man the fire-step, aimed fire, reload in cover, advance with the wave, take a crater, consolidate
-- [ ] **AI-INF-002** [P0] **Officer / NCO:** issue orders, blow the whistle at zero hour, lead from the front, fire flares (SOS / lift barrage), call barrages via telephone, rally broken men
-- [ ] **AI-INF-003** [P0] **Bomber:** clear trench bays with grenades around traverses, bombing-block defence, supply bomb carriers
-- [ ] **AI-INF-004** [P0] **Lewis / LMG gunner:** suppress, displace after firing, cover the advance, set up in captured trenches
-- [ ] **AI-INF-005** [P0] **Emplaced MG crew (Vickers / MG 08):** 2–3 man crew, fixed arcs, **enfilade fire** along wire gaps, belt feeding, jam drills, swapping a hot barrel / water, crew replacement on casualties
-- [ ] **AI-INF-006** [P1] **Sniper:** use loopholes & OP trees, pick officers / MG crews, relocate after shots, counter-sniping
-- [ ] **AI-INF-007** [P0] **Stretcher-bearers / medics:** find the wounded, bandage, carry in teams of 2–4 to the aid post, avoid shelled areas, carry under a Red Cross armband (no special immunity)
-- [ ] **AI-INF-008** [P0] **Sentry:** watch via periscope, react to flares, raise the **gas alarm**, wake the stand-to
-- [ ] **AI-INF-009** [P1] **Runner:** carry messages between HQ and front when phones fail; pathfind through communication trenches; replacement if killed
-- [ ] **AI-INF-010** [P1] **Signaller / linesman:** follow cut telephone lines and repair them
-- [ ] **AI-INF-011** [P1] **Wiring party:** night work in no man's land, freeze or drop at flares, flee under fire, repair gaps
-- [ ] **AI-INF-012** [P1] **Patrol:** crawl into no man's land, listen, ambush enemy patrols, report back
-- [ ] **AI-INF-013** [P1] **Raiders:** move under a box barrage, cut wire, enter the enemy trench, bomb dugouts, snatch a prisoner, withdraw on a signal
-- [ ] **AI-INF-014** [P1] **Tunnellers / counter-miners:** dig, listen, detect enemy work, lay camouflets, defend galleries (Hill 60 mode)
-- [ ] **AI-INF-015** [P1] **Carrying parties:** bring ammo, bombs, water and wire forward through communication trenches
-- [ ] **AI-INF-016** [PH2] **Light trench-mortar team**: range on enemy MG posts, displace *(Phase 2 option PH2-A)*
-- [ ] **AI-INF-017** [PH2] **German flamethrower team**: close on a trench under cover, burn bays, withdraw *(Phase 2 option PH2-A)*
-- [ ] **AI-INF-018** [P1] **Stoßtruppen tactics** (German 1917): infiltration around strongpoints, bypass & isolate, heavy grenade use
-- [ ] **AI-INF-019** [P1] **Pillbox garrison:** hold embrasures, sortie to counter-attack, surrender when outflanked
-- [ ] **AI-INF-020** [P1] **Prisoners & surrender:** decide to surrender (isolated, outflanked, low morale), be escorted, never "fake" surrender exploits
-- [ ] **AI-INF-021** [P1] **Wounded AI:** crawl to cover, call for a stretcher-bearer, self-bandage
-
-### 7.3 Battlefield "director" AIs (systems that act like AI)
-- [ ] **AI-ART-001** [P0] **Artillery director:** runs the preliminary bombardment, creeping barrage timing, harassing fire, retaliation to activity (fires on detected movement / MG positions after a delay), SOS barrages on flare / phone requests (§10.1)
-- [ ] **AI-ART-002** [P1] **Counter-battery logic:** enemy barrage strength decreases if counter-battery objectives are met
-- [ ] **AI-ART-003** [P1] Shell-type selection by target (shrapnel vs troops in the open, HE vs trenches, gas vs batteries / rear areas, smoke for cover)
-- [ ] **AI-GAS-001** [P1] **Gas director:** scheduled / opportunistic gas shelling, cloud-release events when the wind is favourable
-- [ ] **AI-EVT-001** [P0] **Event director:** mine detonations, counter-attack waves, reinforcement timing, pacing (quiet periods vs storms of fire)
-- [ ] **AI-FLR-001** [P1] **Flare logic:** both sides' sentries fire flares on suspicious noise; frequency rises with alarm level
-
-### 7.4 Ambient & creature AI
-- [ ] **AI-AMB-001** [P1] **Trench-life ambient soldiers:** sleeping, cooking, letter writing, repairing (switch to combat on alarm)
-- [ ] **AI-AMB-002** [P2] **Rats:** scurry along trench floors, flee light & noise, gather at dugout ration stores
-- [ ] **AI-AMB-003** [P2] **Crows / larks:** flocks scatter at shellfire; larks sing at dawn on quiet maps
-- [ ] **AI-AMB-004** [P2] Rear-area non-combat crowds (rehearsal ground drill squads)
-
-### 7.5 AI per map / mode tuning
-- [ ] **AI-MAP-001** [P0] La Boisselle (vertical slice) attack and defence plans
-- [ ] **AI-MAP-002** [P1] Per-map commander plans for all P1 maps (sectors, MG positions, counter-attack routes)
-- [ ] **AI-MAP-003** [P1] Raid-mode AI behaviours (night, stealth, flares)
-- [ ] **AI-MAP-004** [P2] Tunnellers-mode AI
-
----
-
-## 8. Interactive asset behaviours (state machines for assets)
-
-| ID | Asset | States / behaviour | Pri |
-|---|---|---|---|
-| **INT-001** | Barbed wire | intact → snagging → cut (hand) → shell-gapped → flattened; noise on cut; marks on the map | P0 |
-| **INT-002** | Screw / wooden picket | placed (silent / noisy) → knocked down | P1 |
-| **INT-003** | Knife rest | carry → place → block → remove | P1 |
-| **INT-004** | Sandbag parapet | intact → damaged → breached → rebuilt (consolidation) | P0 |
-| **INT-005** | Trench bay | intact → partially collapsed → collapsed (buries occupants) → dug out | P1 |
-| **INT-006** | Duckboard | intact → broken → sunk (in deep mud) | P1 |
-| **INT-007** | Dugout entrance | open → gas curtain down → blocked by hit → cleared | P1 |
-| **INT-008** | Ladder | placed → climbed → knocked down | P0 |
-| **INT-009** | Sniper plate | shutter open / closed; hit sparks; penetrable by special rounds (P2) | P1 |
-| **INT-010** | Periscope | use → view mode; hit by sniper (mirror shatter) | P1 |
-| **INT-011** | Gas gong / rattle | strike → alarm propagation radius | P0 |
-| **INT-012** | Field telephone & line | ring / call → barrage request; line cut by a shell → repair | P1 |
-| **INT-013** | Very pistol / flare | fire colour → illumination + signal meaning (SOS, lift barrage, success) | P0 |
-| **INT-014** | Ammo / bomb crate | full → partial → empty; resupply interaction | P0 |
-| **INT-015** | Stretcher | pick up (2–4) → carry → set down at the aid post | P0 |
-| **INT-016** | Brazier / lamp | lit → extinguished (light source & visibility) | P1 |
-| **INT-017** | Mine charge | armed → detonated (scripted / triggered) → crater | P0 |
-| **INT-018** | Crater | spawned → lip capture zone → water-filled over time (rain) | P0 |
-| **INT-019** | Dud shell | inert hazard → can explode if hit again (P2) | P1 |
-| **INT-020** | OP tree | enter → observe → spotted / destroyed | P2 |
-| **INT-021** | Trench sign | readable (navigation aid, localised) | P1 |
-| **INT-022** | Water-filled shell hole | wade → drown risk → rescue | P0 |
-| **INT-023** | Mud patch | depth level → slow → stuck → freed | P0 |
-| **INT-024** | Tree / ruin | damage states driven by shelling | P1 |
-| **INT-025** | Gas curtain | open / closed (blocks gas into a dugout) | P1 |
-| **INT-026** | Emplaced MG | mount → crewed → jammed → cleared → overheated / water low | P0 |
-
----
-
-## 9. QA, historical review & release
-
-- [ ] **QA-001** [P0] Test plan per system (§5) and per map (§3)
-- [ ] **QA-002** [P0] **Historical accuracy review** of every asset against the README & the date-gating table (§11.4); log anachronisms as bugs (e.g. no MP40s, no Stahlhelm before 1916, no tanks at all in our scope)
-- [ ] **QA-003** [P0] **Sensitivity review** (depiction of casualties, enemy, gas injuries, memorial content)
-- [ ] **QA-004** [P0] Performance testing per map (worst case: mine detonation + barrage + gas + 64 players)
-- [ ] **QA-005** [P0] Network stress tests (deformation, gas replication)
-- [ ] **QA-006** [P1] Accessibility audit (colour-blind flare signals, photosensitivity, subtitles)
-- [ ] **QA-007** [P1] Localisation QA (EN / FR / DE)
-- [ ] **QA-008** [P1] Playtests: new-player onboarding, PvP balance, PvE difficulty
-- [ ] **REL-001** [P1] Credits incl. **image & map attributions** (NLS CC-BY, IWM / AWM / LAC public domain) ⛓ PIPE-010
-- [ ] **REL-002** [P1] Store page, trailer (no anachronisms!), press kit with historical notes
-- [ ] **REL-003** [P1] Platform certification, age ratings
-- [ ] **REL-004** [P2] Charity / remembrance tie-in (e.g. supporting a war-graves or memorial foundation)
-
----
-
-## 10. Milestones
-
-| Milestone | Contents | Key IDs |
-|---|---|---|
-| **M0: Pre-production** | Vision, scope sign-off, engine, pipeline, tools prototypes, art & audio bibles | PRE-*, PIPE-*, TOOL-001..006 |
-| **M1: Vertical slice** | **La Boisselle (MAP-S02)** fully polished with the British & German factions; rifles, Lewis, Vickers, MG 08, grenades, melee; wire, mines, creeping barrage, gas, mud basics; core AI; Rehearsal Ground tutorial | all **P0** items |
-| **M2: Alpha** | All P1 maps greyboxed; all factions; tunnels; night & flares; raids; runners & telephones; campaign structure | P1 systems, MAP-*-05 for every map |
-| **M3: Beta** | All maps art-complete; full audio & VO; AI tuned per map; localisation; performance | MAP-*-16..24 |
-| **M4: Release** | QA, historical & sensitivity sign-off, certification, launch | QA-*, REL-* |
-| **M5: Phase 2** | **Phase 2 options:** PH2-A (light trench mortars & flamethrower) and PH2-B (French faction + French-sector map); plus P2 stretch: Tunnellers mode, Broodseinde, Vimy raids, memorial epilogue | PH2 + P2 items |
-
----
-
-*Generated from the research in [README.md](README.md). Keep this list in sync when the README changes.*

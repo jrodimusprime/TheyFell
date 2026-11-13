@@ -195,6 +195,7 @@ async function boot() {
       } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
       else if (e.t === 'throw' && e.id === p.id) audio.pin();
+      else if (e.t === 'gameover') showOver();
       else if (e.t === 'counter' || e.t === 'withdraw') {   // the German HQ's moves, when they are near enough to matter to you
         const o = sim.objectives[e.obj], d = o ? Math.hypot(o.c[0] - p.x, o.c[1] - p.z) : 1e9;
         if (d < 900) { const n = `${o.name.replace(/ \(.*\)/, '')} (${o.id})`;
@@ -261,6 +262,10 @@ async function boot() {
     // screen shake from big bursts
     if (fx.shake > 0) { camera.rotation.x += (Math.random() - 0.5) * 0.02 * fx.shake; camera.rotation.y += (Math.random() - 0.5) * 0.02 * fx.shake; }
     camera.fov = window.TF && TF.view && TF.view.fov ? TF.view.fov : THREE.MathUtils.lerp(camera.fov, p.ads ? 50 : 72, Math.min(1, dt * 12)); camera.updateProjectionMatrix();   // (a debug view may set its own)
+    // zoomed in (aiming), the pixels get finer with the zoom so what you look at is clearer: the pixel ratio rises as the
+    // field of view narrows (x1.4 at full aim), never past full resolution; changed in steps, not every frame
+    { const want = Math.min(1, Math.round(SCALES[scaleI] * Math.tan(36 * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360) * 40) / 40);
+      if (Math.abs(want - renderer.getPixelRatio()) > 0.001) { renderer.setPixelRatio(want); renderer.setSize(innerWidth, innerHeight); } }
     recoil = Math.max(0, recoil - dt * 6);
     vm.visible = false;   // the old box rifle: replaced by the first-person arms
     const fpMoving = !!(p.intent && (p.intent.f || p.intent.s));
@@ -499,6 +504,26 @@ async function boot() {
     g.font = "bold 26px Caslon, Georgia"; g.textAlign = 'center'; g.fillText('N', W / 2, 22);
     { const bar = v.span > 2500 ? 1000 : v.span > 900 ? 500 : 100; g.fillRect(20, W - 22, bar * k, 4); g.font = "20px Caslon, Georgia"; g.textAlign = 'left'; g.fillText(bar >= 1000 ? '1 km' : bar + ' m', 20, W - 38); }
   }
+  // ---------- the end: who won, and the battle in numbers ----------
+  function showOver() {
+    const o = sim.over; if (!o) return;
+    if (document.pointerLockElement) document.exitPointerLock();
+    const p = sim.player, mine = p.side === o.winner, st = sim.stats, N = v => (v || 0).toLocaleString('en-GB');
+    $('overAt').textContent = `1 July 1916 · ${o.at}`;
+    $('overTitle').textContent = o.winner === 'BRI' ? 'A British victory' : 'A German victory'; $('overTitle').className = o.winner === 'BRI' ? 'bri' : 'ger';
+    $('overWhy').textContent = o.reason + (mine ? '. Your side has won.' : '. Your side has lost.');
+    const row = (label, f) => `<tr><td>${label}</td><td class="bri">${f('BRI')}</td><td class="ger">${f('GER')}</td></tr>`, K = (side, k) => N(st.kills[side][k]);
+    $('overSides').innerHTML = `<tr><th></th><th class="bri">British</th><th class="ger">German</th></tr>` +
+      row('Fallen', sd => N(sim.tally(sd).fallen)) + row('Still to fight', sd => N(sim.tally(sd).left)) +
+      row('Killed with rifles', sd => K(sd, 'rifle')) + row('…with machine guns', sd => K(sd, 'mg')) + row('…with shells', sd => K(sd, 'shells')) +
+      row('…with bombs', sd => K(sd, 'bombs')) + row('…with the bayonet, club or knife', sd => K(sd, 'steel')) + row('…by the mines', sd => K(sd, 'mines'));
+    const P = st.player, acc = P.shots ? Math.round(P.hits / P.shots * 100) : 0;
+    $('overYou').innerHTML = [['Men you killed', N(p.kills)], ['Times you fell', N(p.deaths)], ['Rounds fired', N(P.shots)], ['Hits', `${N(P.hits)} (${acc}%)`], ['Bombs thrown', N(P.bombs)], ['With cold steel', N(P.steel)], ['On a machine gun', N(P.mg)]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
+    $('overCaps').innerHTML = st.captures.length ? st.captures.map(c => `<li><span class="${c.side === 'BRI' ? 'bri' : 'ger'}">${c.at}</span> ${c.name} (${c.id}): ${c.side === 'BRI' ? 'taken by the British' : 'retaken by the Germans'}</li>`).join('') : '<li style="list-style:none;margin-left:-20px">No objective changed hands.</li>';
+    $('over').hidden = false;
+  }
+  $('overAgain').onclick = () => location.reload();
+  $('overStay').onclick = () => { $('over').hidden = true; };
   let pendingRespawn = null;   // the respawn choice goes in with the next tick's input, so recorded runs replay it
 
   // ---------- trench-map overlay (M): the whole map at true scale ----------

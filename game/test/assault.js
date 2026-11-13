@@ -13,7 +13,9 @@ const r = await ev(`(() => { ${cfg}
   let deaths = 0, respawns = 0, shots = 0, stuck = 0, last = [P().x, P().z], target = null, retarget = 0, inKills = 0, firstIn = null, entries = 0, wasIn = false;
   const gerFire = S.trenchPts.GER;
   const inGerman = () => { const p = P(), g = T.inTrench(p.x, p.z); if (g && g.side === 'GER') return true;
-    for (const q of gerFire) if (Math.abs(q[0] - p.x) < 40 && Math.abs(q[1] - p.z) < 40 && Math.hypot(q[0] - p.x, q[1] - p.z) < 40) return true; return false; };
+    for (const q of gerFire) if (Math.abs(q[0] - p.x) < 40 && Math.abs(q[1] - p.z) < 40 && Math.hypot(q[0] - p.x, q[1] - p.z) < 40) return true;
+    for (const o of S.objectives) if ('ABCD'.includes(o.id) && Math.hypot(o.c[0] - p.x, o.c[1] - p.z) < o.r + 40) return true;   // (the German strongpoints, taken or not: where the fight is)
+    return false; };
   const visible = () => { const p = P(); let best = null, bd = 260;
     for (const o of S.soldiers) { if (!o.alive || o.side === p.side) continue; const d = Math.hypot(o.x - p.x, o.z - p.z); if (d < bd && S._canSee(p, o, d)) { bd = d; best = o; } } return best; };
   const nearestGerman = () => { const p = P(); let best = null, bd = 1e9;

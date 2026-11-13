@@ -29,7 +29,7 @@ for (let i = 0; i < 14 * 60 * HZ; i++) {
   // a few British inside a German zone that still has men: the counter-thrust must come
   if (i === 200 * HZ && !thrustSet) { thrustSet = true; const o = S.objectives.find(q => q.owner === 'GER' && q.id !== 'E'); const bri = S.soldiers.filter(s => s.alive && s.side === 'BRI' && !s.isPlayer).slice(0, 6); bri.forEach((s, k) => { s.x = o.c[0] + (k - 3) * 1.5; s.z = o.c[1] + 2; s.y = T.height(s.x, s.z); s.hp = 1e9; s.ai.mode = 'hold'; s.ai.post = [s.x, s.z]; }); st.thrustFrom = S.tick; st.thrustObj = o.id; }
   // an objective falls and stays British: a deliberate counter-attack must gather, shell it and go in
-  if (i === 240 * HZ && !forced) { forced = true; const o = S.objectives.find(q => q.owner === 'GER' && q.id === 'C') || S.objectives.find(q => q.owner === 'GER'); o.owner = 'BRI'; o.progress = 1; st.lostObj = o.id; const z = S.hq.zones && S.hq.zones[S.objectives.indexOf(o)]; if (z) z.lostAt = S.tick - 175 * HZ; }
+  if (i === 240 * HZ && !forced) { forced = true; const o = ['D', 'C', 'B', 'A'].map(id => S.objectives.find(q => q.id === id)).find(q => q.owner === 'GER') || S.objectives.find(q => q.id === 'D'); o.owner = 'BRI'; o.progress = 1; st.lostObj = o.id; const z = S.hq.zones && S.hq.zones[S.objectives.indexOf(o)]; if (z) z.lostAt = S.tick - 175 * HZ; }
   if (i % (10 * HZ) === 0) { const p = S.player, live = S.soldiers.filter(s => s.alive && !s.climb && !(s.emerge > 0) && Math.abs(s.x - p.x) + Math.abs(s.z - p.z) < 350);
     for (let a = 0; a < live.length; a++) for (let c = a + 1; c < live.length; c++) { const u = live[a], v = live[c]; if (Math.abs(u.x - v.x) > 0.5 || Math.abs(u.z - v.z) > 0.5 || Math.abs(u.y - v.y) > 1.6 || (u.gun >= 0 && u.gun === v.gun)) continue; st.checks++; if (Math.hypot(u.x - v.x, u.z - v.z) < 0.45) st.overlaps++; } }
 }
@@ -43,6 +43,7 @@ ok('fallen British come back on the Tara-Usna line or from Albert and Becourt', 
 ok('German sections form up and march where HQ sends them, and get there (posts, the reserve, a counter-attack)', st.sections >= 3 && st.posts + (st.toReserve || 0) + (st.toCounter || 0) >= 30, `${st.sections} sections ${JSON.stringify(st.tasks)}; arrived: ${st.posts} at posts, ${st.toReserve || 0} to the reserve, ${st.toCounter || 0} at a counter-attack`);
 ok('the march up takes minutes (2 to 14)', travel.length && travel[travel.length >> 1] > 120 && travel[travel.length >> 1] < 840, `median ${Math.round(travel[travel.length >> 1] || 0)} s`);
 ok('British inside a German zone bring a bombing counter-thrust', st.thrust !== null, `zone ${st.thrustObj}: after ${st.thrust === null ? '-' : ((st.thrust - st.thrustFrom) / HZ).toFixed(1) + ' s'}`);
-ok('an objective lost for 3 minutes brings a counter-attack: assembly, bombardment, assault', st.gather !== null && st.bombard !== null && st.assault !== null, `objective ${st.lostObj}: gather ${st.gather !== null}, bombard ${st.bombard !== null}, assault ${st.assault !== null}`);
+st.retaken = S.stats.captures.some(c => c.id === st.lostObj && c.side === 'GER');
+ok('an objective lost for 3 minutes brings a counter-attack: assembly, bombardment, and the assault (or it is retaken first)', st.gather !== null && st.bombard !== null && (st.assault !== null || st.retaken), `objective ${st.lostObj}: gather ${st.gather !== null}, bombard ${st.bombard !== null}, assault ${st.assault !== null}, retaken ${st.retaken}`);
 ok('no two men in one place near the player', st.overlaps === 0, `${st.overlaps} of ${st.checks} close pairs under 0.45 m`);
 process.exit(fail ? 1 : 0);

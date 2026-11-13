@@ -42,6 +42,17 @@
   #oob p { margin: 6px 0 0; font-size: 16px; font-style: italic; text-shadow: 0 1px 4px #000; }
   #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.45) 100%); }
   #below { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 35%, rgba(4,3,2,.7) 0%, #040302 70%); opacity: 0; }
+  #over { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.55); pointer-events: auto; z-index: 30; }
+  #over[hidden] { display: none; }
+  #over .card { max-width: min(760px, 94vw); max-height: 94vh; overflow: auto; background: rgba(20,18,14,.92); border: 1px solid rgba(233,226,207,.3); padding: 22px 30px; color: #e9e2cf; }
+  #over h2 { margin: 0 0 4px; font-weight: normal; letter-spacing: 2px; font-size: 30px; }
+  #over h3 { margin: 16px 0 6px; font-weight: normal; letter-spacing: 1px; font-size: 17px; opacity: .9; }
+  #over .eyebrow { margin: 0; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: .7; }
+  #over #overWhy { margin: 2px 0 6px; font-style: italic; opacity: .85; }
+  #over table { border-collapse: collapse; font-size: 14px; width: 100%; } #over td, #over th { padding: 3px 8px; text-align: right; font-variant-numeric: tabular-nums; } #over th:first-child, #over td:first-child { text-align: left; }
+  #over th { font-weight: normal; opacity: .7; border-bottom: 1px solid rgba(233,226,207,.25); }
+  #over .ovgrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; margin-top: 10px; } @media (max-width: 640px) { #over .ovgrid { grid-template-columns: 1fr; } }
+  #over ol { margin: 0; padding-left: 20px; font-size: 14px; columns: 2; } #over .bri { color: #e7837a; } #over .ger { color: #8fa6ef; }
   #hurt { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, rgba(120,0,0,.55) 100%); opacity: 0; }
   #dead { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,.35); pointer-events: auto; }
   #dead .card { text-align: center; background: rgba(20,18,14,.82); padding: 22px 34px; border: 1px solid rgba(233,226,207,.3); }
@@ -93,6 +104,12 @@
   <div class="spawnrow"><button id="spawnRandom">Random, near the objective</button><span id="spawnCount"></span><span class="zoom"><button id="spawnOut" title="Zoom out">−</button><button id="spawnIn" title="Zoom in">+</button><button id="spawnAll">Whole front</button></span></div>
   <p class="hint" style="font-size:12px;opacity:.7;margin:4px 0 0">Wheel to zoom · drag to move the map · click a man</p>
   <div id="spawns"></div></div></div>
+<div id="over" hidden><div class="card">
+  <p class="eyebrow" id="overAt"></p><h2 id="overTitle"></h2><p id="overWhy"></p>
+  <div class="ovgrid"><table id="overSides"></table><div><h3>Your war</h3><table id="overYou"></table></div></div>
+  <h3>The objectives</h3><ol id="overCaps"></ol>
+  <div class="spawnrow"><button id="overAgain">Begin again</button><button id="overStay">Keep watching</button></div>
+</div></div>
 <div id="map"><canvas width="1200" height="1200"></canvas></div>
 <div id="debug"></div>
 <div id="menu"><div class="card">

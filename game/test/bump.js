@@ -5,8 +5,9 @@ const r = await ev(`(() => { const S = TF.sim, p = S.player, out = [];
   TF.step({ yaw: p.yaw }, 60 * 35);   // past zero hour: the Germans are on their fire-step, the British on the move
   for (const o of [...pick('BRI'), ...pick('GER')]) {
     if (!o.alive) continue;
-    const a = o.id * 1.7; let x = o.x + Math.cos(a) * 1.5, z = o.z + Math.sin(a) * 1.5;
-    if (Math.abs(TF.T.height(x, z) - o.y) > 0.6) { x = o.x; z = o.z + 0.3; }
+    // (a start 1.5 m from him at his own level, whichever way there is one; never placed inside him)
+    let x = null, z = null; for (let k = 0; k < 8 && x === null; k++) { const a = o.id * 1.7 + k * Math.PI / 4, tx = o.x + Math.cos(a) * 1.5, tz = o.z + Math.sin(a) * 1.5; if (Math.abs(TF.T.height(tx, tz) - o.y) < 0.6) { x = tx; z = tz; } }
+    if (x === null) continue;
     Object.assign(p, { x, z, y: TF.T.height(x, z), vy: 0, onGround: true, alive: true, hp: 100, climb: 0, climbTo: null }); S.god = true;
     let minD = 99;
     for (let i = 0; i < 240 && o.alive; i++) { const yaw = Math.atan2(-(o.x - p.x), -(o.z - p.z)); TF.step({ forward: 1, run: true, yaw, pitch: 0 }, 1); if (Math.abs(o.y - p.y) < 1.6) minD = Math.min(minD, Math.hypot(o.x - p.x, o.z - p.z)); }
