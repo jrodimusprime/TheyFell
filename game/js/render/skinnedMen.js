@@ -113,6 +113,7 @@ class SkinnedMen {
         const ct = climbT(s);
         if (ct >= 0) { this._climb(e, s, ct, dt); return; }
         if (s.throw > 0) { this._throw(e, s); return; }
+        if (s.gun >= 0 && this.guns && sim.guns[s.gun]) { const gun = sim.guns[s.gun], [cx, cz] = sim._crewSpot(gun, s.gunRole); if ((gun.gunner === s.id || gun.loader === s.id) && Math.hypot(s.x - cx, s.z - cz) < 0.6) { this._crewPose(e, s, gun, dt); return; } }
         const st = men.state[s.id], sp = st.speed || 0, aim = s.ai ? s.ai.target >= 0 && sp < 0.4 : s.ads;
         let clip, scale = 1;
         if (s.stance >= 1) { clip = sp > 0.35 ? 'Crouch_Fwd_Loop' : aim ? 'Rifle_Kneel_Aim' : 'Crouch_Idle_Loop'; scale = sp > 0.35 ? Math.min(1.6, Math.max(0.7, sp / 1.1)) : 1; }
@@ -137,6 +138,28 @@ class SkinnedMen {
         const c = dnear[i] && dnear[i][1]; e.o.visible = !!c; e.gun.visible = !!c; if (!c) return;
         c.skinned = true; this._poseCorpse(e, c);
       });
+    }
+  }
+  // a machine-gun crew: the gunner kneeling (or standing, where the parapet is high) behind his gun, both hands on the
+  // spade grips, facing down it; the loader kneeling at his right, his left hand on the belt going into the feed. Their
+  // rifles are put by.
+  _crewPose(e, s, gun, dt) {
+    const gunner = gun.gunner === s.id, G = this.guns.gripsOf(gun.id); if (!G) return;
+    const clip = gunner ? (gun.crewStance ? 'Rifle_Kneel_Aim' : 'Rifle_Aim') : gun.crewStance ? 'Crouch_Idle_Loop' : 'Idle_Loop';
+    if (e.clip !== clip) { e.mixer.stopAllAction(); e.action = e.mixer.clipAction(e.clips[clip]).reset().play(); e.clip = clip; e.want = clip; }   // (at once: he is at his post)
+    e.mixer.update(dt);
+    e.o.position.set(s.x, s.y + (gunner ? gun.lift : 0), s.z); e.o.rotation.set(0, (gunner ? gun.aimYaw : Math.atan2(-(gun.x - s.x), -(gun.z - s.z))) + Math.PI, 0);
+    e.gun.visible = false; e.o.updateMatrixWorld(true);
+    const B = e.bones, fwd = _V1.set(0, 0, 1).applyQuaternion(G.quat), up = _V2.set(0, 1, 0), left = _V3.set(1, 0, 0).applyQuaternion(G.quat);
+    if (gunner) {
+      // wrists just behind and outside the grips; elbows down and out
+      const wl = G.gripL.clone().addScaledVector(fwd, -0.06).addScaledVector(left, 0.02), wr = G.gripR.clone().addScaledVector(fwd, -0.06).addScaledVector(left, -0.02);
+      twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wl, up.clone().multiplyScalar(-1).addScaledVector(left, 0.6));
+      twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wr, up.clone().multiplyScalar(-1).addScaledVector(left, -0.6));
+      for (const [h, f, g] of [['hand_l', 'middle_01_l', G.gripL], ['hand_r', 'middle_01_r', G.gripR]]) { const hb = B[h], fb = B[f]; if (hb && fb) aimBone(hb, fb.getWorldPosition(new THREE.Vector3()), g.clone().addScaledVector(fwd, 0.05)); }
+    } else {
+      const belt = G.feed.clone().addScaledVector(up, -0.3);
+      twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, belt, up.clone().multiplyScalar(-1).addScaledVector(fwd, -0.4));
     }
   }
   // throwing a bomb: the overhand throw, timed by the sim (still for the half second the pin is pulled, then the clip: the

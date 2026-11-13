@@ -6,6 +6,7 @@ import * as SU from 'three/addons/utils/SkeletonUtils.js';
 import { makeRifleRig, twoBoneIK, bakeSoldier } from './soldierSkin.js';
 import { Hands, GRIPS, blendGrip } from './hands.js';
 import { POSES } from './xrHands.js';
+import { gunBody } from './guns.js';
 
 const lerp = (a, b, t) => a + (b - a) * t, ease = t => t * t * (3 - 2 * t);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -99,6 +100,11 @@ export class FirstPerson {
     this.gun = this.K.gun; this.bolt = this.K.bolt; this.handle = this.K.handle;
   }
   // block: how far ahead (m) the nearest wall, bank or man is along the rifle's line (Infinity if clear)
+  // the machine guns, drawn in first person while the player is on one (his rifle put by)
+  setGuns(view) {
+    this.gunsView = view; this.mg = {};
+    for (const k of ['mg08', 'vickers']) { const m = gunBody(k); m.visible = false; m.traverse(o => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; } }); this.rig.add(m); this.mg[k] = m; }
+  }
   // the bomb for the player's right hand (a clone of the Mills bomb model, in this pass's own scene)
   setNade(proto) { if (this.nade) return; this.nade = proto.clone(); this.nade.traverse(o => { if (o.isMesh) o.castShadow = false; }); this.nade.visible = false; this.scene.add(this.nade); }
   // where the right hand holds the bomb, in camera space: ready, low in front; the pin pulled; drawn back past the ear;
@@ -144,6 +150,15 @@ export class FirstPerson {
     this.nadeLow = lerp(this.nadeLow || 0, NH ? 1 : 0, Math.min(1, dt * 10)); this.nadeArm = lerp(this.nadeArm || 0, NH ? 1 : 0, Math.min(1, dt * 14));
     { const dn = ease(this.nadeLow); pos.add(V(-0.08 * dn, -0.85 * dn, 0.15 * dn)); pitch += 0.6 * dn; roll -= 0.3 * dn; this.pull *= 1 - dn; }
     if (NH) this.lastNH = NH;
+    // on a machine gun: the gun in front, its rear sight just under the eye line, the line of sight down the view
+    const onGun = p.gun >= 0 && this.gunsView ? this.gunsView.sim.guns[p.gun] : null;
+    for (const [k, m] of Object.entries(this.mg || {})) m.visible = !!onGun && onGun.kind === k;
+    if (onGun) {
+      const m = this.mg[onGun.kind], firing = onGun.trigger && onGun.cool > 0, j = firing ? 0.004 : 0;
+      m.position.set((Math.random() - 0.5) * j, -0.25 + (Math.random() - 0.5) * j, -0.76 + (firing ? Math.random() * 0.008 : 0)); m.rotation.set(0, Math.PI, 0);
+      this.rig.updateMatrixWorld(true);
+    }
+    this.gun.visible = !onGun;
     // the rifle group: +Z is the muzzle, so turn it to look down -Z, then yaw/pitch/roll
     // the hip / working pose, then blended onto the exact sight picture: the rifle turned so the line from the centre of
     // the rear aperture to the tip of the foresight blade points straight down the view (where the bullet goes), and slid
@@ -211,7 +226,13 @@ export class FirstPerson {
       };
       wR = place(this.xr.right, w(hand), Fr, Nr, away > 0.5 ? 0.012 : 0.034);
       // the bomb hand: palm up and in round it, fingers forward
-      if (this.nadeArm > 0.02 && this.lastNH) {
+      if (onGun) {   // fists on the spade grips, knuckles forward, thumbs on the trigger between them
+        const m = this.mg[onGun.kind], u = m.userData, R = this.rig.matrixWorld;
+        const gl = u.gripL.clone().applyMatrix4(m.matrixWorld), gr = u.gripR.clone().applyMatrix4(m.matrixWorld);
+        wL = place(this.xr.left, gl, V(0.35, -0.15, -1).transformDirection(R), V(-1, 0, -0.1).transformDirection(R), 0.022);
+        wR = place(this.xr.right, gr, V(-0.35, -0.15, -1).transformDirection(R), V(1, 0, -0.1).transformDirection(R), 0.022);
+        if (this.nade) this.nade.visible = false;
+      } else if (this.nadeArm > 0.02 && this.lastNH) {
         const R = this.rig.matrixWorld, c = this.lastNH.c.clone().applyMatrix4(R), F = V(-0.25, 0.35, -0.9).transformDirection(R), N = V(-0.55, 0.65, -0.1).transformDirection(R);
         const wN = place(this.xr.right, c, F, N, 0.036);
         if (this.nadeArm < 0.98) { const wr0 = wR.clone(); place(this.xr.right, w(hand), Fr, Nr, away > 0.5 ? 0.012 : 0.034); wR = wr0.lerp(wN, this.nadeArm); if (this.nadeArm > 0.5) place(this.xr.right, c, F, N, 0.036); }
@@ -220,8 +241,8 @@ export class FirstPerson {
       } else if (this.nade) this.nade.visible = false;
       wL = place(this.xr.left, w(GRIP_L), Fl, Nl, 0.034);
     }
-    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, up.clone().multiplyScalar(-1).addScaledVector(right, 0.9 - 0.7 * under));   // elbow tucked down when aiming
-    twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wL, up.clone().multiplyScalar(-1).addScaledVector(right, -0.35));
+    twoBoneIK(B.upperarm_r, B.lowerarm_r, B.hand_r, wR, onGun ? up.clone().multiplyScalar(-1).addScaledVector(right, 0.25) : up.clone().multiplyScalar(-1).addScaledVector(right, 0.9 - 0.7 * under));   // elbow tucked down when aiming
+    twoBoneIK(B.upperarm_l, B.lowerarm_l, B.hand_l, wL, up.clone().multiplyScalar(-1).addScaledVector(right, onGun ? -0.25 : -0.35));
     if (this.xr) for (const n of ['hand_l', 'hand_r']) { B[n].scale.setScalar(0.001); B[n].updateMatrixWorld(true); }
     if (this.xr) for (const [s, h] of [['l', this.xr.left], ['r', this.xr.right]]) {
       const wristW = h.wristLocal.clone().applyMatrix4(h.object.matrixWorld), elbow = B['lowerarm_' + s].getWorldPosition(new THREE.Vector3());
@@ -237,10 +258,11 @@ export class FirstPerson {
     }   // the sleeve's own gloves hidden (after the clip, which resets scale)
     if (this.xr) {
       const mix = (a, b, t) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] + (b[k] - a[k]) * t]));
-      if (this.nadeArm > 0.5 && this.lastNH) this.xr.right.setPose(this.lastNH.held ? { thumb: 0.7, index: 0.85, middle: 0.88, ring: 0.9, pinky: 0.92 } : { thumb: 0.2, index: 0.15, middle: 0.15, ring: 0.2, pinky: 0.25 });
+      if (onGun) { this.xr.right.setPose({ thumb: 0.35, index: 0.9, middle: 0.95, ring: 0.95, pinky: 0.95 }); this.xr.left.setPose({ thumb: 0.35, index: 0.9, middle: 0.95, ring: 0.95, pinky: 0.95 }); }
+      else if (this.nadeArm > 0.5 && this.lastNH) this.xr.right.setPose(this.lastNH.held ? { thumb: 0.7, index: 0.85, middle: 0.88, ring: 0.9, pinky: 0.92 } : { thumb: 0.2, index: 0.15, middle: 0.15, ring: 0.2, pinky: 0.25 });
       else this.xr.right.setPose(mix(mix(POSES.trigger, { thumb: 0.75, index: 0.45, middle: 0.95, ring: 0.98, pinky: 1 }, under), pressing ? { thumb: 0.2, index: 0.85, middle: 0.9, ring: 0.95, pinky: 1 } : POSES.pinch, away));
-      this.xr.left.setPose({ thumb: 0.5, index: 0.7, middle: 0.72, ring: 0.74, pinky: 0.76 });   // cradling: fingertips on the far side, not over the top
-      const hideRight = a > 0.55 && away < 0.3 && this.nadeArm < 0.1;   // aiming: the trigger hand is out of sight under the stock
+      if (!onGun) this.xr.left.setPose({ thumb: 0.5, index: 0.7, middle: 0.72, ring: 0.74, pinky: 0.76 });   // cradling: fingertips on the far side, not over the top
+      const hideRight = a > 0.55 && away < 0.3 && this.nadeArm < 0.1 && !onGun;   // aiming: the trigger hand is out of sight under the stock
       this.xr.left.object.visible = true; this.xr.right.object.visible = !hideRight; this.xr.right.cuff.visible = !hideRight;
       this.hideRight.value = hideRight ? 1 : 0;
     } else { this.hands.orient('r', Fr, Nr); this.hands.orient('l', Fl, Nl); this.hands.curl('r', gripR); this.hands.curl('l', GRIPS.foreend); }

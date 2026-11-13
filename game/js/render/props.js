@@ -207,6 +207,7 @@ export class Props {
           const [x, z] = at(t);
           for (const [o, rows] of [[sg.hw + 0.42, sg.kind === 0 ? 3 : 1], [-(sg.hw + 0.38), 1]]) {
             const bx = x + sg.nx * o, bz = z + sg.nz * o;
+            if (this.gunGaps && this.gunGaps.some(g => Math.abs(g[0] - bx) < 1.1 && Math.abs(g[1] - bz) < 1.1)) continue;   // (a machine gun's emplacement: a gap in the bags)
             if (T.isTrench(bx, bz) || T.isTrench(x + sg.nx * Math.sign(o) * (sg.hw + 0.14), z + sg.nz * Math.sign(o) * (sg.hw + 0.14))) continue;   // no wall here: an opening
             const by = this._surf(bx, bz);
             for (let r = 0; r < rows; r++) {

@@ -72,7 +72,7 @@ reload with a straight wrist on the right wrist, let the fingers do te work
 ✓ at point 8 theres like a heap of enemies standing in one spot all shooting at the same time its totally weird fixit — done 12 Nov 2026: respawns spread through strongpoints
 
 
-addmachine guns, take a lot of time to do this properly and take your time
+✓ addmachine guns, take a lot of time to do this properly and take your time — done 13 Nov 2026: 16 German MG 08s on sledges and 3 British Vickers on tripods, emplaced on the parapet with gunner and loader; traversing bursts, 250-round belts, heat and steam, stoppages; rounds pin men down; bombers go for the crews; E to man any gun (R new belt), turn a German gun on them; abandoned guns taken, crews replaced
 
 
 i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly

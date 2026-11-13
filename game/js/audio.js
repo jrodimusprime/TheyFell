@@ -46,7 +46,7 @@ export class Audio {
   shot(p, weapon, isPlayer) {
     if (!this.ctx || !this.enabled) return;
     const d = isPlayer ? 0 : this._dist(p); if (d > 3000) return;
-    const C = this.ctx, when = C.currentTime + d / 343, set = this.reports[weapon === 'mg08' ? 'mg08' : 'rifle'];
+    const C = this.ctx, when = C.currentTime + d / 343, set = this.reports[weapon === 'mg08' || weapon === 'vickers' ? 'mg08' : 'rifle'];
     const buf = set[Math.floor(Math.random() * set.length)], rate = 0.95 + Math.random() * 0.1;
     // amplitude falls as 1/distance from a reference ~6 m out; the air takes the top end off far shots, so a rifle a
     // kilometre off is a dull thud with its echo; the echo falls off more slowly than the report itself
