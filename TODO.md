@@ -75,7 +75,7 @@ reload with a straight wrist on the right wrist, let the fingers do te work
 ✓ addmachine guns, take a lot of time to do this properly and take your time — done 13 Nov 2026: 16 German MG 08s on sledges and 3 British Vickers on tripods, emplaced on the parapet with gunner and loader; traversing bursts, 250-round belts, heat and steam, stoppages; rounds pin men down; bombers go for the crews; E to man any gun (R new belt), turn a German gun on them; abandoned guns taken, crews replaced
 
 
-i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly
+✓ i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly — done 13 Nov 2026: ten lying poses (face down, on his back, on his side, curled, slumped on his knees…), picked by which way he was knocked, laid on the ground's slope
 
 ✓ the player should have some weapon sway when standing, less when crouching, virtually none when lying down. the player should be able to shoot people at 200 yards at least — done 12 Nov 2026: sway by stance; 17/30 hits at 183 m standing
 

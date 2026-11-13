@@ -4,7 +4,7 @@
 // so men fall into trenches, slump against the parapet and roll down shell holes. Settled bodies freeze and leave the world.
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
-import { RIG, PART } from './soldiers.js';
+import { RIG, PART, fk } from './soldiers.js';
 
 const MASS = { pelvis: 14, chest: 26, head: 5, uarmL: 2.5, farmL: 2, uarmR: 2.5, farmR: 2, thighL: 9, shinL: 5, thighR: 9, shinR: 5 };
 // joint: [child, parent, pivot in parent joint frame (= the child's joint offset), twist axis, cone angle, twist angle]
@@ -14,6 +14,40 @@ const JOINTS = [
   ['thighL', 'pelvis', 0.9, 0.3], ['shinL', 'thighL', 1.1, 0.15], ['thighR', 'pelvis', 0.9, 0.3], ['shinR', 'thighR', 1.1, 0.15],
 ];
 const G_PARTS = 2, G_GROUND = 1;
+// how the dead lie when no ragdoll is run for them (too far off, or too many falling at once): ten poses, joint rotations
+// (Euler XYZ in each joint's frame, as pose() in soldiers.js) on the standing rig; the body is then laid on the ground,
+// tilted to its slope. 'face' poses are for a man knocked forward, 'back' for one knocked back, 'side' either way.
+// (signs: a thigh's +x swings the leg forward, a shin's -x bends the knee, an arm's +x raises it forward, its z out to the
+// side (+ for the right, - for the left), a forearm's +x bends the elbow, the chest's -x bends forward, the head's +x lifts
+// the chin; the pelvis: -x pitches him onto his face, +x onto his back, z rolls him onto a side)
+export const DEAD_POSES = [
+  { name: 'face down, arms flung forward', fall: 'face', r: { pelvis: [-1.57, 0, 0], uarmL: [2.5, 0, -0.45], farmL: [0.35, 0, 0], uarmR: [2.1, 0, 0.55], farmR: [0.5, 0, 0], head: [0.15, 1.25, 0], thighL: [0, 0, -0.14], thighR: [0, 0, 0.16], shinL: [-0.35, 0, 0] } },
+  { name: 'face down, arms at his sides, a knee drawn up', fall: 'face', r: { pelvis: [-1.57, 0.15, 0], uarmL: [0.15, 0, -0.12], uarmR: [0.25, 0, 0.1], farmR: [0.3, 0, 0], head: [0.1, -1.3, 0], thighR: [0.95, 0, 0.35], shinR: [-1.4, 0, 0], thighL: [0, 0, -0.05] } },
+  { name: 'on his back, arms out', fall: 'back', r: { pelvis: [1.57, 0, 0], uarmL: [0, 0, -1.3], farmL: [0.35, 0, 0], uarmR: [0.2, 0, 1.2], farmR: [0.2, 0, 0], head: [0, 0.65, 0], thighL: [0, 0, -0.25], thighR: [0, 0, 0.22], shinR: [-0.2, 0, 0] } },
+  { name: 'on his back, an arm across his chest, a knee up', fall: 'back', r: { pelvis: [1.57, 0, 0], uarmR: [0.8, 0, -0.6], farmR: [1.9, 0, 0], uarmL: [0.1, 0, -0.45], head: [-0.3, 0.4, 0], thighL: [0.85, 0, -0.15], shinL: [-1.45, 0, 0], thighR: [0, 0, 0.1] } },
+  { name: 'curled on his side', fall: 'side', r: { pelvis: [0, 0, 1.57], chest: [-0.5, 0, 0], head: [-0.35, 0, 0], thighL: [1.3, 0, 0], shinL: [-1.6, 0, 0], thighR: [1.05, 0, 0], shinR: [-1.5, 0, 0], uarmL: [1.0, 0, 0], farmL: [1.5, 0, 0], uarmR: [1.2, 0, 0], farmR: [1.6, 0, 0] } },
+  { name: 'three-quarters over, one leg forward', fall: 'side', r: { pelvis: [-0.5, 0, -1.2], thighL: [0.9, 0, 0], shinL: [-1.2, 0, 0], thighR: [-0.1, 0, 0], uarmR: [1.6, 0, 0.2], farmR: [0.4, 0, 0], uarmL: [0.5, 0, -0.35], farmL: [0.8, 0, 0], head: [0.2, -0.6, 0] } },
+  { name: 'slumped forward on his knees', fall: 'face', r: { pelvis: [-0.75, 0, 0], thighL: [1.75, 0, -0.08], shinL: [-2.5, 0, 0], thighR: [1.7, 0, 0.1], shinR: [-2.45, 0, 0], chest: [-1.0, 0.15, 0], head: [-0.6, 0.6, 0], uarmL: [1.5, 0, -0.25], farmL: [0.3, 0, 0], uarmR: [0.9, 0, 0.35], farmR: [0.6, 0, 0] } },
+  { name: 'fallen back from sitting', fall: 'back', r: { pelvis: [0.5, 0, 0], thighL: [1.35, 0, -0.12], shinL: [-0.45, 0, 0], thighR: [1.2, 0, 0.15], shinR: [-0.7, 0, 0], chest: [0.95, 0, 0], head: [-0.2, 0.75, 0], uarmL: [-0.2, 0, -0.75], farmL: [0.15, 0, 0], uarmR: [-0.15, 0, 0.65], farmR: [0.1, 0, 0] } },
+  { name: 'face down, twisted, a hand reaching out', fall: 'face', r: { pelvis: [-1.57, 0.4, 0], thighL: [0, 0, -0.28], thighR: [0.15, 0, 0.3], shinL: [-0.25, 0, 0], uarmR: [2.9, 0, 0.1], farmR: [0.1, 0, 0], uarmL: [0.4, 0, -0.5], farmL: [1.2, 0, 0], head: [0.05, -1.15, 0], chest: [0, -0.25, 0] } },
+  { name: 'on his back, arms over his head, knees fallen aside', fall: 'back', r: { pelvis: [1.57, -0.3, 0], chest: [0, 0.4, 0], uarmL: [2.8, 0, -0.2], uarmR: [2.75, 0, 0.25], farmL: [0.4, 0, 0], farmR: [0.3, 0, 0], thighL: [0.8, 0, 0.5], thighR: [0.85, 0, 0.45], shinL: [-1.2, 0, 0], shinR: [-1.3, 0, 0], head: [0, 0.5, 0] } },
+];
+const _dm = new THREE.Matrix4(), _dv = new THREE.Vector3(), _dq = new THREE.Quaternion();
+// lay a corpse in one of the poses at (x, z), his head towards `yaw`'s forward (as he stood), on the ground's slope
+export function layDead(corpse, T, k, yaw) {
+  const P = DEAD_POSES[k], rot = RIG.map(([n]) => (P.r[n] || [0, 0, 0]).slice()); rot.root = { y: 0, pitch: 0 };
+  fk(corpse.mats, { x: 0, y: 0, z: 0 }, yaw, rot, rot.root);
+  // the ground's slope where he lies: tilt the body onto it (about the pelvis)
+  const x = corpse.x, z = corpse.z, e = 0.6, hx = (T.height(x + e, z) - T.height(x - e, z)) / (2 * e), hz = (T.height(x, z + e) - T.height(x, z - e)) / (2 * e);
+  const n = _dv.set(-hx, 1, -hz).normalize(), tilt = _dq.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+  _dm.makeRotationFromQuaternion(tilt).setPosition(x, 0, z); for (const m of corpse.mats) m.premultiply(_dm);
+  // then down onto the ground: each part's lowest point against the ground under it; most parts resting on it, none sunk in
+  const d = [];
+  for (let i = 0; i < RIG.length; i++) { const [, , , he, co] = RIG[i], c = new THREE.Vector3(...co).applyMatrix4(corpse.mats[i]); d.push(c.y - Math.min(he[0], he[1], he[2]) - T.height(c.x, c.z)); }
+  const sorted = [...d].sort((a, b) => a - b), shift = Math.max(-sorted[Math.floor(d.length * 0.3)], -sorted[0] - 0.03);
+  _dm.makeTranslation(0, shift, 0); for (const m of corpse.mats) m.premultiply(_dm);
+  corpse.pose = P.name;
+}
 
 export class Ragdolls {
   constructor(T) {
@@ -79,14 +113,18 @@ export class Ragdolls {
     return rd;
   }
   _settleStatic(corpse, hit) {
-    // far away: no simulation; tip the whole body over about the pelvis, face down or on his back, onto the ground
-    const pel = new THREE.Vector3().setFromMatrixPosition(corpse.mats[PART.pelvis]);
-    const axis = new THREE.Vector3(Math.cos(corpse.yaw), 0, -Math.sin(corpse.yaw));      // his right-hand side: fall forward or back about it
-    const R = new THREE.Matrix4().makeRotationAxis(axis, Math.random() < 0.5 ? -Math.PI / 2 : Math.PI / 2);
-    const g = this.T.height(pel.x, pel.z) + 0.13;
-    const M = new THREE.Matrix4().makeTranslation(pel.x, g, pel.z).multiply(R).multiply(new THREE.Matrix4().makeTranslation(-pel.x, -pel.y, -pel.z));
-    for (const m of corpse.mats) m.premultiply(M);
-    corpse.rifle.premultiply(M);
+    // no simulation (far off, or too many at once): one of the ten lying poses, chosen by which way the blow knocked him
+    // (forward onto his face, back onto his back, or either onto a side), turned a little at random, laid on the ground
+    const fwd = [-Math.sin(corpse.yaw), -Math.cos(corpse.yaw)], dir = hit && hit.dir ? hit.dir : [0, 0, 0];
+    const along = dir[0] * fwd[0] + dir[2] * fwd[1], R = Math.random;
+    const want = Math.abs(along) < 0.25 ? (R() < 0.5 ? 'face' : 'back') : along > 0 ? 'face' : 'back';
+    const pool = DEAD_POSES.map((p, i) => [p, i]).filter(([p]) => p.fall === want || p.fall === 'side');
+    const k = pool[Math.floor(R() * pool.length)][1];
+    corpse.x = corpse.mats[PART.pelvis].elements[12]; corpse.z = corpse.mats[PART.pelvis].elements[14];
+    layDead(corpse, this.T, k, corpse.yaw + (R() - 0.5) * 0.9);
+    // his rifle on the ground beside him
+    const hand = new THREE.Vector3(0.25, 0, 0).applyMatrix4(corpse.mats[PART.farmR]), y = this.T.height(hand.x, hand.z) + 0.04;
+    corpse.rifle.compose(new THREE.Vector3(hand.x, y, hand.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, R() * 6.28, Math.PI / 2, 'YXZ')), new THREE.Vector3(1, 1, 1));
     if (this.onSettle) { const e = corpse.mats[PART.chest].elements; this.onSettle(e[12], e[14]); }
     return null;
   }
