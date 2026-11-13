@@ -33,6 +33,13 @@ export const DEAD_POSES = [
   { name: 'on his back, arms over his head, knees fallen aside', fall: 'back', r: { pelvis: [1.57, -0.3, 0], chest: [0, 0.4, 0], uarmL: [2.8, 0, -0.2], uarmR: [2.75, 0, 0.25], farmL: [0.4, 0, 0], farmR: [0.3, 0, 0], thighL: [0.8, 0, 0.5], thighR: [0.85, 0, 0.45], shinL: [-1.2, 0, 0], shinR: [-1.3, 0, 0], head: [0, 0.5, 0] } },
 ];
 const _dm = new THREE.Matrix4(), _dv = new THREE.Vector3(), _dq = new THREE.Quaternion();
+// a rifle lying on the ground at (x, z), pointing along yaw: on its side, both ends on the ground's slope (not level in
+// the air over a dip). Its frame: muzzle -Z, origin near the trigger guard (~0.42 m from the butt).
+export function layRifle(m, T, x, z, yaw) {
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), h0 = T.height(x - fx * 0.45, z - fz * 0.45), h1 = T.height(x + fx * 0.65, z + fz * 0.65);
+  const pitch = Math.atan2(h1 - h0, 1.1), y = Math.max(T.height(x, z), (h0 + h1) / 2 + (h1 - h0) * 0.09) + 0.035;
+  m.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, Math.PI / 2, 'YXZ')), new THREE.Vector3(1, 1, 1));
+}
 // lay a corpse in one of the poses at (x, z), his head towards `yaw`'s forward (as he stood), on the ground's slope
 export function layDead(corpse, T, k, yaw) {
   const P = DEAD_POSES[k], rot = RIG.map(([n]) => (P.r[n] || [0, 0, 0]).slice()); rot.root = { y: 0, pitch: 0 };
@@ -122,9 +129,13 @@ export class Ragdolls {
     const k = pool[Math.floor(R() * pool.length)][1];
     corpse.x = corpse.mats[PART.pelvis].elements[12]; corpse.z = corpse.mats[PART.pelvis].elements[14];
     layDead(corpse, this.T, k, corpse.yaw + (R() - 0.5) * 0.9);
-    // his rifle on the ground beside him
-    const hand = new THREE.Vector3(0.25, 0, 0).applyMatrix4(corpse.mats[PART.farmR]), y = this.T.height(hand.x, hand.z) + 0.04;
-    corpse.rifle.compose(new THREE.Vector3(hand.x, y, hand.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, R() * 6.28, Math.PI / 2, 'YXZ')), new THREE.Vector3(1, 1, 1));
+    // his rifle on the ground beside him, alongside his body (where it can be picked up: the sim keeps it where he fell)
+    const by = Math.atan2(-(corpse.mats[PART.chest].elements[12] - corpse.mats[PART.pelvis].elements[12]), -(corpse.mats[PART.chest].elements[14] - corpse.mats[PART.pelvis].elements[14])), sd = R() < 0.5 ? 1 : -1;
+    const ox = corpse.x0 ?? corpse.x, oz = corpse.z0 ?? corpse.z;
+    // (of both sides and a spread of ways, the flattest ground: not propped on a trench lip or a crater's edge)
+    let best = null; for (const sgn of [sd, -sd]) for (const dy of [0, 0.4, -0.4, 0.8, -0.8, 1.57]) { const x = ox + Math.cos(by) * 0.55 * sgn, z = oz - Math.sin(by) * 0.55 * sgn, yy = by + dy, fx = -Math.sin(yy), fz = -Math.cos(yy);
+      const hs = [-0.45, 0, 0.65].map(t => this.T.height(x + fx * t, z + fz * t)), sc = Math.max(...hs) - Math.min(...hs) + Math.abs(dy) * 0.02; if (!best || sc < best.sc) best = { sc, x, z, yy }; }
+    layRifle(corpse.rifle, this.T, best.x, best.z, best.yy + (R() - 0.5) * 0.2);
     if (this.onSettle) { const e = corpse.mats[PART.chest].elements; this.onSettle(e[12], e[14]); }
     return null;
   }
@@ -151,7 +162,7 @@ export class Ragdolls {
       // the rifle falls from the hand and lies beside him
       const hand = new THREE.Vector3(0, -0.3, 0).applyMatrix4(corpse.mats[PART.farmR]);
       if (rd.t < 0.25) corpse.rifle.setPosition(hand);
-      else if (!rd.rifleDown) { rd.rifleDown = true; const y = this.T.height(hand.x, hand.z) + 0.04; corpse.rifle.compose(new THREE.Vector3(hand.x, y, hand.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * 6.28, Math.PI / 2, 'YXZ')), one); }
+      else if (!rd.rifleDown) { rd.rifleDown = true; let best = null; for (let k = 0; k < 8; k++) { const yy = k * Math.PI / 4 + rd.t, fx = -Math.sin(yy), fz = -Math.cos(yy), hs = [-0.45, 0, 0.65].map(t => this.T.height(hand.x + fx * t, hand.z + fz * t)), sc = Math.max(...hs) - Math.min(...hs); if (!best || sc < best.sc) best = { sc, yy }; } layRifle(corpse.rifle, this.T, hand.x, hand.z, best.yy); }   // (the flattest way the ground lies there)
       const asleep = bodies.every(b => b.sleepState === CANNON.Body.SLEEPING);
       // never let a body sink through the ground (safety net under the solver)
       if (!(typeof window !== 'undefined' && window.__ragTest && window.__ragTest.noNet)) for (const b of bodies) { const gh = this.T.height(b.position.x, b.position.z); if (b.position.y < gh - 0.05) { b.position.y = gh + 0.05; b.velocity.y = Math.max(0, b.velocity.y); } }

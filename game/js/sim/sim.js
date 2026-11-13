@@ -477,7 +477,7 @@ export class Sim {
       if (p.pickup === PICKUP_TICKS >> 1) this._swapRifle(p, this.drops[p.pickupAt]);
       this._weaponTick(p); return;
     }
-    if (a.pickup && !(p.climb > 0) && !(p.reloading > 0)) { const i = this.nearDrop(p); if (i >= 0) { p.pickup = PICKUP_TICKS; p.pickupTotal = PICKUP_TICKS; p.pickupAt = i; p.intent = null; this.events.push({ t: 'stoop', id: p.id, weapon: this.drops[i].weapon }); return; } }
+    if (a.pickup && !(p.climb > 0) && !(p.reloading > 0)) { const i = this.nearDrop(p), d = this.drops[i]; if (i >= 0 && !(d.weapon === p.weapon && (d.mag + d.reserve <= 0 || p.reserve >= WEAPONS[p.weapon].reserve * 2))) { p.pickup = PICKUP_TICKS; p.pickupTotal = PICKUP_TICKS; p.pickupAt = i; p.intent = null; this.events.push({ t: 'stoop', id: p.id, weapon: this.drops[i].weapon }); return; } }
     p.intent = { f: a.forward || 0, s: a.side || 0, run: !!a.run && p.stance === 0, jump: !!a.jump, vault: !!a.vault };
     if (a.reload) { if (p.jam > 0) { p.jam = 0; p.reloading = 1.2; p.reloadMore = false; this.events.push({ t: 'clear', id: p.id }); } else this._startReload(p); }
     if (a.melee) this._startStrike(p);
@@ -772,6 +772,11 @@ export class Sim {
   }
   _swapRifle(p, d) {
     if (!d) return;
+    if (d.weapon === p.weapon) {   // the same rifle as his own: he takes the dead man's rounds into his pouches (up to a full load) and leaves the rifle
+      const room = WEAPONS[p.weapon].reserve * 2 - p.reserve, n = Math.min(room, d.mag + d.reserve);
+      p.reserve += n; const fromMag = Math.min(d.mag, n); d.mag -= fromMag; d.reserve -= n - fromMag;
+      this.events.push({ t: 'ammo', id: p.id, n }); return;
+    }
     const mine = { weapon: p.weapon, mag: p.mag, reserve: p.reserve };
     Object.assign(p, { weapon: d.weapon, mag: d.mag, reserve: d.reserve, reloading: 0, cool: 0 });
     Object.assign(d, mine, { of: p.id });   // yours left lying in its place

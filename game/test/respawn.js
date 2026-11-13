@@ -60,3 +60,10 @@ await ev(`(() => { document.getElementById('menu').style.display = 'grid'; const
 await sleep(400);
 const b1 = await ev(`(() => ({ alive: TF.sim.player.alive, card: getComputedStyle(document.getElementById('dead')).display, menu: document.getElementById('menu').style.display }))()`);
 ok('the Esc menu has a Respawn now button that does the same', !b1.alive && b1.card === 'grid' && b1.menu === 'none', JSON.stringify(b1));
+
+// 5. the map zooms (wheel, buttons) and pans, out to the whole front
+const z0 = await ev(`(() => { const cv = document.getElementById('spawnmap'), r = cv.getBoundingClientRect(); const s0 = TF.respawnView().span;
+  cv.dispatchEvent(new WheelEvent('wheel', { deltaY: -400, clientX: r.left + r.width * 0.3, clientY: r.top + r.height * 0.3, bubbles: true, cancelable: true }));
+  const s1 = TF.respawnView().span; document.getElementById('spawnAll').click(); const s2 = TF.respawnView().span; return { s0, s1, s2 }; })()`);
+await sleep(300); await shot('respawn_4_whole_front', 88);
+ok('the respawn map zooms in with the wheel and out to the whole front', z0.s1 < z0.s0 && z0.s2 === 6000, JSON.stringify(z0));

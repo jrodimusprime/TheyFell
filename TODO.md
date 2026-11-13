@@ -22,7 +22,29 @@ Tick boxes as work is completed. Each item is "done" only when it is **made, int
 > **Playable demo:** [`game/`](game/README.md) is a browser vertical-slice demo of **MAP-S02 La Boisselle & Lochnagar**: the real terrain at true scale (6 km × 6 km from IGN lidar), the 1916 trench lines, the 07:28 mines, the 07:30 attack, AI on both sides, ragdoll deaths, frequent respawn, out-of-bounds handling and headless AI playthrough tests. Items it covers are marked *(demo)* below. Demo work is a prototype, not "done" by the rule above.
 
 ---
-HIGHEST PRIORITY
+HIGHEST PRIORITY (in order)
+
+✓ corpses have their arms in teh air and gun floating in air... itlooks totally weird fix that, these are the ones that must hae happened out of view... make their guns somewhere next to them and to be able to take the ammo etc — done 13 Nov 2026: the dead out of view lie in ten real poses; rifles lie flat on the ground beside them (both ends on the slope, never propped on a trench lip); E on one of your own type takes his rounds
+
+✓ respawn map you should be able to zoom in and out of as at the moment a part of it is cut out - push to main once done — done 13 Nov 2026: wheel to zoom about the pointer, drag to pan, + / − and Whole front buttons; the countdown holds while you look
+
+german soldiers in trenches should have different modes - sometimes popping up to shoot from trenches hwith head and shoulders over the top - sometimes waiting in defence to shoot who comes down. take your time animating this properly and getting the gameplay right. take your time on this and push to master once done. some should also walk the length of the trench up and down
+
+
+respawning and resupply should come from deeper behind enemy lines - the germans will walk towards different trenches or open defence areas near targets... take your time doing this tactic then push to master. germans will also need to move to take back regions at times to get back into their defensive trenches there or in open defensive zones. ensure germans can never overlap each other - their bounding boxes steop them.
+
+
+inside trenches walking past people is a bit weird you can push other players out of the way etc... make sure that is smoother if someone has a walking vector towards an AI player of the same team they kind of move aside in a trench - you may need to do some animation and spend time making that look correct.
+
+once you have taken all posts A B C D E it is game over and a stats age is displayed, asks you if oyu want to start again
+
+gennades should bounce nicely up a trench and around corners push that to master
+
+implement machine gunners properly, set up their dugouts historically correctly, when destroyed let the player use it not the friendly AI. take time animating and designing it properly and push to maser
+
+the map looks crap in terms of quality - the directional one that is with m is pressed. take some time making that nicer. also the bottom round map should say A B C D E in the centre of the circle of the zone 
+
+
 ✓ attacker AI should avoid barbed wire if it can — done 12 Nov 2026: goes round a belt when he can see a way through
 
 ✓ there should be a death counter that counts deaths on both sides — done 12 Nov 2026: fallen and left, both sides, top right
@@ -53,7 +75,7 @@ or you have moved away
 
 ✓ inside trenches it seems like theres 1 enemy per section maybe sometimes have none, sometimes have 5 in there — done 12 Nov 2026: clusters of 0-5 along the bays
 
-✓ the grenade doesn’t have an animation or much thinking in it and i cant see where it is thrown. also not seeing many others being thrown and soldiers throwing them — done 13 Nov 2026: three grenades a man (Mills / stick grenade), the overhand throw animated in first and third person, bombs drawn in flight, G + aiming arc + swinging power meter, AI on both sides bomb men 10–32 m off (most at men in trenches)
+the grenade doesn’t have an animation or much thinking in it and i cant see where it is thrown. also not seeing many others being thrown and soldiers throwing them
 
 
 ✓ it is really important the animation for getting out of trenches is done well, take your time looking at trenches of different height to see the characters get out, it is super important — done 12 Nov 2026: height-adaptive climb, checked at seven places
@@ -61,9 +83,9 @@ or you have moved away
 
 ✓ review shooting accuracy and do one of those accuracy gauges for when couching standing prone and add the sway etc like all the games do — done 12 Nov 2026: ring round the crosshair; sway by stance
 
-✓ if we overtake an area and there is a new spawn point make sure the troops come out of a fox hole or something like that, a tunnel underground that is dark… as it looks like they’re coming otu of the air lol. also it looks like heaaaaps of troops are coming out of those just use a couple troops the rest should be coming from the back spawn points as they would in a real battle — done 13 Nov 2026: a dugout entrance at each strongpoint; men climb its stairs up out of the dark; two per wave from each, the rest from the rear (ready to test)
+if we overtake an area and there is a new spawn point make sure the troops come out of a fox hole or something like that, a tunnel underground that is dark… as it looks like they’re coming otu of the air lol. also it looks like heaaaaps of troops are coming out of those just use a couple troops the rest should be coming from the back spawn points as they would in a real battle
 
-reload with a straight wrist on the right wrist, let the fingers do te work
+✓ reload with a straight wrist on the right wrist, let the fingers do te work — done 13 Nov 2026: off the stock the right hand runs straight on from the forearm; it stays still over the charger while the thumb pushes the rounds down
 
 
 ✓ tthe enemgies seem to know where you are as soon as you jump in a trench… lets say only 1 in 10 enemies know this, the others are suprised and take half a second to turn to face you — done 12 Nov 2026: one in ten ready, the rest 0.5 s+ to turn
@@ -72,10 +94,10 @@ reload with a straight wrist on the right wrist, let the fingers do te work
 ✓ at point 8 theres like a heap of enemies standing in one spot all shooting at the same time its totally weird fixit — done 12 Nov 2026: respawns spread through strongpoints
 
 
-✓ addmachine guns, take a lot of time to do this properly and take your time — done 13 Nov 2026: 16 German MG 08s on sledges and 3 British Vickers on tripods, emplaced on the parapet with gunner and loader; traversing bursts, 250-round belts, heat and steam, stoppages; rounds pin men down; bombers go for the crews; E to man any gun (R new belt), turn a German gun on them; abandoned guns taken, crews replaced
+addmachine guns, take a lot of time to do this properly and take your time
 
 
-✓ i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly — done 13 Nov 2026: ten lying poses (face down, on his back, on his side, curled, slumped on his knees…), picked by which way he was knocked, laid on the ground's slope
+i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly
 
 ✓ the player should have some weapon sway when standing, less when crouching, virtually none when lying down. the player should be able to shoot people at 200 yards at least — done 12 Nov 2026: sway by stance; 17/30 hits at 183 m standing
 

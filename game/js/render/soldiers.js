@@ -220,7 +220,7 @@ export class SoldiersView {
     const st = this.state[s.id];
     pose(this.rot, { stance: s.stance, moving: false, pitch: s.pitch }, st.phase, false, 0);
     fk(this.mats, { x: s.x, y: s.y, z: s.z }, s.yaw, this.rot, this.rot.root);
-    const c = { side: s.side, id: s.id, mats: this.mats.map(m => m.clone()), rifle: this.rifleMatrix(this.mats, false, 0), yaw: s.yaw, x: s.x, z: s.z, stain: s.lastHit && s.lastHit.zone === 'legs' ? 2 : 1 };
+    const c = { side: s.side, id: s.id, mats: this.mats.map(m => m.clone()), rifle: this.rifleMatrix(this.mats, false, 0), yaw: s.yaw, x: s.x, z: s.z, x0: s.x, z0: s.z, stain: s.lastHit && s.lastHit.zone === 'legs' ? 2 : 1 };
     this.corpses.push(c);
     const max = this.cap - this.sim.soldiers.length - 2;
     while (this.corpses.length > max) { const old = this.corpses.shift(); old.removed = true; }

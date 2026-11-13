@@ -203,6 +203,7 @@ async function boot() {
       else if (e.t === 'jam' && e.id === p.id) message('Your rifle has jammed: R to clear it', 3);
       else if (e.t === 'clear' && e.id === p.id) audio.reload();
       else if (e.t === 'pickup' && e.id === p.id) { audio.reload(); addFeed(`You take up a ${WEAPONS[p.weapon].name}`); }
+      else if (e.t === 'ammo' && e.id === p.id) { audio.reload(); addFeed(e.n > 0 ? `You take ${e.n} rounds off him` : 'Your pouches are full'); }
       else if (e.t === 'respawn' && e.id === p.id) {
         if (e.into === undefined) p.yaw = p.side === 'BRI' ? -Math.PI / 2 : Math.PI / 2;   // (going in as a man already out there: the sim turns him to the objective)
         yaw = p.yaw; pitch = 0; $('dead').style.display = 'none'; choose = null; pendingRespawn = null; shooters.clear(); if (!AGENT) renderer.domElement.requestPointerLock?.()?.catch?.(() => {});
@@ -323,7 +324,7 @@ async function boot() {
     sim.objectives.forEach((ob, i) => { const el = objEl.children[i]; el.className = 'obj ' + ob.owner; el.firstChild.style.height = (Math.max(0, ob.progress) * 100) + '%'; });
     tallyT -= dt; if (tallyT < 0) { tallyT = 0.25; const row = (side, name) => { const t = sim.tally(side); return `<div><b>${name}</b> <span class="gone">${t.fallen.toLocaleString('en-GB')} fallen</span> · ${t.left.toLocaleString('en-GB')} left</div>`; };
       $('tally').innerHTML = row('BRI', 'British') + row('GER', 'German'); }
-    { let t = ''; const gi = p.alive && p.gun < 0 && !(p.climb > 0) ? sim.nearGun(p) : -1; if (gi >= 0) { const g = sim.guns[gi]; t = `E: ${g.side === p.side ? 'take over' : 'turn and man'} the ${GUNS[g.kind].name}`; } else if (p.alive && !(p.pickup > 0) && !(p.climb > 0)) { const i = sim.nearDrop(p); if (i >= 0) { const d = sim.drops[i]; t = d.weapon === p.weapon ? `E: take his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)` : `E: swap your rifle for his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)`; } } else if (p.pickup > 0) t = 'Taking his rifle…'; $('prompt').textContent = t; }
+    { let t = ''; const gi = p.alive && p.gun < 0 && !(p.climb > 0) ? sim.nearGun(p) : -1; if (gi >= 0) { const g = sim.guns[gi]; t = `E: ${g.side === p.side ? 'take over' : 'turn and man'} the ${GUNS[g.kind].name}`; } else if (p.alive && !(p.pickup > 0) && !(p.climb > 0)) { const i = sim.nearDrop(p); if (i >= 0) { const d = sim.drops[i]; t = d.weapon === p.weapon ? (d.mag + d.reserve > 0 && p.reserve < WEAPONS[p.weapon].reserve * 2 ? `E: take his rounds (${d.mag + d.reserve})` : '') : `E: swap your rifle for his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)`; } } else if (p.pickup > 0) t = 'Taking his rifle…'; $('prompt').textContent = t; }
     $('feed').innerHTML = feed.map(f => `<div>${f[0]}</div>`).join(''); for (const f of feed) f[1] -= dt; while (feed.length && feed[feed.length - 1][1] < 0) feed.pop();
     msgT -= dt; if (msgT < 0) $('msg').style.opacity = 0;
     // coming up out of a dugout: dark down the stairs, the light coming as the head comes up past the top step
@@ -443,12 +444,28 @@ async function boot() {
   function manAt(ev) {   // the man of your side under the pointer (within 14 px on the map)
     const r = spawnCv.getBoundingClientRect(), mx = (ev.clientX - r.left) * spawnCv.width / r.width, my = (ev.clientY - r.top) * spawnCv.height / r.height;
     let best = -1, bd = 14 * spawnCv.width / r.width;
-    for (const o of sim.soldiers) { if (!o.alive || o.isPlayer || o.side !== sim.player.side || o.climb > 0) continue; const [x, y] = toMap(o.x, o.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = o.id; } }
+    for (const o of sim.soldiers) { if (!o.alive || o.isPlayer || o.side !== sim.player.side || o.climb > 0 || o.emerge > 0 || o.gun >= 0) continue; const [x, y] = toMap(o.x, o.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = o.id; } }
     return best;
   }
-  spawnCv.addEventListener('pointermove', ev => { if (choose) choose.hover = manAt(ev); });
+  // zoom (wheel, about the pointer; or the buttons, about the middle) and pan (drag), between 150 m and the whole 6 km front.
+  // Using the map holds the countdown at 5 s at least, so you aren't sent in at random while looking.
+  const zoomBy = (f, mx = spawnCv.width / 2, my = spawnCv.height / 2) => { if (!choose) return; const v = choose.view, k = spawnCv.width / v.span;
+    const wx = v.cx + (mx - spawnCv.width / 2) / k, wz = v.cz + (my - spawnCv.height / 2) / k, span = Math.max(150, Math.min(T.size, v.span * f));
+    const k2 = spawnCv.width / span; v.cx = wx - (mx - spawnCv.width / 2) / k2; v.cz = wz - (my - spawnCv.height / 2) / k2; v.span = span; clampView(); choose.left = Math.max(choose.left, 5); };
+  const clampView = () => { const v = choose.view, h = v.span / 2; v.cx = Math.max(h, Math.min(T.size - h, v.cx)); v.cz = Math.max(h, Math.min(T.size - h, v.cz)); };
+  const canvasXY = ev => { const r = spawnCv.getBoundingClientRect(); return [(ev.clientX - r.left) * spawnCv.width / r.width, (ev.clientY - r.top) * spawnCv.height / r.height]; };
+  spawnCv.addEventListener('wheel', ev => { ev.preventDefault(); const [mx, my] = canvasXY(ev); zoomBy(Math.exp(ev.deltaY * 0.0015), mx, my); }, { passive: false });
+  $('spawnIn').onclick = () => zoomBy(1 / 1.6); $('spawnOut').onclick = () => zoomBy(1.6);
+  $('spawnAll').onclick = () => { if (!choose) return; Object.assign(choose.view, { cx: T.size / 2, cz: T.size / 2, span: T.size }); choose.left = Math.max(choose.left, 5); };
+  let drag = null;
+  spawnCv.addEventListener('pointerdown', ev => { if (!choose) return; drag = { x: ev.clientX, y: ev.clientY, cx: choose.view.cx, cz: choose.view.cz, moved: false }; spawnCv.setPointerCapture?.(ev.pointerId); });
+  spawnCv.addEventListener('pointermove', ev => { if (!choose) return;
+    if (drag) { const r = spawnCv.getBoundingClientRect(), dx = ev.clientX - drag.x, dy = ev.clientY - drag.y; if (Math.hypot(dx, dy) > 5) { drag.moved = true; spawnCv.classList.add('drag'); }
+      if (drag.moved) { const mpp = choose.view.span / r.width; choose.view.cx = drag.cx - dx * mpp; choose.view.cz = drag.cz - dy * mpp; clampView(); choose.left = Math.max(choose.left, 5); return; } }
+    choose.hover = manAt(ev); });
+  spawnCv.addEventListener('pointerup', () => { setTimeout(() => { drag = null; spawnCv.classList.remove('drag'); }, 0); });
   spawnCv.addEventListener('pointerleave', () => { if (choose) choose.hover = -1; });
-  spawnCv.addEventListener('click', ev => { if (!choose) return; const id = manAt(ev); if (id >= 0) goIn(id); });
+  spawnCv.addEventListener('click', ev => { if (!choose || (drag && drag.moved)) return; const id = manAt(ev); if (id >= 0) goIn(id); });
   function drawSpawnMap(dt) {
     if (!choose) return;
     const p = sim.player, g = sg, W = spawnCv.width, k = W / choose.view.span;
@@ -468,14 +485,14 @@ async function boot() {
     for (const o of sim.objectives) { const [x, y] = toMap(o.c[0], o.c[1]); g.strokeStyle = g.fillStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, Math.max(o.r * k, 14), 0, 7); g.stroke(); g.fillText(o.id, x, y); }
     // your side's men (the enemy you can't see); the ones a random pick would go in as ringed
     const near = new Set(sim.takeoverChoices(p.side).map(o => o.id)), side = p.side === 'BRI' ? '#7a2414' : '#24305a';
-    for (const o of sim.soldiers) { if (!o.alive || o.isPlayer || o.side !== p.side || o.climb > 0) continue; const [x, y] = toMap(o.x, o.z); if (x < -10 || y < -10 || x > W + 10 || y > W + 10) continue;
+    for (const o of sim.soldiers) { if (!o.alive || o.isPlayer || o.side !== p.side || o.climb > 0 || o.emerge > 0 || o.gun >= 0) continue; const [x, y] = toMap(o.x, o.z); if (x < -10 || y < -10 || x > W + 10 || y > W + 10) continue;
       g.fillStyle = side; g.fillRect(x - 3.5, y - 3.5, 7, 7); if (near.has(o.id)) { g.strokeStyle = '#1d1a14'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, 8, 0, 7); g.stroke(); } }
     for (const [id, col, r] of [[choose.hover, '#f2d7a6', 14], [choose.picked, '#fff', 17]]) { const o = sim.soldiers[id]; if (!o || !o.alive) continue; const [x, y] = toMap(o.x, o.z); g.strokeStyle = col; g.lineWidth = 4; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); g.strokeStyle = '#1d1a14'; g.lineWidth = 1.5; g.stroke(); }
     // where you fell
     const [fx, fy] = toMap(p.x, p.z); g.strokeStyle = '#1d1a14'; g.lineWidth = 3; g.beginPath(); g.moveTo(fx - 9, fy - 9); g.lineTo(fx + 9, fy + 9); g.moveTo(fx + 9, fy - 9); g.lineTo(fx - 9, fy + 9); g.stroke();
     g.fillStyle = '#1d1a14'; g.font = "italic 22px Caslon, Georgia"; g.textAlign = 'left'; g.fillText('you fell here', fx + 14, fy);
     g.font = "bold 26px Caslon, Georgia"; g.textAlign = 'center'; g.fillText('N', W / 2, 22);
-    g.fillRect(20, W - 22, 100 * k, 4); g.font = "20px Caslon, Georgia"; g.textAlign = 'left'; g.fillText('100 m', 20, W - 38);
+    { const bar = v.span > 2500 ? 1000 : v.span > 900 ? 500 : 100; g.fillRect(20, W - 22, bar * k, 4); g.font = "20px Caslon, Georgia"; g.textAlign = 'left'; g.fillText(bar >= 1000 ? '1 km' : bar + ' m', 20, W - 38); }
   }
   let pendingRespawn = null;   // the respawn choice goes in with the next tick's input, so recorded runs replay it
 
@@ -496,6 +513,7 @@ async function boot() {
 
   // ---------- agent API (Cimmerian §11): same inputs a human has, held for n ticks ----------
   window.TF = {
+    respawnView: () => choose && choose.view,
     nade: (on, t = 0) => { nadeReady = on; meterT = t; return nadePower(); }, nades, dugouts, gunsView,
     sim, T, F, scene, camera, renderer, terrain, men, rag, props, blood, skinned, fp, rifleBlock, HZ,
     get state() { return sim; }, get shooters() { return shooters; },
