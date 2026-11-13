@@ -28,10 +28,10 @@ HIGHEST PRIORITY (in order)
 
 ✓ respawn map you should be able to zoom in and out of as at the moment a part of it is cut out - push to main once done — done 13 Nov 2026: wheel to zoom about the pointer, drag to pan, + / − and Whole front buttons; the countdown holds while you look
 
-german soldiers in trenches should have different modes - sometimes popping up to shoot from trenches hwith head and shoulders over the top - sometimes waiting in defence to shoot who comes down. take your time animating this properly and getting the gameplay right. take your time on this and push to master once done. some should also walk the length of the trench up and down
+✓ german soldiers in trenches should have different modes - sometimes popping up to shoot from trenches hwith head and shoulders over the top - sometimes waiting in defence to shoot who comes down. take your time animating this properly and getting the gameplay right. take your time on this and push to master once done. some should also walk the length of the trench up and down — done 13 Nov 2026: four habits in the fire trenches (pop up over the parapet and duck, wait on the floor for whoever comes down, patrol the trench, steady at the parapet); the fire-step raised so a man on it shows his head and shoulders over the sandbags
 
 
-respawning and resupply should come from deeper behind enemy lines - the germans will walk towards different trenches or open defence areas near targets... take your time doing this tactic then push to master. germans will also need to move to take back regions at times to get back into their defensive trenches there or in open defensive zones. ensure germans can never overlap each other - their bounding boxes steop them.
+respawning and resupply should come from deeper behind enemy lines - the germans will walk towards different trenches or open defence areas near targets... take your time doing this tactic. thinking through options as the current path of using the spawning areas is just bad... better they come from behind enemy lines and walk so you dont get 100 dudes spawning at one point... then push to master. germans will also need to move to take back regions at times to get back into their defensive trenches there or in open defensive zones. ensure germans can never overlap each other - their bounding boxes steop them.
 
 
 inside trenches walking past people is a bit weird you can push other players out of the way etc... make sure that is smoother if someone has a walking vector towards an AI player of the same team they kind of move aside in a trench - you may need to do some animation and spend time making that look correct.
@@ -40,9 +40,9 @@ once you have taken all posts A B C D E it is game over and a stats age is displ
 
 gennades should bounce nicely up a trench and around corners push that to master
 
-implement machine gunners properly, set up their dugouts historically correctly, when destroyed let the player use it not the friendly AI. take time animating and designing it properly and push to maser
+the map looks crap in terms of quality (when you press M that map) - the directional one. take some time making that nicer. also the bottom round map should say A B C D E in the centre of the circle of the zone 
 
-the map looks crap in terms of quality - the directional one that is with m is pressed. take some time making that nicer. also the bottom round map should say A B C D E in the centre of the circle of the zone 
+walking in trenches can make the player pop up randomly on planks etc, so lets make the walking area on the trenches just the trench floor, if they want to pop up on a standing bench whatever its called lets offer a new keyboard letter maybe T to get into trench aiming mode for defence. this will be handy later when we need to do a defensive mission
 
 
 ✓ attacker AI should avoid barbed wire if it can — done 12 Nov 2026: goes round a belt when he can see a way through

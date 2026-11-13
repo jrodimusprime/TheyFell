@@ -26,6 +26,8 @@ export function bulletDamage(W, zone, rng) {
 }
 // close quarters: a strike is wound up for STRIKE_HIT ticks, lands if he is still within reach and in front, then
 // recovers; damage on a bell curve for the weapon (the bayonet usually kills, a club or knife often takes two)
+// the highest a man steps up without climbing (the fire-step is 0.9 m above the trench floor)
+const STEP_UP = 0.95;
 const STRIKE_TICKS = 36, STRIKE_HIT = 15, REACH = 2.0;
 // forward spawns (a strongpoint his side holds): men come up a dugout's stairs, two at most from each per wave
 const EMERGE_TICKS = 110, FWD_PER_WAVE = 2;
@@ -92,7 +94,7 @@ export function aimSpread(s) {
   return (s.ads ? W.spread : W.hip) * STANCE_SPREAD[s.stance] + (moving ? 0.012 : 0);
 }
 const PICKUP_TICKS = 66;   // 1.1 s to stoop, swap rifles and come up again
-const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1 };   // advance: the AI jogs forward (stopping to fire)
+const SPEED = { walk: 1.7, run: 4.6, crouch: 1.1, prone: 0.45, advance: 3.1, stroll: 1.3 };   // stroll: a German walking his trench   // advance: the AI jogs forward (stopping to fire)
 const EYE = [1.62, 1.1, 0.35], HEIGHT = [1.78, 1.25, 0.45];
 const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO = 7 * 3600 + 30 * 60;
 // before zero hour the clock runs 5x fast: the mines go up ~6 s in and the whistles blow ~30 s in; after zero, real time
@@ -344,6 +346,55 @@ export class Sim {
       gun.belt = BELT; gun.jam = 0; gun.change = 0;
     }
   }
+  // ---------- the German garrison in its trenches ----------
+  // how a man in the line spends the battle: 'popup' crouched below the parapet, standing up on the fire-step now and
+  // then for a shot or two with his head and shoulders over the top, then down again and along a little before the next;
+  // 'wait' crouched on the trench floor looking along it, holding his fire for whoever comes down into the trench;
+  // 'patrol' walking the trench up and down through a few bays; 'steady' standing to the parapet firing, as before.
+  _trenchStyle(s, seg, q) {
+    // (only a fire trench has a fire-step to stand up on; in a support trench a man waits or walks it)
+    const r = s.rng(), fire = this.T.segs[seg] && this.T.segs[seg].kind === 0;
+    s.ai.style = fire ? (r < 0.45 ? 'popup' : r < 0.65 ? 'wait' : r < 0.8 ? 'patrol' : 'steady') : (r < 0.6 ? 'wait' : 'patrol');
+    s.ai.seg = seg; s.ai.floor = [q[0], q[1]]; s.ai.step = [q[2], q[3]]; s.ai.up = false; s.ai.popNext = 0;
+    if (s.ai.style === 'patrol') s.ai.route = this._route(seg, s.rng);
+  }
+  // a patrol's walk: joints along the trench's floor line, up to five segments each way from his own
+  _route(seg, r) {
+    const S = this.T.segs, joined = (a, b) => S[a] && S[b] && !S[a].gone && !S[b].gone && Math.abs(S[a].bx - S[b].ax) < 0.02 && Math.abs(S[a].bz - S[b].az) < 0.02;
+    let a = seg, b = seg; for (let k = 0; k < 5 && joined(a - 1, a); k++) a--; for (let k = 0; k < 5 && joined(b, b + 1); k++) b++;
+    const pts = [[S[a].ax, S[a].az]]; for (let j = a; j <= b; j++) pts.push([S[j].bx, S[j].bz]);
+    return pts.length >= 2 ? { pts, i: Math.min(pts.length - 1, seg - a), dir: r() < 0.5 ? 1 : -1, pause: 0 } : null;
+  }
+  _trenchWork(s, best, bd) {
+    const ai = s.ai, t = this.tick;
+    if (this.T.segs[ai.seg] && this.T.segs[ai.seg].gone) { ai.style = 'steady'; ai.route = null; }   // (his trench blown in: he fights where he is)
+    if (best >= 0 && bd < 25 && ai.style !== 'wait') ai.alertUntil = t + 300;   // an enemy close: up and fight, whatever he was doing
+    const alert = t < ai.alertUntil;
+    let goal = ai.step, stance = s.reloading || t < s.pinned ? 1 : 0, tol = 0.3;   // (onto the fire-step itself; not shuffling to a point as men brush past)
+    if (ai.style === 'popup' && !alert) {
+      if (t >= ai.popNext) {
+        ai.up = !ai.up && !s.reloading && !(t < s.pinned);
+        ai.popNext = t + (ai.up ? 120 + s.rng.int(150) : 100 + s.rng.int(130));
+        if (ai.up) ai.think = Math.min(ai.think, 2);   // (up: he looks for a mark at once)
+        else { const p = this.trenchPts.GER.find(q => q[2] === ai.seg); if (p) { const q = this._alongBay(p, s.rng.range(-2.5, 2.5)); ai.step = [q[2], q[3]]; ai.floor = [q[0], q[1]]; } }   // down, and along a little
+      }
+      stance = ai.up && !s.reloading ? 0 : 1; goal = ai.step; tol = 0.2;
+    } else if (ai.style === 'wait') { goal = ai.floor; stance = 1; tol = 0.5; }
+    else if (ai.style === 'patrol' && !alert && ai.route) {
+      const R = ai.route, w = R.pts[R.i];
+      if (R.pause > t) { s.intent = null; s.stance = 0; return; }
+      if (Math.hypot(w[0] - s.x, w[1] - s.z) < 0.7) {
+        if (R.i + R.dir < 0 || R.i + R.dir >= R.pts.length) { R.dir = -R.dir; R.pause = t + 120 + s.rng.int(150); }   // the end of his beat: a pause, then back
+        R.i = Math.max(0, Math.min(R.pts.length - 1, R.i + R.dir));
+      }
+      goal = R.pts[R.i]; stance = 0; tol = 0.3;
+    }
+    const dx = goal[0] - s.x, dz = goal[1] - s.z, d = Math.hypot(dx, dz);
+    // (moving along under the parapet, the pop-up man and the waiting man stoop; the patrol strolls)
+    s.stance = d > tol ? (alert || ai.style === 'patrol' || ai.style === 'steady' ? 0 : 1) : stance;
+    s.intent = d > tol ? { f: 1, s: 0, run: alert && d > 6, jump: false, stroll: ai.style === 'patrol' && !alert, yaw: Math.atan2(-dx, -dz) } : null;
+    if (!s.intent && ai.style === 'wait' && !(ai.target >= 0)) { const S = this.T.segs[ai.seg]; if (S) { const ux = S.bx - S.ax, uz = S.bz - S.az; s.yaw = Math.atan2(ux, uz) + (s.id % 2 ? Math.PI : 0); } }   // looking along the trench
+  }
   // the tally: fallen, still standing in the field, and the reserve still to come
   tally(side) { let field = 0; for (const o of this.soldiers) if (o.side === side && o.alive) field++; return { fallen: this.score[side].deaths, field, reserve: this.reserve[side], left: field + this.reserve[side] }; }
   get time() { return START_TIME + this.gt; }
@@ -419,7 +470,7 @@ export class Sim {
       let i = this.soldiers.filter(s => s.side === 'GER').length;
       for (let k = 0; i < ng && gerPts.length; k++) {
         const bay = gerPts[k % gerPts.length], n = Math.min(ng - i, k < gerPts.length ? SIZES[r.int(SIZES.length)] : 1 + r.int(3));
-        for (const q of this._clusterIn(bay, n, r)) { const s = this._spawn('GER', q[0], q[1]); s.stance = 1; s.ai.mode = 'shelter'; s.ai.post = [q[2], q[3]]; i++; }
+        for (const q of this._clusterIn(bay, n, r)) { const s = this._spawn('GER', q[0], q[1]); s.stance = 1; s.ai.mode = 'shelter'; s.ai.post = [q[2], q[3]]; this._trenchStyle(s, bay[2], q); i++; }
       } }
     for (const s of this.soldiers) if (s.role === 'mg') s.ai.mode = 'shelter';
   }
@@ -556,6 +607,8 @@ export class Sim {
       }
       s.stance = firing ? 1 : 0;
       s.intent = firing ? null : { f: 1, s: 0, run: (best >= 0 && bd < 120) || this.tick < (ai.rushUntil || 0), jump: true, yaw: this._wireDetour(s, Math.atan2(-dx, -dz)) + s.rng.range(-0.15, 0.15) };
+    } else if (ai.mode === 'hold' && s.side === 'GER' && ai.style) {
+      this._trenchWork(s, best, bd);
     } else if (ai.mode === 'hold' || ai.mode === 'mg') {
       // German defenders man the fire-step: stand to fire, duck to reload
       s.stance = s.reloading || this.tick < s.pinned ? 1 : 0;
@@ -585,6 +638,8 @@ export class Sim {
     if (s.strike > 0 || s.throw > 0) return;   // mid-strike or mid-throw
     if (s.gun >= 0 && !ai.closeIn) return;   // (a gun crew: the gun does the firing)
     if (this.tick < s.pinned && s.rng() < 0.7) return;   // heads down under machine-gun fire
+    if (ai.style === 'popup' && !ai.up && !(this.tick < (ai.alertUntil || 0))) return;   // (ducked below the parapet)
+    if (ai.style === 'wait' && ai.target >= 0 && Math.hypot(this.soldiers[ai.target].x - s.x, this.soldiers[ai.target].z - s.z) > 25) return;   // (holding his fire for whoever comes down into the trench)
     // within reach of an enemy and choosing the steel: strike (any enemy, not only his target: a man jumping in on him)
     const startled = this.tick < (ai.reactUntil || 0);
     if (ai.closeIn && !startled && this.tick % 3 === s.id % 3) { const o = this._nearestFoe(s, REACH * 0.95); if (o) { const want = Math.atan2(-(o.x - s.x), -(o.z - s.z)); if (Math.abs(wrapAngle(want - s.yaw)) < 0.6) { s.yaw = want; this._startStrike(s); return; } } }
@@ -827,7 +882,7 @@ export class Sim {
     let sp = 0, mx = 0, mz = 0;
     if (I && (I.f || I.s)) {
       const run = I.run && s.stamina > 0.05;
-      sp = s.stance === 2 ? SPEED.prone : s.stance === 1 ? SPEED.crouch : run ? SPEED.run : s.isPlayer ? SPEED.walk : SPEED.advance;
+      sp = s.stance === 2 ? SPEED.prone : s.stance === 1 ? SPEED.crouch : run ? SPEED.run : s.isPlayer ? SPEED.walk : I.stroll ? SPEED.stroll : SPEED.advance;
       if (run) s.stamina = Math.max(0, s.stamina - DT / 14); else s.stamina = Math.min(1, s.stamina + DT / 9);
       const f = I.f, sd = I.s, L = Math.hypot(f, sd) || 1, sy = Math.sin(s.yaw), cy = Math.cos(s.yaw);
       mx = (-sy * f + cy * sd) / L; mz = (-cy * f - sy * sd) / L;
@@ -843,10 +898,10 @@ export class Sim {
     const far = !s.isPlayer && Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350;   // simulation level of detail
     const ok = (x, z, dx, dz) => {
       if (x < lim[0] || z < lim[0] || x > lim[1] || z > lim[1]) return false;
-      if (far) { const L = Math.hypot(dx, dz) || 1; return !(T.height(x + dx / L * 0.3, z + dz / L * 0.3) - s.y > (s.onGround ? 0.75 : 0.02)); }   // far away: one probe ahead
+      if (far) { const L = Math.hypot(dx, dz) || 1; return !(T.height(x + dx / L * 0.3, z + dz / L * 0.3) - s.y > (s.onGround ? STEP_UP : 0.02)); }   // far away: one probe ahead
       const L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
       // the player is probed on 16 rays at two radii, so a sharp wall corner can't slip between probes; AI on 8
-      const n = s.isPlayer ? 16 : 6, lim2 = s.onGround ? 0.75 : 0.02;   // in the air he can't pass into anything above his feet
+      const n = s.isPlayer ? 16 : 6, lim2 = s.onGround ? STEP_UP : 0.02;   // in the air he can't pass into anything above his feet
       for (let k = 0; k < n; k++) {
         const a = k * Math.PI * 2 / n, cx = Math.cos(a), cz = Math.sin(a);
         if (cx * ux + cz * uz < 0.1) continue;
@@ -874,7 +929,7 @@ export class Sim {
     // other men are solid: a man is a body ~0.3 m across and can't walk into another; around the player the gap is 0.8 m
     // (his rifle and arms reach ahead of him). An AI man always gives way to the player; otherwise the mover backs out.
     if (!s.climb && !far && (s.isPlayer || s.x !== x0 || s.z !== z0 || moved)) {   // after the wall push-out, so nothing undoes it
-      const okAt = (m, x, z) => x > 5 && z > 5 && x < T.size - 5 && z < T.size - 5 && T.height(x, z) - m.y < 0.75 && !this.F.wallAt(x, z, m.y);
+      const okAt = (m, x, z) => x > 5 && z > 5 && x < T.size - 5 && z < T.size - 5 && T.height(x, z) - m.y < STEP_UP && !this.F.wallAt(x, z, m.y);
       const gx = Math.floor(s.x / 2), gz = Math.floor(s.z / 2);
       for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) {
         const l = this.bump && this.bump.get((cx << 12) | cz); if (!l) continue;
@@ -908,12 +963,12 @@ export class Sim {
       let px = 0, pz = 0, hit = 0;
       for (let k = 0; k < n; k++) {
         const a = k * Math.PI * 2 / n, cx = Math.cos(a), cz = Math.sin(a);
-        for (const r of [R, R * 0.6]) if (T.height(s.x + cx * r, s.z + cz * r) - s.y > 0.75) { px -= cx * (R - r + 0.05); pz -= cz * (R - r + 0.05); hit++; break; }
+        for (const r of [R, R * 0.6]) if (T.height(s.x + cx * r, s.z + cz * r) - s.y > STEP_UP) { px -= cx * (R - r + 0.05); pz -= cz * (R - r + 0.05); hit++; break; }
       }
       if (!hit) return;
       const L = Math.hypot(px, pz); if (L < 1e-6) return;
       const step = Math.min(s.onGround ? 0.06 : 0.12, L / hit + 0.01), nx = s.x + px / L * step, nz = s.z + pz / L * step;
-      if (s.onGround && T.height(nx, nz) - s.y > 0.75) return;   // nowhere better to go (falling, he is always pushed clear)
+      if (s.onGround && T.height(nx, nz) - s.y > STEP_UP) return;   // nowhere better to go (falling, he is always pushed clear)
       s.x = nx; s.z = nz;
     }
   }
@@ -923,7 +978,7 @@ export class Sim {
     let start = -1;
     for (let d = 0.3; d <= reach + 2.2; d += 0.15) {
       const x = s.x + mx * d, z = s.z + mz * d, h = T.height(x, z);
-      if (h - s.y < 0.75) { start = -1; continue; }   // below a step (or back down off a fire-step): keep looking
+      if (h - s.y < STEP_UP) { start = -1; continue; }   // below a step (or back down off a fire-step): keep looking
       if (start < 0) { if (d > reach) return false; start = d; }
       if (h - s.y > maxH) return false;
       // the top: ground beyond that is roughly level with this point
@@ -1118,13 +1173,14 @@ export class Sim {
     }
     if (!s.isPlayer && s.side === 'GER') {   // into one of the bays near there, anywhere along it (not all onto the one spot)
       const near = this.trenchPts.GER.filter(q => Math.abs(q[0] - x) < 90 && Math.abs(q[1] - z) < 90);
-      if (near.length) { const q = this._alongBay(near[r.int(near.length)], r.range(-6, 6)); x = q[2]; z = q[3]; }
+      if (near.length) { const b = near[r.int(near.length)], q = this._alongBay(b, r.range(-6, 6)); x = q[2]; z = q[3]; s.ai.newStyle = [b[2], q]; }
       else { const a = r() * Math.PI * 2, d = 4 + r() * 26; x += Math.cos(a) * d; z += Math.sin(a) * d; }   // (no trench there, a village strongpoint: spread through it, not all on its centre)
     } else { const snap = this._snapToTrench(x + r.range(-25, 25), z + r.range(-25, 25), s.side, 60, s.isPlayer || s.side === 'GER'); if (snap) [x, z] = snap; }
     if (s.isPlayer) s.weapon = s.side === 'BRI' ? 'smle' : 'g98';   // (a fresh man has his own rifle again)
     Object.assign(s, { x, z, y: this.T.height(x, z), vy: 0, hp: 100, alive: true, climb: 0, climbTo: null, stance: 1, stamina: 1, pickup: 0,
       mag: WEAPONS[s.weapon].mag, reserve: WEAPONS[s.weapon].reserve, reloading: 0, cool: 0, grenades: 3, throw: 0, lastHit: null, emerge: 0, emergeAt: null, gun: -1, gunRole: null, pinned: 0, role: s.role === 'mg' ? 'rifle' : s.role });
-    if (s.ai) Object.assign(s.ai, { mode: s.side === 'BRI' ? 'advance' : s.role === 'mg' ? 'mg' : 'hold', target: -1, goal: null, post: [x, z], think: 30 + r.int(60) });
+    if (s.ai) Object.assign(s.ai, { mode: s.side === 'BRI' ? 'advance' : s.role === 'mg' ? 'mg' : 'hold', target: -1, goal: null, post: [x, z], think: 30 + r.int(60), style: null, route: null, up: false, alertUntil: 0 });
+    if (s.ai && s.ai.newStyle) { this._trenchStyle(s, s.ai.newStyle[0], s.ai.newStyle[1]); s.ai.newStyle = null; }
     if (s.ai && s.side === 'BRI') { s.ai.goal = this._goalFor(s); if (this.time < ZERO) s.ai.mode = 'hold'; }
     s.gaveUp = false; this.events.push({ t: 'respawn', id: s.id, p: [x, s.y, z] });
     return true;

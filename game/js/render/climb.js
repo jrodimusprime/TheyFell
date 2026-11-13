@@ -48,7 +48,7 @@ export function climbPlan(s, T) {
   let face = lip; while (face > D && (at(face) - at(face - D)) / D > 1.2) face -= D;
   plan.kind = 'wall'; plan.lip = face; plan.H = at(Math.min(dl, lip + 0.08));
   // where he climbs from: the fire-step (or any ledge) in front of the wall, if he is below it; else the floor there
-  const at0 = plan.at0 = d => look(mid, d), sh = at0(face - 0.24);   // (the fire-step: on his own line, not the highest across him)
+  const at0 = plan.at0 = d => look(mid, d), sh = Math.max(at0(face - 0.18), at0(face - 0.26), at0(face - 0.34));   // (the fire-step: on his own line, not the highest across him; its top, not its sloped edge)
   plan.step = sh > 0.3 && sh < plan.H - 0.45 && face - 0.24 > 0.05 ? { d: face - 0.26, h: sh } : null;
   // where the ledge starts, so he can step up onto it from the floor
   if (plan.step) { let e = face - 0.24; while (e > 0 && at0(e - D) > sh - 0.15) e -= D; plan.step.edge = e; }
@@ -101,7 +101,7 @@ export function climbPose(s, T, t, hipH = 0.95) {
   // (the figure: pelvis to shoulders 0.475 m, an arm 0.52 m to the wrist, a leg 0.89 m hip joint to ankle)
   // (time warped so the push up off the knee and standing up get their share: the last 30% of the climb, not 16%)
   const u0 = tA ? (t - tA) / (1 - tA) : t, u = u0 < 0.7 ? u0 * (0.84 / 0.7) : 0.84 + (u0 - 0.7) * (0.16 / 0.3), d0 = tA ? b.d : 0, h0 = tA ? hb : P.at0(0), stood = hipH - 0.03;
-  const hold = clamp(H - 1.05, h0 + 0.3, H - 0.5);                          // a boot into the revetment, below the lip
+  const hold = H - h0 < 1.4 ? h0 : clamp(H - 1.05, h0 + 0.3, H - 0.5);    // a boot into the revetment, below the lip (a wall no higher than his chest: his feet stay where they are)
   // catching the lip: the shoulders must come within an arm of it; from the floor of a deep trench that takes a spring
   const catchHip = Math.max(h0 + stood - 0.04, H + 0.05 - 0.3 - 0.475 * Math.cos(0.3));
   const fl = d => tA ? hb : P.at0(Math.max(0, Math.min(d, L - 0.3)));   // the floor (or the fire-step) under his boots in front of the wall

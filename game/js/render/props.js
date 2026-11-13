@@ -197,7 +197,7 @@ export class Props {
             // the fire-step runs along the enemy-side wall
             if (sg.kind === 0 && side > 0) {
               const len = t1 - t0, [x, z] = at((t0 + t1) / 2), o = sg.hw - 0.28, y = floorAt(x, z);
-              if (len > 0.4) { put(this.step, x + nx * o, y + 0.35, z + nz * o, yaw, len, 0.7, 0.46); put(this.beams, x + nx * (sg.hw - 0.5), y + 0.66, z + nz * (sg.hw - 0.5), yaw, len, 0.08, 0.12); }
+              if (len > 0.4) { put(this.step, x + nx * o, y + 0.45, z + nz * o, yaw, len, 0.9, 0.46); put(this.beams, x + nx * (sg.hw - 0.5), y + 0.86, z + nz * (sg.hw - 0.5), yaw, len, 0.08, 0.12); }
             }
             i = j + 1;
           }
@@ -212,7 +212,7 @@ export class Props {
             const by = this._surf(bx, bz);
             for (let r = 0; r < rows; r++) {
               const j = hash2(bx * 7 | 0, bz * 7 | 0, r);
-              put(this.bags, bx + sg.nx * r * 0.22 * Math.sign(o), by - (o > 0 ? 0.32 : 0.2) + r * 0.13 - r * r * 0.02, bz + sg.nz * r * 0.22 * Math.sign(o), yaw + (r % 2) * 0.25 + (j - 0.5) * 0.3, 0.62, 0.55, 0.6, (j - 0.5) * 0.15);
+              put(this.bags, bx + sg.nx * r * 0.22 * Math.sign(o), by - (o > 0 ? 0.44 : 0.2) + r * 0.13 - r * r * 0.02, bz + sg.nz * r * 0.22 * Math.sign(o), yaw + (r % 2) * 0.25 + (j - 0.5) * 0.3, 0.62, 0.55, 0.6, (j - 0.5) * 0.15);
             }
           }
         }

@@ -76,7 +76,8 @@ export class Terrain {
       const kind = t.kind === 'fire' ? 0 : t.kind === 'comm' ? 1 : 2;
       if (kind === 0) pts = crenellate(pts, enemy(t.side));
       else if (kind === 1) pts = zigzag(pts, 6, 2.2);
-      // fire trench: 1.5 m floor whose enemy-side 0.5 m is the fire-step (0.6 m up); ~1.65 m deep + 0.5 m parapet = a 2.15 m wall
+      // fire trench: 1.5 m floor whose enemy-side 0.5 m is the fire-step (0.9 m up: a man standing on it has his head and
+      // shoulders over the parapet's sandbags, crouched he is under cover); ~1.65 m deep + 0.5 m parapet = a 2.15 m wall
       const hw = kind === 0 ? 0.75 : 0.5, depth = kind === 0 ? 1.65 : kind === 1 ? 1.8 : 1.75;
       const [ex, ez] = enemy(t.side);
       for (let i = 1; i < pts.length; i++) {
@@ -132,7 +133,7 @@ export class Terrain {
       const wall = WALL;
       if (d < hw) {
         let c = -depth;
-        if (!pad && s.kind === 0 && d > s.hw - 0.5 && (x - s.ax) * s.nx + (z - s.az) * s.nz > 0) { c += 0.7; out.step = true; }   // the fire-step
+        if (!pad && s.kind === 0 && d > s.hw - 0.5 && (x - s.ax) * s.nx + (z - s.az) * s.nz > 0) { c += 0.9; out.step = true; }   // the fire-step
         if (c < out.carve) { out.carve = c; out.depth = s.depth; }
       }
       else if (d < hw + wall) { const t = (d - hw) / wall, c = -depth * (1 - t); if (c < out.carve) { out.carve = c; out.depth = s.depth; } }
@@ -233,7 +234,7 @@ export class Terrain {
     const hx = this.height(x + e, z) - this.height(x - e, z), hz = this.height(x, z + e) - this.height(x, z - e);
     const l = Math.hypot(hx, 2 * e, hz); return [-hx / l, 2 * e / l, -hz / l];
   }
-  inTrench(x, z) { const t = this.trenchAt(x, z, this._tmp2 || (this._tmp2 = {})); return t.carve < -0.9 ? this.segs[t.seg] : null; }
+  inTrench(x, z) { const t = this.trenchAt(x, z, this._tmp2 || (this._tmp2 = {})); return t.carve < -0.5 ? this.segs[t.seg] : null; }   // (the floor, or the fire-step 0.75 m down)
   // line of sight over the ground (bullets, AI eyes). Returns the hit distance or -1 if clear.
   // trenches and shell holes matter for sight and fire only near either end (a man in a trench, a lip in front of him);
   // in between the line is traced over the plain ground, which is several times cheaper
