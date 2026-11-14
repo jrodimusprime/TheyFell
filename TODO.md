@@ -36,9 +36,13 @@ HIGHEST PRIORITY (in order)
 ✓ when you zoom in it should make pixels relative to the zoom so things are lsightly clearer if that makes sense. — done 13 Nov 2026: aiming, the pixel density rises with the zoom (x1.56 at full aim), back down when you lower the rifle
 
 
-inside trenches walking past people is a bit weird you can push other players out of the way etc... make sure that is smoother if someone has a walking vector towards an AI player of the same team they kind of move aside in a trench - you may need to do some animation and spend time making that look correct.
+✓ inside trenches walking past people is a bit weird you can push other players out of the way etc... make sure that is smoother if someone has a walking vector towards an AI player of the same team they kind of move aside in a trench - you may need to do some animation and spend time making that look correct. — done 15 Nov 2026: a comrade ahead of you as you walk a trench steps aside before you reach him, up onto the fire-step where there is one (the floor of a fire bay is a metre wide), else back against the wall; a smooth side-step, turned side-on with his rifle upright across his chest and his head turned to you; you walk past (slowed beside him if he is on the floor), and he goes back to what he was doing
+
+✓ the AI never bombs a machine gun of its own side's make, even with the enemy on it (it is wanted back); the other side's guns are fair game — done 15 Nov 2026
 
 ✓ once you have taken all posts A B C D E it is game over and a stats age is displayed, asks you if oyu want to start again — done 13 Nov 2026: holding A to D at once is a British victory (no British left to send, a German one); the end card says who won and why, both sides in numbers, kills by cause, your own war, the objectives as they fell; begin again or keep watching
+
+✓ the objective shouldn't be the zones, it should be attacking and clearing the trenches in order - trench A B C and holding them — done 14 Nov 2026: three German lines, the front line (A) and a support (B) and a reserve line (C) dug behind it along the fragments of the trench map, each cut into stretches (A1-A5, B1-B4, C1-C4); a stretch is taken by clearing it (British in it, not a German left, ~40 s), a line only once the one in front is wholly British; holding all three wins. HUD rows per line, stretch bands on the minimap, the M map and the respawn map
 
 gennades should bounce nicely up a trench and around corners push that to master
 
@@ -79,7 +83,7 @@ or you have moved away
 
 ✓ inside trenches it seems like theres 1 enemy per section maybe sometimes have none, sometimes have 5 in there — done 12 Nov 2026: clusters of 0-5 along the bays
 
-the grenade doesn’t have an animation or much thinking in it and i cant see where it is thrown. also not seeing many others being thrown and soldiers throwing them
+✓ the grenade doesn’t have an animation or much thinking in it and i cant see where it is thrown. also not seeing many others being thrown and soldiers throwing them — done 13 Nov 2026: three bombs a man, an overhand throw, an aiming arc and landing ring with a swinging power meter; the AI bombs gun crews and men in trenches 10-32 m off
 
 
 ✓ it is really important the animation for getting out of trenches is done well, take your time looking at trenches of different height to see the characters get out, it is super important — done 12 Nov 2026: height-adaptive climb, checked at seven places
@@ -87,7 +91,7 @@ the grenade doesn’t have an animation or much thinking in it and i cant see wh
 
 ✓ review shooting accuracy and do one of those accuracy gauges for when couching standing prone and add the sway etc like all the games do — done 12 Nov 2026: ring round the crosshair; sway by stance
 
-if we overtake an area and there is a new spawn point make sure the troops come out of a fox hole or something like that, a tunnel underground that is dark… as it looks like they’re coming otu of the air lol. also it looks like heaaaaps of troops are coming out of those just use a couple troops the rest should be coming from the back spawn points as they would in a real battle
+✓ if we overtake an area and there is a new spawn point make sure the troops come out of a fox hole or something like that, a tunnel underground that is dark… as it looks like they’re coming otu of the air lol. also it looks like heaaaaps of troops are coming out of those just use a couple troops the rest should be coming from the back spawn points as they would in a real battle — done 13 Nov 2026: men sent forward climb up out of a dark dugout entrance, two a wave; the rest come up from the rear
 
 ✓ reload with a straight wrist on the right wrist, let the fingers do te work — done 13 Nov 2026: off the stock the right hand runs straight on from the forearm; it stays still over the charger while the thumb pushes the rounds down
 
@@ -98,10 +102,10 @@ if we overtake an area and there is a new spawn point make sure the troops come 
 ✓ at point 8 theres like a heap of enemies standing in one spot all shooting at the same time its totally weird fixit — done 12 Nov 2026: respawns spread through strongpoints
 
 
-addmachine guns, take a lot of time to do this properly and take your time
+✓ addmachine guns, take a lot of time to do this properly and take your time — done 13 Nov 2026: MG 08s on sledges and Vickers on tripods with gunner and loader, real bursts and traverse, belts, heat, stoppages, pinning fire; E to man one (14 Nov: rounds down the crosshair, 360° traverse, tight first 10 rounds of a burst)
 
 
-i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly
+✓ i assume if enemies were killed outside of where i saw them or my guys they get a default body position but it looks kindof dumb… make 10 different default body positions instead and pick them randomly — done 13 Nov 2026: ten poses, each lying on the ground
 
 ✓ the player should have some weapon sway when standing, less when crouching, virtually none when lying down. the player should be able to shoot people at 200 yards at least — done 12 Nov 2026: sway by stance; 17/30 hits at 183 m standing
 

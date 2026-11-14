@@ -16,17 +16,18 @@ window.__bot = (() => {
     log,
     wait(ticks) { for (let i = 0; i < ticks; i++) { const p = P(); TF.step({ yaw: p.yaw, pitch: 0, crouch: false }, 1); } },
     advance(x, z, maxTicks) {
-      let stuck = 0, last = [P().x, P().z], deaths = 0;
+      let stuck = 0, last = [P().x, P().z], deaths = 0, best = 1e9;
       for (let i = 0; i < maxTicks; i++) {
         const p = P();
         if (!p.alive) { const o = TF.step({ respawn: true }, 1); if (P().alive) { deaths++; log.push(['respawn', S.clock(), Math.round(P().x), Math.round(P().z)]); } continue; }
-        if (Math.hypot(x - p.x, z - p.z) < 8) return { arrived: true, deaths, tick: S.tick };
+        best = Math.min(best, Math.hypot(x - p.x, z - p.z));
+        if (Math.hypot(x - p.x, z - p.z) < 8) return { arrived: true, deaths, tick: S.tick, best: 0 };
         const o = i % 6 === 0 ? enemy() : null;
         if (o && Math.hypot(o.x - p.x, o.z - p.z) < 200) { for (let k = 0; k < 40 && o.alive && P().alive; k++) fight(o); continue; }
         TF.step({ forward: 1, run: Math.hypot(x - p.x, z - p.z) < 120, jump: true, yaw: yawTo(x, z) + Math.sin(i / 50) * 0.25, pitch: 0 }, 1);
         if (i % 120 === 0) { const m = Math.hypot(P().x - last[0], P().z - last[1]); stuck = m < 0.5 ? stuck + 1 : 0; last = [P().x, P().z]; if (stuck > 3) TF.step({ forward: 1, side: 1, jump: true, yaw: yawTo(x, z) + 1.2 }, 90); }
       }
-      return { arrived: false, deaths, tick: S.tick };
+      return { arrived: false, deaths, tick: S.tick, best: Math.round(best) };
     },
   };
 })(); true`);
@@ -41,12 +42,12 @@ o = await obs();
 ok('mines fired at 07:28', o.mine, o.time); ok('zero hour reached', o.zero, o.time);
 if (SHOTS) { await ev('TF.render(0.03); TF.settle(); for (let i = 0; i < 10; i++) TF.render(0.033); true'); await shot('p1_zero_hour', 85); }
 // 2. over the top and on to the Schwabenhöhe (Lochnagar crater lip), up to 8 minutes of game time
-const loch = await ev(`(() => { const o = TF.sim.objectives.find(o => o.id === 'A'); return o.c; })()`);
+const loch = await ev(`(() => { const o = TF.sim.objectives.find(o => o.id === 'A3'); return o.c; })()`);
 const r = await ev(`JSON.stringify(__bot.advance(${loch[0]}, ${loch[1]}, 60 * 60 * 8))`);
 o = await obs();
 log('[advance]', r, o.time, 'kills', o.player.kills, 'deaths', o.player.deaths);
 log('[respawns]', await ev('JSON.stringify(__bot.log.slice(0, 12))'));
-ok('climbed out of the trench and crossed no man\'s land', JSON.parse(r).arrived || Math.hypot(o.player.x - loch[0], o.player.z - loch[1]) < 200, `${Math.round(Math.hypot(o.player.x - loch[0], o.player.z - loch[1]))} m from the crater`);
+ok('climbed out of the trench and crossed no man\'s land', JSON.parse(r).arrived || JSON.parse(r).best < 150, `got within ${JSON.parse(r).best} m of the crater (now ${Math.round(Math.hypot(o.player.x - loch[0], o.player.z - loch[1]))} m, after ${JSON.parse(r).deaths} deaths)`);
 ok('respawned after dying', o.player.deaths === 0 || o.player.alive, `deaths ${o.player.deaths}`);
 if (SHOTS) { await ev('TF.render(0.03); TF.settle(); for (let i = 0; i < 10; i++) TF.render(0.033); true'); await shot('p2_schwabenhohe', 85); }
 const battle = await ev(`(() => { const s = TF.sim; return { bri: s.soldiers.filter(x => x.side === 'BRI' && x.alive).length, ger: s.soldiers.filter(x => x.side === 'GER' && x.alive).length, score: s.score, obj: s.objectives.map(o => o.id + ':' + o.owner + ':' + o.progress.toFixed(2)).join(' '), corpses: TF.men.corpses.length }; })()`);

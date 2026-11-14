@@ -34,6 +34,12 @@ A strategic layer, after Battlefield 1942's strategic AI (competing strategies, 
 handing out work to sections; the men still fight locally on their own senses). Every 5 seconds it looks at each
 objective zone: how many British are within 400 m, how many Germans hold it, and whether it is still German.
 
+Since 14 November 2026 the objectives are the three German lines, not strongpoints: the front line (A), a support line
+(B) and a reserve line (C) behind it, each cut into stretches (A1–A5, B1–B4, C1–C4), and each stretch is a zone. A
+stretch is taken by clearing it (British in it and not one German left, about 40 s), and only once the line in front is
+wholly British; the Germans win one back the same way. Holding all three lines wins the battle. (The map below still
+shows the old strongpoints A–E.)
+
 - **Hold.** Keep each zone at its target strength, which rises with the threat. Sections go to fire-trench bays in the
   zone (and take up the trench habits) or to open posts round it, in shell holes facing the threat; men arriving at an
   unmanned machine gun take it.

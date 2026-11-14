@@ -30,7 +30,7 @@ export class Features {
         const [ax, az] = pts[i - 1], [bx, bz] = pts[i], L = Math.hypot(bx - ax, bz - az); if (L < 1) continue;
         let nx = -(bz - az) / L, nz = (bx - ax) / L; if (nx * ex + nz * ez < 0) { nx = -nx; nz = -nz; }
         for (let s = 0; s < L; s += 12) {
-          if (rng() < (ger ? 0.22 : 0.35)) continue;          // a gap
+          if (rng() < (ger ? t.wireGap ?? 0.22 : 0.35)) continue;          // a gap (the support and reserve lines' wire was thinner, and more of it cut)
           const e = Math.min(L, s + 12), o = off + rng.range(-3, 3);
           this.wire.add({ ax: ax + (bx - ax) * s / L + nx * o, az: az + (bz - az) * s / L + nz * o, bx: ax + (bx - ax) * e / L + nx * o, bz: az + (bz - az) * e / L + nz * o, r: depth / 2, side: t.side, kind: rng() < 0.6 ? 'apron' : 'entangle' });
         }

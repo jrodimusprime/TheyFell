@@ -2,7 +2,7 @@
 const ok = (n, v, x) => log(v ? 'PASS' : 'FAIL', n, x ?? '');
 const r = await ev(`(() => { const S = TF.sim, p = S.player; TF.god(true); TF.step({ yaw: p.yaw }, 60 * 45);   // after zero hour
   // out into no man's land in front of the Germans, facing them
-  const o = S.objectives[0].c; let x = p.x, z = p.z; for (let k = 0; k < 400; k++) { x += (o[0] - x) * 0.004; z += (o[1] - z) * 0.004; }
+  const o = S.objectives.find(q => q.id === 'A3').c; let x = p.x, z = p.z; for (let k = 0; k < 400; k++) { x += (o[0] - x) * 0.004; z += (o[1] - z) * 0.004; }
   const goTo = (X, Z) => { Object.assign(p, { x: X, z: Z, y: TF.T.height(X, Z), vy: 0 }); };
   const toward = (X, Z) => { const d = Math.hypot(o[0] - X, o[1] - Z); return [X + (o[0] - X) / d * (d - 140), Z + (o[1] - Z) / d * (d - 140)]; };
   const [ax, az] = toward(p.x, p.z); goTo(ax, az);

@@ -112,10 +112,11 @@ export class FX {
       this.shake = Math.max(this.shake, d < 600 ? 2.5 : d < 2000 ? 1.2 : 0.4);
     } else if (d < 120) this.shake = Math.max(this.shake, (kind === 'heavy' ? 0.9 : 0.5) * (1 - d / 120));
   }
-  muzzle(o, h, close) {
+  muzzle(o, h, close, dim = false) {
     const [x, y, z] = o, t = this.time, dx = h[0] - x, dy = h[1] - y, dz = h[2] - z, L = Math.hypot(dx, dy, dz) || 1;
     const fx = x + dx / L * 0.9, fy = y - 0.08 + dy / L * 0.9, fz = z + dz / L * 0.9;
-    this.glow.add(t, fx, fy, fz, 0, 0, 0, 1, 0.75, 0.4, false, 0.05, 0.25, 0.6);
+    if (dim) this.glow.add(t, fx, fy, fz, 0, 0, 0, 0.42, 0.3, 0.15, false, 0.04, 0.1, 0.24);   // (your own gun's, a metre from your eye: a muted flicker)
+    else this.glow.add(t, fx, fy, fz, 0, 0, 0, 1, 0.75, 0.4, false, 0.05, 0.25, 0.6);
     if (close) this.smoke.add(t, fx, fy, fz, dx / L * 1.5, 0.3, dz / L * 1.5, 0.75, 0.74, 0.7, false, 1.4, 0.2, 1.4);
   }
   impact(h, flesh) {

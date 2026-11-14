@@ -86,7 +86,7 @@ export class Terrain {
         // which side of this segment faces the enemy: parapet there, parados behind
         let nx = -(bz - az), nz = bx - ax; const L = Math.hypot(nx, nz); nx /= L; nz /= L;
         if (nx * ex + nz * ez < 0) { nx = -nx; nz = -nz; }
-        segs.push({ ax, az, bx, bz, hw, depth, nx, nz, kind, side: t.side, len: Math.hypot(bx - ax, bz - az) });
+        segs.push({ ax, az, bx, bz, hw, depth, nx, nz, kind, side: t.side, line: t.line || null, len: Math.hypot(bx - ax, bz - az) });
       }
     }
     this.segs = segs;

@@ -44,6 +44,12 @@ const h1 = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}];
   for (let i = 0; i < 20 && o.alive; i++) { Object.assign(o, { x: best.x, z: best.z, y: best.y, stance: 0 }); TF.step({ yaw: best.yaw, pitch: best.pitch, fire: true }, 1); }
   TF.step({ yaw: best.yaw, pitch: best.pitch }, 1); return { dead: !o.alive, rounds: b0 - g.belt, yaw: +(best.yaw - g.yaw0).toFixed(2) }; })()`);
 ok('the rounds hit what the crosshair is on: a man at 70 m falls to the first rounds', h1.skip || (h1.dead && h1.rounds <= 4), JSON.stringify(h1));
+// a long burst: the first 10 rounds on the crosshair, then the spread opening round by round
+const sp = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}]; g.heat = 0; g.belt = 250; g.jam = 0; TF.step({ yaw: g.yaw0, pitch: 0.05 }, 30);
+  const yaw = g.yaw0 + 0.05, pitch = 0.05, cp = Math.cos(pitch), ax = -Math.sin(yaw) * cp, ay = Math.sin(pitch), az = -Math.cos(yaw) * cp, err = [];
+  for (let i = 0; i < 60 * 6 && err.length < 40; i++) { S.events.length = 0; TF.step({ yaw, pitch, fire: true }, 1); for (const e of S.events) if (e.t === 'shot' && e.gun === ${vk}) { const dx = e.h[0] - e.o[0], dy = e.h[1] - e.o[1], dz = e.h[2] - e.o[2], L = Math.hypot(dx, dy, dz); err.push(Math.acos(Math.min(1, (dx * ax + dy * ay + dz * az) / L))); } }
+  TF.step({ yaw, pitch }, 30); const m = a => a.reduce((x, y) => x + y, 0) / a.length; return { n: err.length, first10: +(m(err.slice(0, 10)) * 1000).toFixed(2), last10: +(m(err.slice(30, 40)) * 1000).toFixed(2) }; })()`);
+ok('a burst: the first 10 rounds tight on the crosshair (twice as tight as before), then the spread opens', sp.n >= 40 && sp.first10 < 0.7 && sp.last10 > sp.first10 * 2.5, JSON.stringify(sp) + ' (mean milliradians off the aim)');
 const r1 = await ev(`(() => { const S = TF.sim, p = S.player, g = S.guns[${vk}]; const belts = g.belts; TF.step({ yaw: g.yaw0, reload: true }, 1); const ch = g.change; TF.step({ yaw: g.yaw0 }, 60 * 6); return { change: ch, belt: g.belt, belts0: belts, belts: g.belts }; })()`);
 ok('R: a fresh belt (4.5 s with the loader)', r1.change > 4 && r1.change < 5 && r1.belt === 250 && r1.belts === r1.belts0 - 1, JSON.stringify(r1));
 const l1 = await ev(`(() => { const S = TF.sim, p = S.player; TF.step({ yaw: p.yaw, pickup: true }, 1); return { onGun: p.gun }; })()`);

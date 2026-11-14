@@ -170,7 +170,8 @@ async function boot() {
         // fired at you (hit you, aimed at you, or the bullet went by within 2.5 m): he goes on the map where he fired from
         if (p.alive && s.side !== p.side && (e.victim === p.id || (s.ai && s.ai.target === p.id) || segDist3(e.o, e.h, [p.x, p.y + 1.2, p.z]) < 2.5))
           shooters.set(e.id, { x: e.o[0], z: e.o[2], fromX: p.x, fromZ: p.z });
-        if (d < 1500) { if (e.gun !== undefined) { const L = Math.hypot(e.h[0] - e.o[0], e.h[1] - e.o[1], e.h[2] - e.o[2]) || 1; fx.muzzle([e.o[0] - (e.h[0] - e.o[0]) / L * 0.68, e.o[1] - (e.h[1] - e.o[1]) / L * 0.68 + 0.08, e.o[2] - (e.h[2] - e.o[2]) / L * 0.68], e.h, e.id !== p.id && d < 200 && Math.random() < 0.4); } else fx.muzzle(e.o, e.h, d < 200); }
+        if (d < 1500) { if (e.gun !== undefined) { const mine = e.id === p.id, M = mine ? sim.gunMuzzle(sim.guns[e.gun]) : null, o = M ? [M.ox, M.oy, M.oz] : e.o;   // (your rounds leave from your eye; the flash is at the gun's muzzle)
+          const L = Math.hypot(e.h[0] - o[0], e.h[1] - o[1], e.h[2] - o[2]) || 1; fx.muzzle([o[0] - (e.h[0] - o[0]) / L * 0.68, o[1] - (e.h[1] - o[1]) / L * 0.68 + 0.08, o[2] - (e.h[2] - o[2]) / L * 0.68], e.h, !mine && d < 200 && Math.random() < 0.4, mine); } else fx.muzzle(e.o, e.h, d < 200); }
         if (Math.hypot(e.h[0] - cp.x, e.h[2] - cp.z) < 400) fx.impact(e.h, e.victim >= 0);
         audio.shot(e.o, e.w, e.id === p.id);
         if (e.id === p.id) { recoil = e.gun !== undefined ? 0.15 : 1; if (e.gun === undefined) audio.bolt(); }
@@ -190,9 +191,15 @@ async function boot() {
       else if (e.t === 'death') {
         const s = sim.soldiers[e.id], c = men.addCorpse(s); skinned.toCorpse(s, c);
         rag.add(c, e, Math.hypot(s.x - cp.x, s.z - cp.z));
-        if (e.by === p.id) addFeed(e.kind === 'melee' ? `You bayoneted a ${s.side === 'GER' ? 'German' : 'British'} soldier` : `You hit a ${s.side === 'GER' ? 'German' : 'British'} soldier`);
+        if (e.by === p.id && e.id !== p.id) {   // your kill: in the log, and for a moment in the middle of the screen
+          const who = `${s.side === p.side ? 'one of your own' : (s.side === 'GER' ? 'a German' : 'a British') + ' soldier'}`, dist = Math.round(Math.hypot(s.x - p.x, s.z - p.z));
+          const how = e.kind === 'melee' ? (p.steel === 'bayonet' || !p.steel ? 'the bayonet' : p.steel) : e.kind === 'grenade' ? 'a bomb' : e.kind === 'bullet' ? (p.gun >= 0 ? 'machine gun' : e.zone === 'head' ? 'head shot' : 'rifle') : e.kind;
+          addFeed(`You killed ${who} · ${how}${e.kind === 'melee' ? '' : `, ${dist} m`}`);
+          killNote(s.side === p.side ? 'Friendly fire: one of your own' : `${s.side === 'GER' ? 'German' : 'British'} soldier killed`, `${how}${e.kind === 'melee' ? '' : ` · ${dist} m`}`); }
         if (e.id === p.id) { deathCam = 0; $('deadwhy').textContent = deathReason(e); }
-      } else if (e.t === 'captured') { addFeed(`${e.name}: taken by the ${e.side === 'BRI' ? 'British' : 'Germans'}`); message(`${e.name} ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
+      } else if (e.t === 'captured') { addFeed(`${e.id}, ${e.name}: ${e.side === 'BRI' ? 'cleared by the British' : 'retaken by the Germans'}`); message(`${e.lineName}, ${e.name} (${e.id}): ${e.side === p.side ? 'taken' : 'lost'}`, 4); }
+      else if (e.t === 'line') { const i = sim.lines.findIndex(L => L.id === e.id), nx = sim.lines[i + 1];
+        message(e.side === 'BRI' ? `The ${e.name} (${e.id}) is taken${nx ? ` · on to the ${nx.name} (${nx.id})` : ''}` : `The Germans are back in the ${e.name} (${e.id})`, 6); addFeed(`${e.name}: ${e.side === 'BRI' ? 'all of it in British hands' : 'no longer wholly British'}`); }
       else if (e.t === 'reload' && e.id === p.id) audio.reload();
       else if (e.t === 'throw' && e.id === p.id) audio.pin();
       else if (e.t === 'gameover') showOver();
@@ -219,7 +226,12 @@ async function boot() {
     sim.events.length = 0;
   }
   function deathReason(e) { return e.kind === 'melee' ? (e.steel === 'club' ? 'Clubbed down in the trench' : e.steel === 'knife' ? 'Knifed at close quarters' : 'Bayoneted') : e.kind === 'gaveup' ? 'You chose to go back in as another man' : e.kind === 'bullet' ? (sim.soldiers[e.by]?.role === 'mg' ? 'Cut down by machine-gun fire' : e.zone === 'head' ? 'Shot through the head' : 'Hit by a rifle bullet') : e.kind === 'mine' ? 'Caught in the mine blast' : e.kind === 'shrapnel' ? 'Shrapnel' : e.kind === 'grenade' ? 'A bomb' : e.kind === 'fall' ? 'A bad fall' : 'Killed by shellfire'; }
-  function addFeed(t) { feed.unshift([t, 6]); feed.length = Math.min(feed.length, 5); }
+  // the log: the last 10 things that happened to you or near you, each with the time on the battle's clock
+  let feedDirty = true;
+  function addFeed(t) { feed.unshift([sim.clock(), t]); feed.length = Math.min(feed.length, 10); feedDirty = true; }
+  // a kill, in the middle of the screen for 2.5 s (where your eyes are); kills close together count up
+  let killT = 0, killN = 0;
+  function killNote(t, sub) { killN = killT > 0 ? killN + 1 : 1; killT = 2.5; const el = $('kill'); el.innerHTML = `<b>${t}${killN > 1 ? ` <span>×${killN}</span>` : ''}</b><small>${sub}</small>`; el.style.opacity = 1; }
 
   function frame(now) {
     if (window.TF && TF.hold) { last = now; requestAnimationFrame(frame); return; }   // tests: hold the picture (debug cameras)
@@ -318,12 +330,14 @@ async function boot() {
   }
   // ---------- HUD ----------
   const objEl = $('objectives');
-  objEl.innerHTML = sim.objectives.map(o => `<div class="obj" title="${o.name}"><i></i><span>${o.id}</span></div>`).join('');
+  // the three lines, each a row of its stretches (A1-A5, B1-B4, C1-C4); a line not yet open to attack is dimmed
+  objEl.innerHTML = sim.lines.map(L => `<div class="line" title="${L.name}"><b>${L.id}</b>${sim.objectives.filter(o => o.line === L.id).map(o => `<div class="obj" title="${o.id}: ${L.name}, ${o.name}"><i></i><span>${o.id.slice(1)}</span></div>`).join('')}</div>`).join('');
+  const objBoxes = [...objEl.querySelectorAll('.obj')], lineRows = [...objEl.querySelectorAll('.line')];
   function hud(dt) {
     const p = sim.player, o = sim.obs ? null : null, W = WEAPONS[p.weapon];
     $('clock').textContent = sim.clock();
     const t = sim.time, mine = MINE_AT, zero = ZERO_TIME;   // before zero the clock runs PRE_ZERO_RATE x fast: count down real seconds
-    $('phase').textContent = t < mine ? `Mines in ${Math.ceil((mine - t) / PRE_ZERO_RATE)} s · zero hour 07:30` : t < zero ? `Zero hour in ${Math.ceil((zero - t) / PRE_ZERO_RATE)} s` : 'The attack: take the Schwabenhöhe and La Boisselle';
+    $('phase').textContent = t < mine ? `Mines in ${Math.ceil((mine - t) / PRE_ZERO_RATE)} s · zero hour 07:30` : t < zero ? `Zero hour in ${Math.ceil((zero - t) / PRE_ZERO_RATE)} s` : 'The attack: clear the German lines in order, A then B then C';
     const G = p.gun >= 0 ? sim.guns[p.gun] : null;
     if (G) { $('ammo').textContent = G.change > 0 ? 'New belt…' : G.jam > 0 ? 'Stoppage…' : `${G.belt} | ${G.belts} belts`; $('weapon').textContent = `${GUNS[G.kind].name}${G.heat > 0.55 ? ' · the water is boiling' : ''} · R new belt · E leave it`; }
     else { $('ammo').textContent = p.jam > 0 ? 'Jammed · R' : p.reloading > 0 ? 'Reloading…' : `${p.mag} | ${p.reserve}`; $('weapon').textContent = `${W.name} · Grenades ${p.grenades ?? 3}`; }
@@ -331,11 +345,13 @@ async function boot() {
     $('stance').textContent = (p.climb > 0 ? 'Climbing' : ['Standing', 'Crouched', 'Prone'][p.stance]) + (T.inTrench(p.x, p.z) ? ' · in the trench' : '') + (F.wireAt(p.x, p.z) > 0 ? ' · caught on wire' : '') + ` · ${Math.round(p.x)} m E, ${Math.round(6000 - p.z)} m N`;
     const deg = ((-((AGENT ? p.yaw : yaw)) * 180 / Math.PI) % 360 + 360) % 360, dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     $('compass').textContent = `${dirs[Math.round(deg / 45) % 8]} ${Math.round(deg)}°`;
-    sim.objectives.forEach((ob, i) => { const el = objEl.children[i]; el.className = 'obj ' + ob.owner; el.firstChild.style.height = (Math.max(0, ob.progress) * 100) + '%'; });
+    sim.objectives.forEach((ob, i) => { const el = objBoxes[i]; el.className = 'obj ' + ob.owner; el.firstChild.style.height = (Math.max(0, ob.progress) * 100) + '%'; });
+    sim.lines.forEach((L, i) => lineRows[i].classList.toggle('locked', i > 0 && !sim.lineHeld(sim.lines[i - 1].id)));
     tallyT -= dt; if (tallyT < 0) { tallyT = 0.25; const row = (side, name) => { const t = sim.tally(side); return `<div><b>${name}</b> <span class="gone">${t.fallen.toLocaleString('en-GB')} fallen</span> · ${t.left.toLocaleString('en-GB')} left</div>`; };
       $('tally').innerHTML = row('BRI', 'British') + row('GER', 'German'); }
     { let t = ''; const gi = p.alive && p.gun < 0 && !(p.climb > 0) ? sim.nearGun(p) : -1; if (gi >= 0) { const g = sim.guns[gi]; t = `E: ${g.side === p.side ? 'take over' : 'turn and man'} the ${GUNS[g.kind].name}`; } else if (p.alive && !(p.pickup > 0) && !(p.climb > 0)) { const i = sim.nearDrop(p); if (i >= 0) { const d = sim.drops[i]; t = d.weapon === p.weapon ? (d.mag + d.reserve > 0 && p.reserve < WEAPONS[p.weapon].reserve * 2 ? `E: take his rounds (${d.mag + d.reserve})` : '') : `E: swap your rifle for his ${WEAPONS[d.weapon].name} (${d.mag + d.reserve} rounds)`; } } else if (p.pickup > 0) t = 'Taking his rifle…'; $('prompt').textContent = t; }
-    $('feed').innerHTML = feed.map(f => `<div>${f[0]}</div>`).join(''); for (const f of feed) f[1] -= dt; while (feed.length && feed[feed.length - 1][1] < 0) feed.pop();
+    if (feedDirty) { feedDirty = false; $('feed').innerHTML = feed.map((f, i) => `<div style="opacity:${(1 - i * 0.065).toFixed(2)}"><span class="ts">${f[0]}</span> ${f[1]}</div>`).join(''); }
+    if (killT > 0) { killT -= dt; if (killT <= 0) $('kill').style.opacity = 0; }
     msgT -= dt; if (msgT < 0) $('msg').style.opacity = 0;
     // coming up out of a dugout: dark down the stairs, the light coming as the head comes up past the top step
     { const D = p.alive && p.emerge > 0 && p.emergeAt; $('below').style.opacity = D ? Math.max(0, Math.min(1, (D.y + 0.35 - camera.position.y) / 0.8)).toFixed(3) : 0; }
@@ -368,9 +384,19 @@ async function boot() {
       if (out) { x = C + dx / d * (R - size); y = C + dy / d * (R - size); }
       g.fillStyle = `rgba(214,24,18,${pulse})`; g.strokeStyle = '#1d1a14'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, out ? size * 0.7 : size, 0, 7); g.fill(); g.stroke(); }
   }
+  // the stretch of trench to go for: the nearest your side still has to take (the lines in order)
   function attackGoal(p) {
-    const objs = sim.objectives.filter(o => o.owner !== p.side);
-    return objs.length ? objs.reduce((b, o) => Math.hypot(o.c[0] - p.x, o.c[1] - p.z) < Math.hypot(b.c[0] - p.x, b.c[1] - p.z) ? o : b) : null;
+    const objs = sim._wanted(p.side);
+    return objs.length ? objs.reduce((b, o) => sim._dObj(o, p.x, p.z) < sim._dObj(b, p.x, p.z) ? o : b) : null;
+  }
+  // a stretch of trench on a map: a broad band along it in its holder's colour (the ones to take now edged in white), its id
+  function drawStretch(g, o, toXY, width, font, active) {
+    g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+    const path = () => { g.beginPath(); o.pts.forEach((q, i) => { const [x, y] = toXY(q[0], q[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
+    if (active) { path(); g.strokeStyle = 'rgba(255,250,235,.85)'; g.lineWidth = width + 4; g.stroke(); }
+    path(); g.strokeStyle = o.owner === 'BRI' ? 'rgba(179,38,30,.55)' : 'rgba(31,58,158,.42)'; g.lineWidth = width; g.stroke();
+    const [x, y] = toXY(o.c[0], o.c[1]); g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 4; g.strokeStyle = '#f2ead6'; g.strokeText(o.id, x, y);
+    g.fillStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.fillText(o.id, x, y); g.restore();
   }
   function drawMini(dt) {
     miniT -= dt; if (miniT > 0) return; miniT = 1 / 15;
@@ -400,21 +426,21 @@ async function boot() {
     for (const o of sim.soldiers) if (o.alive && !o.isPlayer && o.side === p.side && Math.abs(o.x - p.x) < MR && Math.abs(o.z - p.z) < MR) { const [sx, sy] = S(o.x, o.z); mg.fillRect(sx - 1.5, sy - 1.5, 3, 3); }
     // objectives
     mg.font = "bold 18px Caslon, Georgia"; mg.textAlign = 'center'; mg.textBaseline = 'middle';
-    for (const o of sim.objectives) { const [sx, sy] = S(o.c[0], o.c[1]); if (Math.hypot(sx - C, sy - C) > C + o.r * k) continue;
-      mg.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; mg.lineWidth = 2; mg.beginPath(); mg.arc(sx, sy, o.r * k, 0, 7); mg.stroke(); mg.fillStyle = mg.strokeStyle; mg.fillText(o.id, sx, sy); }
+    { const want = sim._wanted(p.side); for (const o of sim.objectives) { if (sim._dObj(o, p.x, p.z) > MR * 1.5) continue; drawStretch(mg, o, S, Math.max(5, 24 * k), 'bold 16px Caslon, Georgia', want.includes(o)); } }
     // the way to the attack: the nearest objective your side doesn't hold
     const goal = attackGoal(p);
     if (goal) {
-      let [gx, gy] = S(goal.c[0], goal.c[1]); const dx = gx - C, dy = gy - C, d = Math.hypot(dx, dy), inside = d < C - 18;
+      const gq = sim._nearObj(goal, p.x, p.z); let [gx, gy] = S(gq.x, gq.z); const dx = gx - C, dy = gy - C, d = Math.hypot(dx, dy), inside = d < C - 18;
       if (!inside) { gx = C + dx / d * (C - 18); gy = C + dy / d * (C - 18); }
       const a = Math.atan2(dy, dx);
       mg.save(); mg.translate(gx, gy); mg.rotate(a); mg.fillStyle = '#b3261e'; mg.strokeStyle = '#fff'; mg.lineWidth = 2;
       mg.beginPath(); mg.moveTo(14, 0); mg.lineTo(-8, -10); mg.lineTo(-3, 0); mg.lineTo(-8, 10); mg.closePath(); mg.stroke(); mg.fill(); mg.restore();
       // dashed line from you towards it
       mg.strokeStyle = 'rgba(179,38,30,.6)'; mg.lineWidth = 2; mg.setLineDash([6, 6]); mg.beginPath(); mg.moveTo(C, C); mg.lineTo(gx, gy); mg.stroke(); mg.setLineDash([]);
-      const dist = Math.hypot(goal.c[0] - p.x, goal.c[1] - p.z), brg = ((Math.atan2(goal.c[0] - p.x, -(goal.c[1] - p.z)) * 180 / Math.PI) + 360) % 360;
-      $('miniGoal').textContent = `Attack ${goal.id}: ${goal.name.replace(/ \(.*\)/, '')} · ${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'} · ${Math.round(brg)}°`;
-    } else $('miniGoal').textContent = 'All objectives held';
+      const dist = gq.d, brg = ((Math.atan2(gq.x - p.x, -(gq.z - p.z)) * 180 / Math.PI) + 360) % 360;
+      $('miniGoal').textContent = dist < goal.r ? `In ${goal.id}: clear it · ${goal.g || 0} German${goal.g === 1 ? '' : 's'} left`
+        : `Take ${goal.id}, ${goal.name.replace(/ \(.*\)/, '').replace(/^the /, '')} · ${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'} · ${Math.round(brg)}°`;
+    } else $('miniGoal').textContent = 'All three lines held';
     // north mark on the rim
     mg.fillStyle = '#1d1a14'; mg.font = "bold 20px Caslon, Georgia"; mg.fillText('N', C, 22);
     // whoever has fired at you
@@ -492,7 +518,7 @@ async function boot() {
     g.setLineDash([]);
     for (const t of T.map.trenches) { g.strokeStyle = t.side === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = t.kind === 'fire' ? 4 : 2; g.beginPath(); t.pts.forEach((q, i) => { const [x, y] = toMap(q[0], q[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
     g.font = "bold 30px Caslon, Georgia"; g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (const o of sim.objectives) { const [x, y] = toMap(o.c[0], o.c[1]); g.strokeStyle = g.fillStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, Math.max(o.r * k, 14), 0, 7); g.stroke(); g.fillText(o.id, x, y); }
+    { const want = sim._wanted(p.side); for (const o of sim.objectives) drawStretch(g, o, toMap, Math.max(8, 30 * k), 'bold 26px Caslon, Georgia', want.includes(o)); }
     // your side's men (the enemy you can't see); the ones a random pick would go in as ringed
     const near = new Set(sim.takeoverChoices(p.side).map(o => o.id)), side = p.side === 'BRI' ? '#7a2414' : '#24305a';
     for (const o of sim.soldiers) { if (!o.alive || o.isPlayer || o.side !== p.side || o.climb > 0 || o.emerge > 0 || o.gun >= 0) continue; const [x, y] = toMap(o.x, o.z); if (x < -10 || y < -10 || x > W + 10 || y > W + 10) continue;
@@ -534,7 +560,7 @@ async function boot() {
     for (const t of T.map.trenches) { g.strokeStyle = t.side === 'BRI' ? '#b3261e' : '#1f3a9e'; g.lineWidth = t.kind === 'fire' ? 2 : 1; g.beginPath(); t.pts.forEach((q, i) => i ? g.lineTo(q[0] * S, q[1] * S) : g.moveTo(q[0] * S, q[1] * S)); g.stroke(); }
     g.strokeStyle = '#8a7a5a'; g.lineWidth = 3; for (const r of T.map.roads) { g.beginPath(); r.pts.forEach((q, i) => i ? g.lineTo(q[0] * S, q[1] * S) : g.moveTo(q[0] * S, q[1] * S)); g.stroke(); }
     g.fillStyle = '#222'; g.font = "13px Caslon, Georgia"; for (const v of T.map.villages) g.fillText(v.name, v.c[0] * S + 4, v.c[1] * S);
-    for (const o of sim.objectives) { g.strokeStyle = o.owner === 'BRI' ? '#b3261e' : '#1f3a9e'; g.beginPath(); g.arc(o.c[0] * S, o.c[1] * S, o.r * S, 0, 7); g.stroke(); g.fillText(o.id, o.c[0] * S - 4, o.c[1] * S + 4); }
+    { const want = sim._wanted(sim.player.side); for (const o of sim.objectives) drawStretch(g, o, (x, z) => [x * S, z * S], Math.max(5, 26 * S), 'bold 13px Caslon, Georgia', want.includes(o)); }
     const w = T.map.world; g.strokeStyle = '#000'; g.setLineDash([6, 4]); g.strokeRect(w.playMin * S, w.playMin * S, (w.playMax - w.playMin) * S, (w.playMax - w.playMin) * S); g.setLineDash([]);
     shooterDots(g, (x, z) => [x * S, z * S], 0, 0, 5);
     const p = sim.player; youMarker(g, p.x * S, p.z * S, AGENT || !p.alive ? p.yaw : yaw, 60, 1.1);

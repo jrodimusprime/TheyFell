@@ -38,8 +38,8 @@ const EMERGE_TICKS = 110, FWD_PER_WAVE = 2;
 // steady fire (steam); a stoppage now and then. Each round is a real ray (it hits whoever is in its path), and
 // rounds cracking past within a few metres pin men down.
 export const GUNS = {
-  mg08:    { name: 'MG 08', cycle: 60 / 450, disp: 0.0032, range: 1000, arc: 1.0, belts: 12 },
-  vickers: { name: 'Vickers', cycle: 60 / 480, disp: 0.0032, range: 1000, arc: 1.0, belts: 12 },
+  mg08:    { name: 'MG 08', side: 'GER', cycle: 60 / 450, disp: 0.0032, range: 1000, arc: 1.0, belts: 12 },
+  vickers: { name: 'Vickers', side: 'BRI', cycle: 60 / 480, disp: 0.0032, range: 1000, arc: 1.0, belts: 12 },
 };
 export const BELT = 250;
 // grenades (three a man: the British the Mills bomb, the Germans the stick grenade). A throw: 0.5 s to get it out and pull
@@ -102,14 +102,15 @@ const START_TIME = 7 * 3600 + 27 * 60 + 30, MINE_TIME = 7 * 3600 + 28 * 60, ZERO
 export const PRE_ZERO_RATE = 5, ZERO_TIME = ZERO, MINE_AT = MINE_TIME;
 
 export class Sim {
-  constructor(T, F, { seed = 1, playerSide = 'BRI', bri = 1500, ger = 550, mgs = 16, strength = { BRI: 10000, GER: 2000 } } = {}) {
+  constructor(T, F, { seed = 1, playerSide = 'BRI', bri = 1500, ger = 750, mgs = 20, strength = { BRI: 10000, GER: 2000 } } = {}) {
     this.nMG = mgs;
     this.T = T; this.F = F; this.seed = seed; this.rng = mulberry32(seed); this.tick = 0;
     this.map = T.map; this.events = []; this.soldiers = []; this.shells = []; this.grenades = []; this.gt = 0;
     this.flags = { mine: false, zero: false };
     this.rambo = false; this.god = false;
-    this.objectives = this.map.objectives.map(o => ({ ...o, owner: 'GER', progress: 0 }));
-    this.dugouts = this.objectives.map(o => this._dugoutFor(o));   // the way up from the deep dugouts at each strongpoint
+    // the objectives: the German front, support and reserve lines (A, B, C), each cut into stretches, taken in order
+    this.lines = this.map.lines; this.objectives = this._stretches();
+    this.dugouts = this.objectives.map(o => this._dugoutFor(o));   // the way up from the deep dugouts in each stretch
     this.fwd = {};   // men each forward spawn may still send up this wave
     this.score = { BRI: { kills: 0, deaths: 0 }, GER: { kills: 0, deaths: 0 } };
     this.waveT = { BRI: 0, GER: 0 };
@@ -125,12 +126,58 @@ export class Sim {
     // the player first, then the AI, in a fixed order (Cimmerian §11: stable entity order)
     const ps = this.map.playerStart.pos, p0 = this._snapToTrench(ps[0], ps[1], playerSide, 30, true) || ps;   // on the fire-step, looking over the parapet
     this.player = this._spawn(playerSide, p0[0], p0[1], 'rifle', true);
-    { const o = this.map.objectives[0].c; this.player.yaw = Math.atan2(-(o[0] - p0[0]), -(o[1] - p0[1])); }
+    { const o = this._onObj(this.target(playerSide, p0[0], p0[1]), p0[0], p0[1]); this.player.yaw = Math.atan2(-(o[0] - p0[0]), -(o[1] - p0[1])); }
     this._populate(bri, ger);
     // the men still to come: each side's whole strength (historically ~10,000 British in 12 battalions against ~2,000 of
     // Reserve Infantry Regiment 110 here) less those already in the line; every man sent in comes out of it
     this.reserve = {}; for (const side of ['BRI', 'GER']) this.reserve[side] = Math.max(0, strength[side] - this.soldiers.filter(o => o.side === side).length);
   }
+  // ---------- the trench lines ----------
+  // each line's trench (its map polyline, from 'from' to 'to') cut into equal stretches: { id 'A1', line 'A', name, pts,
+  // len, c (its middle, on the trench, out of any mine crater), r (how near the trench a man must be to count as in it) }
+  _stretches() {
+    const out = [], mines = this.map.mines || [];
+    for (const L of this.lines) {
+      const tr = this.map.trenches.find(t => t.line === L.id), P = tr.pts;
+      // the arc length along the polyline at the point nearest p
+      const cum = [0]; for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const proj = p => { let best = 0, bd = 1e9; for (let i = 1; i < P.length; i++) { const ax = P[i - 1][0], az = P[i - 1][1], dx = P[i][0] - ax, dz = P[i][1] - az, l2 = dx * dx + dz * dz, u = l2 ? Math.max(0, Math.min(1, ((p[0] - ax) * dx + (p[1] - az) * dz) / l2)) : 0, d = Math.hypot(ax + dx * u - p[0], az + dz * u - p[1]); if (d < bd) { bd = d; best = cum[i - 1] + u * (cum[i] - cum[i - 1]); } } return best; };
+      const at = t => { let i = 1; while (i < P.length - 1 && cum[i] < t) i++; const u = (t - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1); return [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * u, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * u]; };
+      const t0 = proj(L.from), t1 = proj(L.to), n = L.stretches.length;
+      for (let k = 0; k < n; k++) {
+        const a = t0 + (t1 - t0) * k / n, b = t0 + (t1 - t0) * (k + 1) / n, pts = [at(a)];
+        for (let i = 0; i < P.length; i++) if (cum[i] > a && cum[i] < b) pts.push(P[i].slice());
+        pts.push(at(b));
+        let mid = (a + b) / 2; for (let j = 0; j < 40; j++) { const c = at(mid); if (!mines.some(m => Math.hypot(c[0] - m.c[0], c[1] - m.c[1]) < m.craterR + 15)) break; mid += (j % 2 ? -1 : 1) * (j + 1) * 6; mid = Math.max(a, Math.min(b, mid)); }
+        out.push({ id: L.id + (k + 1), line: L.id, lineName: L.name, name: L.stretches[k], pts, len: b - a, c: at(mid), r: 20, owner: 'GER', progress: 0 });
+      }
+    }
+    return out;
+  }
+  // distance from (x, z) to a stretch's trench, and the nearest point on it ({ d, x, z, t: metres along the stretch })
+  _nearObj(o, x, z) {
+    const P = o.pts; let bd = 1e9, bx = P[0][0], bz = P[0][1], bt = 0, run = 0;
+    for (let i = 1; i < P.length; i++) { const ax = P[i - 1][0], az = P[i - 1][1], dx = P[i][0] - ax, dz = P[i][1] - az, l2 = dx * dx + dz * dz, L = Math.sqrt(l2), u = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0, px = ax + dx * u, pz = az + dz * u, d = Math.hypot(px - x, pz - z);
+      if (d < bd) { bd = d; bx = px; bz = pz; bt = run + u * L; } run += L; }
+    return { d: bd, x: bx, z: bz, t: bt };
+  }
+  _dObj(o, x, z) {   // (with a quick reject: further than this from the middle is further than 'far' from the trench)
+    return this._nearObj(o, x, z).d;
+  }
+  _onObj(o, x, z) { const q = this._nearObj(o, x, z); return [q.x, q.z]; }
+  // a point t metres along a stretch (clamped), or near t (+- spread) at random
+  _alongObj(o, r, t = null, spread = 0) {
+    let tt = t === null ? r() * o.len : t + (r() * 2 - 1) * spread; tt = Math.max(0, Math.min(o.len, tt));
+    const P = o.pts; for (let i = 1; i < P.length; i++) { const L = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); if (tt <= L || i === P.length - 1) { const u = L ? Math.min(1, tt / L) : 0; return [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * u, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * u]; } tt -= L; }
+    return o.c.slice();
+  }
+  // the stretches a side is going for: the British, the stretches not yet theirs of the first line they don't wholly hold
+  // (the lines are taken in order: A, then B, then C); the Germans, any stretch the British hold
+  _wanted(side) {
+    if (side === 'BRI') { for (const L of this.lines) { const l = this.objectives.filter(o => o.line === L.id && o.owner !== 'BRI'); if (l.length) return l; } return []; }
+    return this.objectives.filter(o => o.owner !== side);
+  }
+  lineHeld(id, side = 'BRI') { return this.objectives.every(o => o.line !== id || o.owner === side); }
   // a dugout entrance at a strongpoint: on level, open ground 12-60 m from its middle (not in a trench, the wire, a ruin
   // or a mine crater), its mouth facing the middle. Men sent up there climb its stairs out of the dark.
   _dugoutFor(o) {
@@ -301,9 +348,11 @@ export class Sim {
     if (g.rng() < 1 / 400) { gun.jam = 2.5 + g.rng() * 2; gun.trigger = false; this.events.push({ t: 'gunjam', gun: gun.id, id: g.id }); }
     if (!g.isPlayer && --gun.burst <= 0) { gun.pause = 0.25 + g.rng() * 0.8; gun.trigger = false; }
     // the round: the gun's aim, a little dispersion (more as the barrel heats), the shake of the mount
-    // the player's rounds go down his line of sight (the crosshair) with a third of the spread: he is laying the gun
-    // by eye, not by a guess at the range
-    const r = g.rng, disp = g.isPlayer ? K.disp * 0.33 * (1 + gun.heat * 0.3) : K.disp * (1 + gun.heat * 0.6);
+    // the player's rounds go down his line of sight (the crosshair): tight for the first 10 rounds of a burst (he is
+    // laying the gun by eye, not by a guess at the range), then wider round by round as the gun shakes on its mount
+    // (up to 5x by the 37th); letting go of the trigger for a quarter of a second steadies it again
+    if (g.isPlayer) { if (this.tick - (gun.lastAt ?? -1e9) > HZ / 4) gun.run = 0; gun.run = (gun.run || 0) + 1; gun.lastAt = this.tick; }
+    const r = g.rng, disp = g.isPlayer ? K.disp * 0.165 * Math.min(5, 1 + Math.max(0, gun.run - 10) * 0.15) * (1 + gun.heat * 0.3) : K.disp * (1 + gun.heat * 0.6);
     const M = this.gunMuzzle(gun, gun.aimYaw + r.gauss() * disp, gun.aimPitch + r.gauss() * disp * 0.7);
     if (g.isPlayer) { M.ox = g.x; M.oy = this._eye(g); M.oz = g.z; }
     const { ox, oy, oz, dx, dy, dz } = M;
@@ -421,7 +470,7 @@ export class Sim {
   }
   _deepPoint(side, near) {
     const R = this.map.reserves[side]; let pts = side === 'BRI' ? (this.time >= hm(R.deepFrom) && this.rng() < 0.35 ? R.deep : R.line) : R.deep;
-    if (side === 'GER') pts = pts.filter(p => !this.objectives.some(o => o.owner === 'BRI' && Math.hypot(o.c[0] - p[0], o.c[1] - p[1]) < o.r + 150));   // (Contalmaison taken: not there)
+    if (side === 'GER') pts = pts.filter(p => !this.objectives.some(o => o.owner === 'BRI' && this._dObj(o, p[0], p[1]) < 170));   // (a line taken over it: not there)
     if (!pts.length) return R.deepFallback || R.deep[0];
     return near ? pts.reduce((b, p) => Math.hypot(p[0] - near[0], p[1] - near[1]) < Math.hypot(b[0] - near[0], b[1] - near[1]) ? p : b) : pts[this.rng.int(pts.length)];
   }
@@ -449,13 +498,16 @@ export class Sim {
   // each objective's German zone: its fire-trench bays, and how things stand there
   _zones() {
     if (this.hq.zones) return this.hq.zones;
-    return (this.hq.zones = this.objectives.map((o, i) => ({ i, o, bays: this.trenchPts.GER.filter(p => Math.hypot(p[0] - o.c[0], p[1] - o.c[1]) < o.r + 120 && this.T.segs[p[2]].kind === 0) })));
+    // (a stretch's bays: its own line's, nearer it than any other stretch of the line)
+    const Z = this.objectives.map((o, i) => ({ i, o, bays: [] }));
+    for (const p of this.trenchPts.GER) { const ln = this.T.segs[p[2]].line; if (!ln) continue; let best = null, bd = 15; for (const z of Z) if (z.o.line === ln) { const d = this._dObj(z.o, p[0], p[1]); if (d < bd) { bd = d; best = z; } } if (best) best.bays.push(p); }
+    return (this.hq.zones = Z);
   }
   _zoneState(z) {
-    const o = z.o, R = o.r + 150; let bri = 0, ger = 0, briIn = 0, gerIn = 0, threat = 0, bx = 0, bz = 0;
+    const o = z.o, R = 150; let bri = 0, ger = 0, briIn = 0, gerIn = 0, threat = 0, bx = 0, bz = 0;
     const gx = Math.floor(o.c[0] / 100), gz = Math.floor(o.c[1] / 100);
     for (let cz = gz - 5; cz <= gz + 5; cz++) for (let cx = gx - 5; cx <= gx + 5; cx++) { const l = this.grid.get((cx << 8) | cz); if (!l) continue;
-      for (const s of l) { const d = Math.hypot(s.x - o.c[0], s.z - o.c[1]); if (s.side === 'BRI') { if (d < 400) { threat++; bx += s.x; bz += s.z; } if (d < R) bri++; if (d < o.r) briIn++; } else if (d < R && s.ai && s.ai.mode !== 'muster' && s.ai.mode !== 'reserve') { ger++; if (d < o.r) gerIn++; } } }
+      for (const s of l) { const d = this._dObj(o, s.x, s.z); if (s.side === 'BRI') { if (d < 400) { threat++; bx += s.x; bz += s.z; } if (d < R) bri++; if (d < o.r) briIn++; } else if (d < R && s.ai && s.ai.mode !== 'muster' && s.ai.mode !== 'reserve') { ger++; if (d < o.r) gerIn++; } } }
     return { bri, ger, briIn, gerIn, threat, from: threat ? [bx / threat, bz / threat] : null };
   }
   // the zone that most needs men (for where a man comes back)
@@ -495,14 +547,14 @@ export class Sim {
       // hasty counter-thrust: British inside a German zone, the nearest reserve party goes in at once with bombs
       if (o.owner === 'GER' && st.briIn > 0 && st.gerIn < st.briIn * 1.5 && t > (z.thrustAt || 0)) {
         const party = this.soldiers.filter(m => m.alive && m.side === 'GER' && m.ai && m.ai.mode === 'reserve').sort((a, b) => Math.hypot(a.x - o.c[0], a.z - o.c[1]) - Math.hypot(b.x - o.c[0], b.z - o.c[1]) || a.id - b.id).slice(0, 6 + Math.min(6, st.briIn));
-        if (party.length) { z.thrustAt = t + 60 * HZ; for (const m of party) Object.assign(m.ai, { mode: 'advance', counter: z.i, goal: st.from ? [o.c[0] * 0.5 + st.from[0] * 0.5, o.c[1] * 0.5 + st.from[1] * 0.5] : o.c.slice(), fireUntil: 0, rushUntil: t + 300 * HZ });   // (at a run: they are needed now)
+        if (party.length) { z.thrustAt = t + 60 * HZ; for (const m of party) Object.assign(m.ai, { mode: 'advance', counter: z.i, goal: st.from ? this._onObj(o, st.from[0], st.from[1]) : o.c.slice(), fireUntil: 0, rushUntil: t + 300 * HZ });   // (at a run: they are needed now)
           this.events.push({ t: 'counter', kind: 'thrust', obj: z.i, n: party.length }); }
       }
       // withdraw: a German zone the British hold several times over; its survivors back to the next German one
       if (o.owner === 'GER' && st.ger > 0 && st.ger <= 5 && st.bri >= st.ger * 3 && st.bri >= 8 && t > (z.withdrawnAt || 0)) {
         const next = Z.filter(q => q !== z && q.o.owner === 'GER').sort((a, b) => Math.hypot(a.o.c[0] - o.c[0], a.o.c[1] - o.c[1]) - Math.hypot(b.o.c[0] - o.c[0], b.o.c[1] - o.c[1]))[0];
         const to = next ? next.o.c : this._deepPoint('GER'); z.withdrawnAt = t + 120 * HZ;
-        for (const m of this.soldiers) if (m.alive && m.side === 'GER' && m.ai && !(m.gun >= 0) && Math.hypot(m.x - o.c[0], m.z - o.c[1]) < o.r + 150 && (m.ai.mode === 'hold' || m.ai.mode === 'advance'))
+        for (const m of this.soldiers) if (m.alive && m.side === 'GER' && m.ai && !(m.gun >= 0) && this._dObj(o, m.x, m.z) < 170 && (m.ai.mode === 'hold' || m.ai.mode === 'advance'))
           Object.assign(m.ai, { mode: 'march', route: { pts: [to], i: 0, k: m.id % 8, n: 8, dest: next ? next.i : -1, task: 'hold' }, style: null });
         this.events.push({ t: 'withdraw', obj: z.i, to: next ? next.i : -1 });
       }
@@ -523,11 +575,11 @@ export class Sim {
       if (o.owner === 'GER') hq.counter = null;
       else if (ca.state === 'gather' && (there.length >= 20 || (t - ca.since > 240 * HZ && there.length >= 8))) {
         ca.state = 'shell'; ca.goAt = t + 50 * HZ; ca.men = there.map(m => m.id);
-        for (let i = 0; i < 26; i++) this.shells.push({ x: o.c[0] + this.rng.gauss() * o.r * 0.5, z: o.c[1] + this.rng.gauss() * o.r * 0.5, at: t + 40 + this.rng.int(45 * HZ), kind: this.rng() < 0.4 ? 'shrapnel' : 'he', cal: 'field', side: 'GER' });
+        for (let i = 0; i < 26; i++) { const q = this._alongObj(o, this.rng); this.shells.push({ x: q[0] + this.rng.gauss() * 8, z: q[1] + this.rng.gauss() * 8, at: t + 40 + this.rng.int(45 * HZ), kind: this.rng() < 0.4 ? 'shrapnel' : 'he', cal: 'field', side: 'GER' }); }
         this.events.push({ t: 'counter', kind: 'bombard', obj: ca.obj, n: there.length });
       } else if (ca.state === 'shell' && t >= ca.goAt) {
         ca.state = 'go';
-        for (const id of ca.men) { const m = this.soldiers[id]; if (m.alive) Object.assign(m.ai, { mode: 'advance', counter: ca.obj, goal: [o.c[0] + m.rng.range(-o.r, o.r) * 0.5, o.c[1] + m.rng.range(-o.r, o.r) * 0.5], route: null, fireUntil: 0 }); }
+        for (const id of ca.men) { const m = this.soldiers[id]; if (m.alive) Object.assign(m.ai, { mode: 'advance', counter: ca.obj, goal: this._alongObj(o, m.rng), route: null, fireUntil: 0 }); }
         this.events.push({ t: 'counter', kind: 'assault', obj: ca.obj, n: ca.men.length });
       } else if (ca.state === 'go' && ca.men.every(id => !this.soldiers[id].alive || this.soldiers[id].ai.mode !== 'advance')) hq.counter = null;
     }
@@ -538,12 +590,12 @@ export class Sim {
       const R = m.ai.route, live = hq.counter && hq.counter.obj === R.dest; if (live && hq.counter.state !== 'go') continue;
       if (Math.hypot(m.x - R.pts[0][0], m.z - R.pts[0][1]) > 40 && live) continue;
       const o = this.objectives[R.dest];
-      if (live) Object.assign(m.ai, { mode: 'advance', counter: R.dest, goal: [o.c[0] + m.rng.range(-o.r, o.r) * 0.5, o.c[1] + m.rng.range(-o.r, o.r) * 0.5], route: null, fireUntil: 0 });
+      if (live) Object.assign(m.ai, { mode: 'advance', counter: R.dest, goal: this._alongObj(o, m.rng), route: null, fireUntil: 0 });
       else if (o.owner === 'GER') this._takePost(m, Z[R.dest]);
       else { const RG = this.map.reserves.GER.ready; m.ai.route = { pts: [RG[m.id % RG.length]], i: 0, k: m.id % 8, n: 8, dest: -1, task: 'reserve' }; }
     }
     // men of a counter-thrust or counter-attack whose objective is German again settle into it
-    for (const m of this.soldiers) if (m.alive && m.side === 'GER' && m.ai && m.ai.mode === 'advance' && m.ai.counter >= 0) { const o = this.objectives[m.ai.counter]; if (o.owner === 'GER' && Math.hypot(m.x - o.c[0], m.z - o.c[1]) < o.r + 60) this._takePost(m, Z[m.ai.counter]); }
+    for (const m of this.soldiers) if (m.alive && m.side === 'GER' && m.ai && m.ai.mode === 'advance' && m.ai.counter >= 0) { const o = this.objectives[m.ai.counter]; if (o.owner === 'GER' && this._dObj(o, m.x, m.z) < 60) this._takePost(m, Z[m.ai.counter]); }
   }
   // which way is away from the British, at an objective (for staging points): from the British there, or due east
   _awayFrom(o) { const z = this.hq.zones && this.hq.zones[this.objectives.indexOf(o)], f = z && z.st && z.st.from; if (!f) return [1, 0]; const dx = o.c[0] - f[0], dz = o.c[1] - f[1], L = Math.hypot(dx, dz) || 1; return [dx / L, dz / L]; }
@@ -572,6 +624,56 @@ export class Sim {
     const st = z.st || {}, f = st.from || [o.c[0] - 300, o.c[1]], a = Math.atan2(f[1] - o.c[1], f[0] - o.c[0]) + m.rng.range(-0.9, 0.9), rr = o.r * (0.5 + m.rng() * 0.4);
     ai.style = 'open'; ai.seg = undefined; ai.post = this._freeSpot(o.c[0] + Math.cos(a) * rr, o.c[1] + Math.sin(a) * rr); ai.face = Math.atan2(-(f[0] - ai.post[0]), -(f[1] - ai.post[1]));
   }
+  // ---------- making way: a man of the player's own side in his path steps aside and lets him by ----------
+  // Ahead of the player (within his reach for his pace) and within a shoulder's width of his line, a comrade steps to the
+  // side: up onto the fire-step if it is that side, else back to the trench wall (or just out of the way in the open);
+  // there he stands side-on to the trench, rifle at the port, and the player squeezes past (slowed while he is beside
+  // him). Once the player is past (or has gone another way) he goes back to what he was doing.
+  _giveWay() {
+    const p = this.player, T = this.T, list = this._giving || (this._giving = []);
+    for (const id of list) { const o = this.soldiers[id], g = o.giveWay; if (!g) continue;
+      const rx = o.x - p.x, rz = o.z - p.z, along = rx * g.dx + rz * g.dz;
+      if (!o.alive || !p.alive || this.tick > g.until || along < -0.8 || Math.hypot(rx, rz) > 4.5 || o.climb > 0 || o.throw > 0) { o.giveWay = null; o.intent = null; if (o.ai) o.ai.think = 0; } }
+    this._giving = list.filter(id => this.soldiers[id].giveWay);
+    const v = Math.hypot(p.mvx || 0, p.mvz || 0) / DT;
+    if (p.alive && !(p.gun >= 0) && !(p.climb > 0) && v > 0.4 && this.bump) {
+      const dx = p.mvx / (v * DT), dz = p.mvz / (v * DT), nx = -dz, nz = dx, reach = 1.4 + v * 0.8, gx = Math.floor(p.x / 2), gz = Math.floor(p.z / 2);
+      for (let cz = gz - 3; cz <= gz + 3; cz++) for (let cx = gx - 3; cx <= gx + 3; cx++) { const l = this.bump.get((cx << 12) | cz); if (!l) continue;
+        for (const o of l) {
+          if (o.isPlayer || o.side !== p.side || !o.alive || o.giveWay || o.climb > 0 || o.emerge > 0 || o.gun >= 0 || o.throw > 0 || o.strike > 0 || o.stance === 2 || Math.abs(o.y - p.y) > 1.2) continue;
+          const rx = o.x - p.x, rz = o.z - p.z, along = rx * dx + rz * dz, lat = rx * nx + rz * nz;
+          if (along < 0.25 || along > reach || Math.abs(lat) > 0.75) continue;
+          // the spot: as far off the player's line as there is room for (his whole body clear of the wall), away from the
+          // line first, the other way if that side is the wall; never onto another man
+          const h0 = T.height(o.x, o.z), free = (x, z) => { for (const q of l) if (q !== o && q.alive && Math.hypot(q.x - x, q.z - z) < 0.55) return false; return true; };
+          // (up onto the fire-step first, where there is one: the floor of a fire bay is a metre wide, too narrow for two
+          // men side by side; else the furthest spot off the line on the floor)
+          let best = null;
+          for (const side of lat >= 0 ? [1, -1] : [-1, 1]) {
+            let sb = null;
+            for (let k = 0.95; k >= 0.3 && !sb; k -= 0.05) {
+              const off = side * k - lat, tx = o.x + nx * off, tz = o.z + nz * off, ht = T.height(tx, tz);
+              if (ht - h0 > STEP_UP || h0 - ht > 0.4 || this.F.wallAt(tx, tz, ht)) continue;
+              let clear = true; for (let a = 0; a < 8 && clear; a++) { const c = Math.cos(a * Math.PI / 4), sn = Math.sin(a * Math.PI / 4); if (T.height(tx + c * 0.28, tz + sn * 0.28) - ht > 0.35) clear = false; }
+              if (clear && free(tx, tz)) sb = { x: tx, z: tz, side, up: ht - h0 > 0.5, k };
+            }
+            if (sb && (!best || (sb.up && !best.up) || (sb.up === best.up && sb.k > best.k + 0.1))) best = sb;
+          }
+          if (!best) continue;   // (no room either side: he is shoved along as before)
+          const fx = -best.side * nx, fz = -best.side * nz;   // facing the trench: back to the wall, front to the player's line
+          o.giveWay = { x: best.x, z: best.z, yaw: Math.atan2(-fx, -fz), dx, dz, until: this.tick + 5 * HZ, up: T.height(best.x, best.z) - h0 > 0.5 };
+          o.stance = 0; this._giving.push(o.id);
+        } }
+    }
+    // the men giving way: a side-step (or a step up) to the spot, turned to the trench; then still while the player passes
+    for (const id of this._giving) { const o = this.soldiers[id], g = o.giveWay, ex = g.x - o.x, ez = g.z - o.z, d = Math.hypot(ex, ez);
+      o.yaw = g.yaw; o.stance = 0;
+      if (d < 0.06) { o.intent = null; continue; }
+      const sy = Math.sin(g.yaw), cy = Math.cos(g.yaw);
+      o.intent = { f: (ex * -sy + ez * -cy) / d, s: (ex * cy + ez * -sy) / d, run: false, jump: false, stroll: true, yaw: g.yaw };
+    }
+    p.squeeze = false; for (const id of this._giving) { const o = this.soldiers[id]; if (Math.hypot(o.x - p.x, o.z - p.z) < 1.0 && Math.abs(o.y - p.y) < 0.5) p.squeeze = true; }
+  }
   // no two men in one place: any two closer than 0.6 m (men standing still too) pushed apart, as far as the ground lets
   // them; near the player every 4th tick, everyone else every 30th
   _separate() {
@@ -584,7 +686,7 @@ export class Sim {
         const gx = Math.floor(a.x / 2), gz = Math.floor(a.z / 2);
         for (let cz = gz - 1; cz <= gz + 1; cz++) for (let cx = gx - 1; cx <= gx + 1; cx++) { const l2 = this.bump.get((cx << 12) | cz); if (!l2) continue;
           for (const b of l2) { if (b === a || !b.alive || b.id < a.id && !b.isPlayer || b.climb > 0 || b.emerge > 0 || Math.abs(b.y - a.y) > 1.6 || (a.gun >= 0 && a.gun === b.gun)) continue;
-            const dx = a.x - b.x, dz = a.z - b.z, d = Math.hypot(dx, dz), MIN = b.isPlayer ? 0.8 : 0.6; if (d >= MIN) continue;
+            const dx = a.x - b.x, dz = a.z - b.z, d = Math.hypot(dx, dz), MIN = b.isPlayer ? (a.giveWay ? (Math.abs(a.y - b.y) > 0.5 ? 0.3 : 0.45) : 0.8) : 0.6; if (d >= MIN) continue;
             const ux = d > 1e-4 ? dx / d : Math.cos(a.id), uz = d > 1e-4 ? dz / d : Math.sin(a.id), push = (MIN - d) / (b.isPlayer ? 1 : 2);
             const clearOfPlayer = (x, z) => !p.alive || Math.hypot(x - p.x, z - p.z) >= 0.8;   // (never pushed into the player)
             const ax = a.x + ux * push, az = a.z + uz * push; if (okAt(a, ax, az) && clearOfPlayer(ax, az)) { a.x = ax; a.z = az; }
@@ -638,24 +740,27 @@ export class Sim {
     const r = this.rng, near = (side, cx, cz, R) => this.trenchPts[side].filter(p => Math.hypot(p[0] - cx, p[1] - cz) < R);
     // the 34th Division's frontage, astride La Boisselle from Mash Valley to Sausage Valley, around the player;
     // the British in their front and support lines, the Germans in the Schwabenhöhe and La Boisselle salient opposite
-    const ps = this.player, [lx, lz] = this.map.objectives[0].c;
+    const ps = this.player, lx = this.objectives.reduce((a, o) => a + o.c[0], 0) / this.objectives.length - 250, lz = this.objectives.reduce((a, o) => a + o.c[1], 0) / this.objectives.length - 100;   // (the middle of the three lines' stretches)
     // (historically ~10,000 British in 12 battalions against ~2,000 of Reserve Infantry Regiment 110 here)
     const bri = near('BRI', ps.x, ps.z, 1100), ger = near('GER', lx + 250, lz + 100, 1300);   // (the German line from north of La Boisselle down past the Scots Redoubt)
     // each man his own place on a fire-trench floor (a shuffled draw, no two on one spot)
     const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = r.int(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     // weighted toward the player's stretch of the line (density falling off over ~300 m), as the battalions went over
     // in waves of men a few paces apart; each point used once while points last
+    // (the British all along the front opposite the German front line's stretches, thickest round the player)
+    const dA = new Map(); for (const p of bri) { let d = 1e9; for (const o of this.objectives) if (o.line === 'A') d = Math.min(d, this._dObj(o, p[0], p[1])); dA.set(p, d); }
     const weighted = (pts, cx, cz, n, fall) => { const pool = pts.slice(), out = [];
-      while (out.length < n && pool.length) { let tot = 0; const w = pool.map(p => { const v = Math.exp(-Math.hypot(p[0] - cx, p[1] - cz) / fall) + 0.02; tot += v; return v; });
+      while (out.length < n && pool.length) { let tot = 0; const w = pool.map(p => { const v = Math.exp(-dA.get(p) / 220) * (0.45 + Math.exp(-Math.hypot(p[0] - cx, p[1] - cz) / fall)) + 0.02; tot += v; return v; });
         let x = r() * tot, i = 0; while (i < pool.length - 1 && (x -= w[i]) > 0) i++; out.push(pool[i]); pool.splice(i, 1);
         if (out.length % 64 === 0 && pool.length > 4000) pool.splice(0, 0); }
       while (out.length < n) out.push(pts[out.length % pts.length]); return out; };
     const briPts = weighted(bri, ps.x, ps.z, Math.ceil(nb / 3), 230);   // (packed close on the player's stretch, as the battalions were)
-    // the German garrison: thickest at the Schwabenhoehe, La Boisselle and down through the Sausage and Scots Redoubts
-    // (C, D) to the south; thinner in the trenches north of La Boisselle
-    const OB = Object.fromEntries(this.objectives.map(o => [o.id, o.c])), gw = p => (1.2 * Math.exp(-Math.hypot(p[0] - lx, p[1] - (lz - 60)) / 260) + 1.8 * Math.exp(-Math.hypot(p[0] - OB.B[0], p[1] - OB.B[1]) / 200) + 1.7 * Math.exp(-Math.hypot(p[0] - OB.C[0], p[1] - OB.C[1]) / 230) + 1.6 * Math.exp(-Math.hypot(p[0] - OB.D[0], p[1] - OB.D[1]) / 260) + 0.85 * Math.exp(-Math.hypot(p[0] - OB.B[0] - 60, p[1] - OB.B[1] + 380) / 240)) + 0.004;   // (the last term: the line north of La Boisselle, held, but thinner)   // (the last: the line north of La Boisselle, held, but thinner)
+    // the German garrison: the front line (A) thickest, the support line (B) a little less, the reserve line (C) less again,
+    // along the stretches under attack; the front line either side of them held thinly, the odd fragment of trench barely
+    const lineOf = p => { const ln = this.T.segs[p[2]].line; return !ln ? null : this.objectives.some(o => o.line === ln && this._dObj(o, p[0], p[1]) < 15) ? ln : 'flank'; };
+    const W8 = { A: 1, B: 0.9, C: 0.7, flank: 0.12 };
     // (in the order drawn: the weighted bays come first and are the ones filled; shuffling them threw the weighting away)
-    const gerPts = ((() => { const pool = ger.slice(), out = []; while (out.length < ng && pool.length) { const w = pool.map(gw); let tot = 0; for (const v of w) tot += v; let x = r() * tot, i = 0; while (i < pool.length - 1 && (x -= w[i]) > 0) i++; out.push(pool[i]); pool.splice(i, 1); } return out; })());
+    const gerPts = ((() => { const pool = ger.slice(), w = pool.map(p => W8[lineOf(p)] ?? 0.006), out = []; while (out.length < ng && pool.length) { let tot = 0; for (const v of w) tot += v; let x = r() * tot, i = 0; while (i < pool.length - 1 && (x -= w[i]) > 0) i++; out.push(pool[i]); pool.splice(i, 1); w.splice(i, 1); } return out; })());
     // the British: three in four in the front and support trenches (waves 0-3); the rest, the Tyneside Irish, on the
     // Tara-Usna line a mile back, who go forward at zero hour too and have the whole way to cross
     const RES = this.map.reserves || {}, nLine = RES.BRI ? Math.floor(nb * 0.25) : 0;
@@ -684,6 +789,12 @@ export class Sim {
         for (const q of this._clusterIn(bay, n, r)) { const s = this._spawn('GER', q[0], q[1]); s.stance = 1; s.ai.mode = 'shelter'; s.ai.post = [q[2], q[3]]; this._trenchStyle(s, bay[2], q); i++; }
       } }
     for (const s of this.soldiers) if (s.role === 'mg') s.ai.mode = 'shelter';
+    // (no man left standing where a gun's crew was put after him: he moves to a free spot beside it)
+    { const crews = this.soldiers.filter(c => c.gun >= 0);
+      for (const m of this.soldiers) { if (m.gun >= 0 || m.isPlayer) continue;
+        if (!crews.some(c => Math.abs(c.x - m.x) < 0.8 && Math.abs(c.z - m.z) < 0.8 && Math.hypot(c.x - m.x, c.z - m.z) < 0.75)) continue;
+        for (const o of this.soldiers) if (o !== m && Math.abs(o.x - m.x) < 4 && Math.abs(o.z - m.z) < 4) this._placed.push([o.x, o.z]);
+        const q = this._freeSpot(m.x, m.z); m.x = q[0]; m.z = q[1]; m.y = this.T.height(q[0], q[1]); if (m.ai) m.ai.post = q.slice(); this._placed.length = 0; } }
     // the German immediate reserve: ~70 men under cover in the intermediate line, ~1,000 yards back
     if (RES.GER) { const n = Math.min(70, Math.floor(ng * 0.18));
       for (let i = 0; i < n; i++) { const c = RES.GER.ready[i % RES.GER.ready.length], q = this._freeSpot(c[0] + r.range(-35, 35), c[1] + r.range(-35, 35)); const s = this._spawn('GER', q[0], q[1]); s.stance = 1; s.ai.mode = 'reserve'; s.ai.ready = i % RES.GER.ready.length; s.ai.post = q; } }
@@ -702,6 +813,7 @@ export class Sim {
     const p = this.player;
     this._buildGrid(); this._placed.length = 0;
     this._player(p, input);
+    this._giveWay();
     for (const s of this.soldiers) if (!s.isPlayer && s.alive) this._think(s);
     this._guns();
     // (men over 350 m from the player, on firm ground and not climbing or coming up a dugout, move every other tick)
@@ -761,6 +873,7 @@ export class Sim {
     const ai = s.ai, t = this.time;
     if (s.emerge > 0) { s.intent = null; return; }   // still coming up the dugout stairs
     if (s.throw > 0) { s.intent = null; return; }   // mid-throw
+    if (s.giveWay) return;   // stepping aside for the player (_giveWay moves him)
     if (--ai.think > 0) { this._aimAndFire(s); return; }
     ai.think = (Math.abs(s.x - this.player.x) + Math.abs(s.z - this.player.z) > 350 ? 60 + s.rng.int(30) : 20 + s.rng.int(20));   // far from the player: thinks a third as often
     // before the barrage lifts, the Germans shelter in their deep dugouts (they come up when it lifts: the race for the parapet)
@@ -823,7 +936,7 @@ export class Sim {
     // movement intent
     if (ai.mode === 'advance' && ai.goal) {
       const dx = ai.goal[0] - s.x, dz = ai.goal[1] - s.z, d = Math.hypot(dx, dz);
-      if (d < 6) { const o = ai.counter >= 0 && ai.counter !== undefined ? this.objectives[ai.counter] : null; ai.goal = o ? [o.c[0] + s.rng.range(-o.r, o.r) * 0.6, o.c[1] + s.rng.range(-o.r, o.r) * 0.6] : this._goalFor(s, true); }   // (a counter-attack keeps to its objective)
+      if (d < 6) { const o = ai.counter >= 0 && ai.counter !== undefined ? this.objectives[ai.counter] : null; ai.goal = o ? this._alongObj(o, s.rng, this._nearObj(o, s.x, s.z).t, 60) : this._goalFor(s, true); }   // (a counter-attack keeps to its stretch of trench)
       const firing = this.tick < ai.fireUntil;
       if (this.tick < s.pinned && (ai.cover || s.id % 4 === 0)) {   // machine-gun fire cracking past (the covering men and one in four of the rest): down flat, crawling on now and then; then up and a rush forward
         s.stance = 2; ai.rushUntil = s.pinned + 150 + s.rng.int(120);
@@ -851,12 +964,26 @@ export class Sim {
     }
   }
   _goalFor(s, next = false) {
-    // the nearest objective the British don't hold yet, approached with some spread so they don't all walk one file
-    const objs = this.objectives.filter(o => o.owner !== s.side);
+    // a stretch of trench his side is going for (the lines in order): of those not much further than the nearest, his
+    // own (men spread over them, not all to the nearest), struck where he meets it with some spread along it so they
+    // don't all walk one file; once in it, clearing it: along the trench at the nearest enemy still in it
+    const objs = this._wanted(s.side), ai = s.ai;
     if (!objs.length) return null;
-    const o = objs.reduce((b, o) => Math.hypot(o.c[0] - s.x, o.c[1] - s.z) < Math.hypot(b.c[0] - s.x, b.c[1] - s.z) ? o : b);
-    return [o.c[0] + s.rng.range(-o.r, o.r) * 0.6, o.c[1] + s.rng.range(-o.r, o.r) * 0.6];
+    const near = objs.map(o => [this._nearObj(o, s.x, s.z), o]), dmin = Math.min(...near.map(n => n[0].d));
+    const cand = near.filter(n => n[0].d < dmin + 350), [q, o] = near.find(n => n[0].d < 25) || cand[s.id % cand.length];
+    if (q.d < 25) {
+      // (the man he is after: kept while he lives and is in the stretch; looked for again every 2 s at most)
+      let f = ai.hunt >= 0 ? this.soldiers[ai.hunt] : null;
+      if (!f || !f.alive || this._dObj(o, f.x, f.z) >= o.r) { f = null;
+        if (this.tick >= (ai.huntAt || 0)) { ai.huntAt = this.tick + 2 * HZ; let fd = 1e9;
+          for (const g of this.soldiers) { if (!g.alive || g.side === s.side || g.emerge > 0) continue; const dd = Math.abs(g.x - s.x) + Math.abs(g.z - s.z); if (dd < fd && this._dObj(o, g.x, g.z) < o.r) { fd = dd; f = g; } } } }   // (however far along it he is)
+      ai.hunt = f ? f.id : -1;
+      if (f) { const dx = f.x - s.x, dz = f.z - s.z, L = Math.hypot(dx, dz) || 1, k = Math.max(0, L - 1.5) / L; return [s.x + dx * k, s.z + dz * k]; }   // (to arm's length: the steel or the bomb does the rest)
+      return this._alongObj(o, s.rng, q.t, 80);
+    }
+    return this._alongObj(o, s.rng, q.t, 70);
   }
+
   _enemyNear(s, r) { for (const o of this.soldiers) if (o.alive && o.side !== s.side && Math.abs(o.x - s.x) < r && Math.abs(o.z - s.z) < r) return true; return false; }
   _eye(s) { return s.y + EYE[s.stance] + (s.gun >= 0 && s.gunRole === 'gunner' ? this.guns[s.gun].lift : 0); }   // (a gunner on his crate)
   _canSee(s, o, d) {
@@ -993,7 +1120,9 @@ export class Sim {
     this.events.push({ t: 'release', id: s.id });
   }
   // AI: a bomb at an enemy 10-32 m off (12-20 s between one man's throws); most of all at one in a trench or out of sight behind cover (what a rifle can't
-  // reach), never with a man of his own side near where it would land
+  // reach), never with a man of his own side near where it would land, and never at one of his own side's machine guns, even
+// with the enemy on it (it is wanted back: the gun is worth more than its crew); the enemy's own guns are fair game
+  _ownGunNear(s, x, z, r = 6) { for (const g of this.guns) if (GUNS[g.kind].side === s.side && Math.abs(g.x - x) < r && Math.abs(g.z - z) < r && Math.hypot(g.x - x, g.z - z) < r) return true; return false; }
   _considerThrow(s, cand, best) {
     const ai = s.ai;
     if (!(s.grenades > 0) || s.throw > 0 || s.climb > 0 || s.reloading > 0 || s.gun >= 0 || this.tick < (ai.nadeAt || 0)) return false;
@@ -1002,10 +1131,11 @@ export class Sim {
     for (let i = 0; i < Math.min(6, cand.length); i++) {
       const o = cand[i][1]; if (!o.alive || cand[i][0] < 10) continue; if (cand[i][0] > 45) return false;
       const d = Math.hypot(o.x - s.x, o.z - s.z); if (d < 10 || d > 32) continue;   // (closer than 10 m: the steel)
+      if (this._ownGunNear(s, o.x, o.z)) continue;   // (our gun, taken: to be retaken with the rifle and the bayonet)
       const hidden = this.T.inTrench(o.x, o.z) || o.id !== best || o.gun >= 0;   // (a gun crew above all)
       if (s.rng() > (hidden ? 1 : s.side === 'GER' ? 0.5 : 0.27)) return false;   // (x 0.3 above: 0.3, 0.15, 0.08)
       const err = 1 + d * 0.06, tx = o.x + s.rng.gauss() * err, tz = o.z + s.rng.gauss() * err;
-      if (this._friendNear(s, tx, tz, 7)) return false;
+      if (this._friendNear(s, tx, tz, 7) || this._ownGunNear(s, tx, tz)) return false;
       // the speed for a 45-degree lob (35 if that's beyond him) to land there
       const L0 = nadeLaunch(s.x, this._eye(s), s.z, 0, 0, 0), D = Math.hypot(tx - s.x, tz - s.z) - 0.3, h = this.T.height(tx, tz) - L0.y;
       for (const ang of [0.78, 0.6, 1.0]) {
@@ -1126,6 +1256,7 @@ export class Sim {
       mx = (-sy * f + cy * sd) / L; mz = (-cy * f - sy * sd) / L;
       if (s.isPlayer || (this.tick + s.id) % 6 === 0) s.wire = this.F.wireAt(s.x, s.z);   // AI: every sixth tick is enough
       if (s.wire > 0) sp *= 1 - s.wire * 0.78;
+      if (s.isPlayer && s.squeeze) sp *= 0.55;   // squeezing past a man pressed to the trench wall
       // walking up a steep crater side is slow (the ground under him is known from last tick)
       const ahead = T.height(s.x + mx * 0.6, s.z + mz * 0.6) - (s.gh ?? s.y); if (ahead > 0.15) sp *= Math.max(0.45, 1 - ahead * 0.8);
     } else s.stamina = Math.min(1, s.stamina + DTm / 7);
@@ -1156,6 +1287,7 @@ export class Sim {
       else if (I.jump && s.onGround) this._tryClimb(s, mx, mz);
     }
     const moved = s.x !== x0 || s.z !== z0 || !s.onGround;
+    if (s.isPlayer) { s.mvx = s.x - x0; s.mvz = s.z - z0; }
     // vertical: follow the ground, fall into trenches and shell holes
     const gh = T.height(s.x, s.z); s.gh = gh;
     if (I && I.jump && s.onGround && s.isPlayer && sp === 0) { s.vy = 3.6; s.onGround = false; }
@@ -1173,11 +1305,11 @@ export class Sim {
         const l = this.bump && this.bump.get((cx << 12) | cz); if (!l) continue;
         for (const o of l) {
           if (o === s || !o.alive || (o.climb > 0 && !s.isPlayer) || Math.abs(o.y - s.y) > 1.6) continue;   // (a man climbing out is solid to the player, who backs off: he isn't pulled off the wall)
-          const MIN = s.isPlayer || o.isPlayer ? 0.8 : 0.6, dx = s.x - o.x, dz = s.z - o.z, d = Math.hypot(dx, dz);
+          const gw = (s.isPlayer && o.giveWay) || (o.isPlayer && s.giveWay), MIN = gw ? (Math.abs(o.y - s.y) > 0.5 ? 0.3 : 0.45) : s.isPlayer || o.isPlayer ? 0.8 : 0.6, dx = s.x - o.x, dz = s.z - o.z, d = Math.hypot(dx, dz);   // (a man pressed to the wall for him: the player squeezes by)
           if (d >= MIN) continue;
           let ux = dx, uz = dz; if (d < 1e-4) { ux = x0 - s.x; uz = z0 - s.z; if (Math.hypot(ux, uz) < 1e-6) { ux = Math.cos(o.id); uz = Math.sin(o.id); } }
           const L = Math.hypot(ux, uz); ux /= L; uz /= L;
-          if (s.isPlayer && !o.isPlayer && !(o.climb > 0)) {   // the AI man steps aside (or, if he can't, the player stops)
+          if (s.isPlayer && !o.isPlayer && !(o.climb > 0) && !o.giveWay) {   // the AI man steps aside (or, if he can't, the player stops)
             const ox = s.x - ux * MIN, oz = s.z - uz * MIN;
             if (okAt(o, ox, oz)) { o.x = ox; o.z = oz; o.y = Math.max(o.y, T.height(ox, oz)); continue; }
           }
@@ -1186,7 +1318,7 @@ export class Sim {
           // still pressed together against a wall (the player dropping in beside him): the AI man steps off whichever way is clear
           if ((s.isPlayer || o.isPlayer) && Math.hypot(s.x - o.x, s.z - o.z) < MIN) {
             const pl = s.isPlayer ? s : o, ai = s.isPlayer ? o : s;
-            if (!(ai.climb > 0)) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + ai.id, ax = pl.x + Math.cos(a) * MIN, az = pl.z + Math.sin(a) * MIN; if (okAt(ai, ax, az)) { ai.x = ax; ai.z = az; ai.y = Math.max(ai.y, T.height(ax, az)); break; } }
+            if (!(ai.climb > 0) && !ai.giveWay) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + ai.id, ax = pl.x + Math.cos(a) * MIN, az = pl.z + Math.sin(a) * MIN; if (okAt(ai, ax, az)) { ai.x = ax; ai.z = az; ai.y = Math.max(ai.y, T.height(ax, az)); break; } }
           }
         }
       }
@@ -1295,30 +1427,38 @@ export class Sim {
   }
   _objectives() {
     if (this.tick % 30) return;
-    // the end: the British holding the Schwabenhoehe, La Boisselle and the Sausage and Scots Redoubts (A to D) at once win;
-    // the British with no one left to send have lost (and so the Germans, the other way)
+    // the end: the British holding all three lines (every stretch of A, B and C) at once win; the British with no one left
+    // to send have lost (and so the Germans, the other way)
     if (!this.over && this.flags.zero) {
-      const held = ['A', 'B', 'C', 'D'].every(id => this.objectives.find(o => o.id === id)?.owner === 'BRI');
-      const end = held ? { winner: 'BRI', reason: 'The British hold the Schwabenhöhe, La Boisselle and the Sausage and Scots Redoubts' }
+      const held = this.objectives.every(o => o.owner === 'BRI');
+      const end = held ? { winner: 'BRI', reason: 'The British have taken and hold the German front, support and reserve lines' }
         : this.tally('BRI').left <= 0 ? { winner: 'GER', reason: 'The British have no one left to send' }
         : this.tally('GER').left <= 0 ? { winner: 'BRI', reason: 'The German garrison is gone' } : null;
       if (end) { this.over = { ...end, at: this.clock() }; this.events.push({ t: 'gameover', ...this.over }); }
     }
+    // who is in each stretch of trench (within its r of the trench line)
+    for (const o of this.objectives) { o.b = 0; o.g = 0; if (!o.box) { const xs = o.pts.map(q => q[0]), zs = o.pts.map(q => q[1]); o.box = [Math.min(...xs) - o.r, Math.min(...zs) - o.r, Math.max(...xs) + o.r, Math.max(...zs) + o.r]; } }
+    for (const s of this.soldiers) {
+      if (!s.alive || s.emerge > 0) continue;
+      for (const o of this.objectives) { const B = o.box; if (s.x < B[0] || s.x > B[2] || s.z < B[1] || s.z > B[3] || this._dObj(o, s.x, s.z) >= o.r) continue; if (s.side === 'BRI') o.b++; else o.g++; break; }
+    }
+    const before = Object.fromEntries(this.lines.map(L => [L.id, this.lineHeld(L.id)]));
     for (const o of this.objectives) {
-      // taking a strongpoint means holding it: twice as many British as Germans inside it and no German left at its heart
-      // (the inner third), for about 30 s; the Germans win it back by outnumbering the British there (faster: they know
-      // it); contested, it drifts back to whoever holds it
-      let b = 0, g = 0, gCore = 0;
-      for (const s of this.soldiers) { if (!s.alive || s.emerge > 0) continue; const d = Math.hypot(s.x - o.c[0], s.z - o.c[1]); if (d >= o.r) continue; if (s.side === 'BRI') b++; else { g++; if (d < o.r * 0.35) gCore++; } }
-      const old = o.progress;
-      if (b >= 3 && b >= 2 * g && gCore === 0) o.progress = Math.min(1, o.progress + 1 / 60);
-      else if (g > b) o.progress = Math.max(-1, o.progress - 1 / 30);
-      else o.progress += (o.owner === 'BRI' ? 1 : -1) * (1 / 240) * (o.progress > -1 && o.progress < 1 ? 1 : 0);
+      // taking a stretch means clearing it: British in it (three or more) and not one German left, for about 40 s (from German hands); and
+      // only once the line in front is wholly British (the lines are taken in order). The Germans win it back the same
+      // way, faster (they know it). Contested, it stays as it is; empty, it drifts back to whoever holds it.
+      const li = this.lines.findIndex(L => L.id === o.line), open = li === 0 || this.lineHeld(this.lines[li - 1].id), b = o.b, g = o.g, old = o.progress;
+      if (b >= 3 && g === 0) { if (open || o.progress < 0) o.progress = Math.min(open ? 1 : 0, o.progress + 1 / 40); }
+      else if (g > 0 && b === 0) o.progress = Math.max(-1, o.progress - 1 / 30);
+      else if (!b && !g) o.progress += (o.owner === 'BRI' ? 1 : -1) * (1 / 240) * (o.progress > -1 && o.progress < 1 ? 1 : 0);
       o.progress = Math.max(-1, Math.min(1, o.progress)); if (o.progress === old) continue;
       const owner = o.progress >= 1 ? 'BRI' : o.progress <= -1 ? 'GER' : o.owner;
-      if (owner !== o.owner) { o.owner = owner; this.events.push({ t: 'captured', id: o.id, name: o.name, side: owner }); this.stats.captures.push({ at: this.clock(), id: o.id, name: o.name, side: owner }); }
+      if (owner !== o.owner) { o.owner = owner; this.events.push({ t: 'captured', id: o.id, name: o.name, line: o.line, lineName: o.lineName, side: owner }); this.stats.captures.push({ at: this.clock(), id: o.id, name: o.name, side: owner }); }
     }
+    // a whole line taken (or lost again)
+    for (const L of this.lines) { const now = this.lineHeld(L.id); if (now !== before[L.id]) this.events.push({ t: 'line', id: L.id, name: L.name, side: now ? 'BRI' : 'GER' }); }
   }
+
   // ---------- wire: a man going forward goes round a belt when he can see a way through ----------
   // The heading toward his goal if the next 12 m are clear of wire; else the nearest heading that is (up to 80 degrees
   // off), keeping to the side he chose last so he works along the belt to a gap instead of dithering; if there is no
@@ -1339,8 +1479,8 @@ export class Sim {
   }
   // the objective a side is going for (the nearest it doesn't hold), or, when it holds them all, the nearest it holds
   target(side, x, z) {
-    const near = l => l.length ? l.reduce((b, o) => Math.hypot(o.c[0] - x, o.c[1] - z) < Math.hypot(b.c[0] - x, b.c[1] - z) ? o : b) : null;
-    return near(this.objectives.filter(o => o.owner !== side)) || near(this.objectives);
+    const near = l => l.length ? l.reduce((b, o) => this._dObj(o, x, z) < this._dObj(b, x, z) ? o : b) : null;
+    return near(this._wanted(side)) || near(this.objectives);
   }
   // men the player may go back in as: alive, his side, not halfway up a wall, no enemy within 25 m; nearest the
   // objective first (the fight, not the far end of the line)
@@ -1467,7 +1607,7 @@ export class Sim {
         weapon: W.name, mag: p.mag, reserve: p.reserve, reloading: p.reloading > 0, oob: this.outOfBounds(), inTrench: !!this.T.inTrench(p.x, p.z), kills: p.kills, deaths: p.deaths,
         canRespawn: !p.alive && this.tick - p.deadAt > HZ * (p.gaveUp ? 0.5 : 3), jammed: p.jam > 0, wire: +this.F.wireAt(p.x, p.z).toFixed(2), climbing: p.climb > 0 },
       soldiers: this.soldiers.filter(s => !s.isPlayer).map(s => ({ id: s.id, side: s.side, role: s.role, x: +s.x.toFixed(1), z: +s.z.toFixed(1), alive: s.alive, mode: s.ai.mode })),
-      objectives: this.objectives.map(o => ({ id: o.id, name: o.name, owner: o.owner, progress: +o.progress.toFixed(2) })),
+      objectives: this.objectives.map(o => ({ id: o.id, line: o.line, name: o.name, owner: o.owner, progress: +o.progress.toFixed(2), b: o.b || 0, g: o.g || 0 })),
       score: this.score, tally: { BRI: this.tally('BRI'), GER: this.tally('GER') },
       guns: this.guns.map(g => ({ id: g.id, kind: g.kind, side: g.side, manned: !!this._manned(g), belt: g.belt, belts: g.belts })), onGun: p.gun,
     };

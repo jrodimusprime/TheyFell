@@ -9,7 +9,7 @@ const meta = JSON.parse(readFileSync(G + 'data/dem.json')), b = readFileSync(G +
 const T = new Terrain(meta, new Uint16Array(b.buffer, b.byteOffset, b.length / 2), map), S = new Sim(T, new Features(T), { seed: 1 });
 let fail = 0; const ok = (n, v, x = '') => { console.log(v ? 'PASS' : 'FAIL', n, x); if (!v) fail++; };
 const ger = S.guns.filter(g => g.side === 'GER'), bri = S.guns.filter(g => g.side === 'BRI');
-ok('16 MG 08s in the German line and 3 Vickers in the British, each with a gunner and a loader', ger.length === 16 && bri.length === 3 && S.guns.every(g => g.gunner >= 0 && g.loader >= 0));
+ok('20 MG 08s along the three German lines and 3 Vickers in the British, each with a gunner and a loader', ger.length === 20 && new Set(ger.map(g => { let b = null, bd = 1e9; for (const p of S.trenchPts.GER) { const d = Math.hypot(p[0] - g.x, p[1] - g.z); if (d < bd) { bd = d; b = p; } } return T.segs[b[2]].line; })).size >= 3 && bri.length === 3 && S.guns.every(g => g.gunner >= 0 && g.loader >= 0));
 const sees = S.guns.map(g => { let n = 0; for (let k = -4; k <= 4; k++) { const M = S.gunMuzzle(g, g.yaw0 + k * g.arc / 4, 0); if (T.raycast(M.ox, M.oy, M.oz, M.dx, M.dy, M.dz, 60) < 0) n++; } return n; });
 ok('every gun can fire out over its parapet across at least a third of its arc', sees.every(n => n >= 3), sees.join(' '));
 ok('no gun in a mine crater', S.guns.every(g => (map.mines || []).every(m => Math.hypot(g.x - m.c[0], g.z - m.c[1]) > m.craterR)));

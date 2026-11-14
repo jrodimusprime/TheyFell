@@ -36,7 +36,7 @@ export async function loadSkinnedMen(scene, renderer) {
   return men;
 }
 
-const _UP = new THREE.Vector3(0, 1, 0), _Q1 = new THREE.Quaternion(), _Q2 = new THREE.Quaternion(), _Q3 = new THREE.Quaternion(), _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3(), _V3 = new THREE.Vector3();
+const _UP = new THREE.Vector3(0, 1, 0), _Q1 = new THREE.Quaternion(), _Q2 = new THREE.Quaternion(), _Q3 = new THREE.Quaternion(), _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3(), _V3 = new THREE.Vector3(), _V4 = new THREE.Vector3();
 const clamp01 = v => Math.max(0, Math.min(1, v));
 // a strike's reach over its 36 ticks: drawn back 15 cm, driven 45 cm forward at the 15th (when it lands), then recovered
 export function thrust(left, n = 36) { const u = 1 - left / n; return u < 0.38 ? -0.15 * Math.sin(u / 0.38 * Math.PI / 2) : u < 0.5 ? -0.15 + 0.6 * ((u - 0.38) / 0.12) : 0.45 * (1 - Math.min(1, (u - 0.5) / 0.5)) ** 2; }
@@ -116,7 +116,8 @@ class SkinnedMen {
         if (s.gun >= 0 && this.guns && sim.guns[s.gun]) { const gun = sim.guns[s.gun], [cx, cz] = sim._crewSpot(gun, s.gunRole); if ((gun.gunner === s.id || gun.loader === s.id) && Math.hypot(s.x - cx, s.z - cz) < 0.6) { this._crewPose(e, s, gun, dt); return; } }
         const st = men.state[s.id], sp = st.speed || 0, aim = s.ai ? s.ai.target >= 0 && sp < 0.4 : s.ads;
         let clip, scale = 1;
-        if (s.stance >= 1) { clip = sp > 0.35 ? 'Crouch_Fwd_Loop' : aim ? 'Rifle_Kneel_Aim' : 'Crouch_Idle_Loop'; scale = sp > 0.35 ? Math.min(1.6, Math.max(0.7, sp / 1.1)) : 1; }
+        if (s.giveWay) clip = 'Idle_Loop';   // (stepping aside for the player: a short side-step, then standing still)
+        else if (s.stance >= 1) { clip = sp > 0.35 ? 'Crouch_Fwd_Loop' : aim ? 'Rifle_Kneel_Aim' : 'Crouch_Idle_Loop'; scale = sp > 0.35 ? Math.min(1.6, Math.max(0.7, sp / 1.1)) : 1; }
         else if (sp > 3.8) { clip = 'Sprint_Loop'; const G = this.gait[side][clip]; scale = Math.min(1.4, Math.max(0.7, sp / (G.v * STRIDE[clip].k))); }
         else if (sp > 2.0) { clip = 'Jog_Fwd_Loop'; const G = this.gait[side][clip]; scale = Math.min(1.4, Math.max(0.7, sp / (G.v * STRIDE[clip].k))); }
         else if (sp > 0.35) { clip = 'Walk_Loop'; scale = Math.min(1.6, Math.max(0.6, sp / 1.4)); }
@@ -124,6 +125,7 @@ class SkinnedMen {
         this._play(e, clip, scale, dt); e.mixer.update(dt);
         e.o.position.set(s.x, s.y, s.z); e.o.rotation.set(0, s.yaw + Math.PI, 0);
         if (STRIDE[e.clip]) this._stride(e, this.gait[side][e.clip], STRIDE[e.clip]);
+        if (s.giveWay) { this._makeWay(e, s, sim); return; }
         const aiming = /Aim/.test(e.clip);
         if (s.strike > 0) holdRifle(e.o, e.gun, 'low', 0.05, e.bones, thrust(s.strike));   // the bayonet: drawn back, driven in, recovered
         else holdRifle(e.o, e.gun, aiming ? 'aim' : sp > 0.35 && s.stance === 0 ? 'port' : 'low', aiming ? s.pitch : 0, e.bones);
@@ -169,6 +171,17 @@ class SkinnedMen {
     e.action.paused = false; e.action.time = Math.min(e.action.getClip().duration - 0.01, Math.max(0, (THROW_PREP - s.throw) / 60)); e.mixer.update(0);
     e.o.position.set(s.x, s.y, s.z); e.o.rotation.set(0, s.yaw + Math.PI, 0);
     holdRifle(e.o, e.gun, 'trail', 0, e.bones, 0, 'left');
+  }
+  // making way for the player in a trench: side-on, his back eased against the wall (or the parapet, up on the fire-step),
+  // his head turned to the man squeezing past, rifle held upright across his chest out of the way
+  _makeWay(e, s, sim) {
+    const B = e.bones, p = sim.player, yaw = s.yaw, left = _V3.set(-Math.cos(yaw), 0, Math.sin(yaw));
+    e.o.updateMatrixWorld(true);
+    const turn = (bone, axis, ang) => { if (!bone) return; const q = _Q1.setFromAxisAngle(axis, ang).multiply(bone.getWorldQuaternion(_Q2)); bone.quaternion.copy(bone.parent.getWorldQuaternion(_Q3).invert().multiply(q)); bone.updateMatrixWorld(true); };
+    for (const b of [B.spine_01, B.spine_02, B.spine_03]) turn(b, left, -0.045);   // (leaning back a little: chest in)
+    const fy = Math.atan2(-(p.x - s.x), -(p.z - s.z)), dy = Math.max(-1.1, Math.min(1.1, Math.atan2(Math.sin(fy - yaw), Math.cos(fy - yaw))));
+    turn(B.neck_01, _V4.set(0, 1, 0), dy * 0.4); turn(B.Head, _V4.set(0, 1, 0), dy * 0.5);
+    holdRifle(e.o, e.gun, 'port', 0, B);
   }
   // climbing out: the clip for the head and spine, then the body placed on the climb path, leant, and its hands and feet
   // pinned with IK to the lip, the fire-step and the top
